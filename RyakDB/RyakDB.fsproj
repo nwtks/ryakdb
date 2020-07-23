@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src/Server/Task.fs" />
+    <Compile Include="src/Sql/Type.fs" />
+    <Compile Include="src/Sql/Predicate.fs" />
+    <Compile Include="src/Sql/Parse.fs" />
+    <Compile Include="src/Storage/File.fs" />
+    <Compile Include="src/Storage/Log.fs" />
+    <Compile Include="src/Storage/Type.fs" />
+    <Compile Include="src/Storage/Buffer.fs" />
+    <Compile Include="src/Storage/Record.fs" />
+    <Compile Include="src/Storage/Index.fs" />
+    <Compile Include="src/Storage/Catalog.fs" />
+    <Compile Include="src/Storage/Recovery.fs" />
+    <Compile Include="src/Storage/Concurrency.fs" />
+    <Compile Include="src/Storage/Transaction.fs" />
+    <Compile Include="src/Query/Algebra.fs" />
+    <Compile Include="src/Query/Materialize.fs" />
+    <Compile Include="src/Query/Planner.fs" />
+    <Compile Include="src/Server/Database.fs" />
+  </ItemGroup>
+</Project>

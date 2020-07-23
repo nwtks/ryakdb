@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src/TestInit.fs" />
+    <Compile Include="src/Sql/ParseTest.fs" />
+    <Compile Include="src/Storage/FileTest.fs" />
+    <Compile Include="src/Storage/LogTest.fs" />
+    <Compile Include="src/Storage/BufferTest.fs" />
+    <Compile Include="src/Storage/TransactionTest.fs" />
+    <Compile Include="src/Storage/RecordTest.fs" />
+    <Compile Include="src/Storage/CatalogTest.fs" />
+    <Compile Include="src/Storage/ConcurrencyTest.fs" />
+    <Compile Include="src/Storage/RecoveryTest.fs" />
+    <Compile Include="src/Query/AlgebraTest.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../RyakDB/RyakDB.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    <PackageReference Include="xunit" Version="2.4.1" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1" />
+    <PackageReference Include="coverlet.collector" Version="1.2.1" />
+  </ItemGroup>
+</Project>
