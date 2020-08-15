@@ -388,7 +388,8 @@ module ConcurrencyManager =
                   lockTable.XLock txNo (BlockIdLockerKey blockId)
           ModifyBlock =
               fun blockId ->
-                  lockTable.IXLock txNo (BlockIdLockerKey blockId)
+                  let (BlockId (fileName, _)) = blockId
+                  lockTable.IXLock txNo (FileNameLockerKey fileName)
                   lockTable.XLock txNo (BlockIdLockerKey blockId)
           ReadBlock =
               fun blockId ->
