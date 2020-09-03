@@ -201,7 +201,9 @@ module BufferPoolManager =
                 pinBuffer state buffer
                 buffer
 
-        roundrobinBuffer (pinNew assignBuffer) state.LastReplacedBuff
+        roundrobinBuffer
+            (pinNew assignBuffer)
+            state.LastReplacedBuff
             ((state.LastReplacedBuff + 1) % state.BufferPool.Length)
 
     let rec pin state blockId =

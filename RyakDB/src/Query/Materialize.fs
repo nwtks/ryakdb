@@ -3,7 +3,7 @@ namespace RyakDB.Query.Materialize
 open RyakDB.Sql.Type
 open RyakDB.Storage.Type
 open RyakDB.Storage.Record
-open RyakDB.Storage.Catalog
+open RyakDB.Storage.Table
 open RyakDB.Query.Algebra
 
 module RecordComparator =
@@ -25,11 +25,13 @@ module BufferNeeds =
     let bestRoot tx size =
         let rec loopRoot avail k i =
             if k > avail then
-                loopRoot avail
+                loopRoot
+                    avail
                     ((double size, 1.0 / double i)
                      |> System.Math.Pow
                      |> System.Math.Ceiling
-                     |> int32) (i + 1)
+                     |> int32)
+                    (i + 1)
             else
                 k
 
@@ -149,12 +151,14 @@ module TempRecordPage =
 module Materialize =
     let newTempRecordPage fileMgr tx schema tblcount =
         let ti =
-            TableInfo.newTableInfo fileMgr
+            TableInfo.newTableInfo
+                fileMgr
                 ("_tempRecordFile"
                  + "-"
                  + tblcount.ToString()
                  + "-"
-                 + tx.TransactionNumber.ToString()) schema
+                 + tx.TransactionNumber.ToString())
+                schema
 
         let trp =
             RecordFormatter.newFormatter ti

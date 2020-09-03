@@ -68,10 +68,9 @@ module LockTable =
                    IXLockers = Set.empty
                    RequestSet = Set.empty }))
 
-    let getLockSet
-        (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
-        txNo
-        =
+    let getLockSet (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
+                   txNo
+                   =
         lockByTxMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
 
     let isSLocked lockers = not (lockers.SLockers.IsEmpty)

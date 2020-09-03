@@ -22,17 +22,16 @@ module Transaction =
         lifecycleListeners
         |> List.iter (fun l -> l.OnTxEndStatement(tx))
 
-    let newTransaction
-        txListener
-        recoveryMgr
-        recoveryListener
-        concurMgr
-        concurListener
-        bufferMgr
-        bufferListener
-        txNo
-        readOnly
-        =
+    let newTransaction txListener
+                       recoveryMgr
+                       recoveryListener
+                       concurMgr
+                       concurListener
+                       bufferMgr
+                       bufferListener
+                       txNo
+                       readOnly
+                       =
         let lifecycleListeners =
             [ txListener
               recoveryListener
@@ -71,15 +70,14 @@ module TransactionManager =
         { ActiveTxs: Set<int64>
           NextTxNo: int64 }
 
-    let newTransaction
-        (fileMgr: FileManager)
-        (logMgr: LogManager)
-        (catalogMgr: CatalogManager)
-        (bufferPoolMgr: BufferPoolManager)
-        (lockTable: LockTable)
-        (lifecycleListener: TransactionLifecycleListener)
-        (state: TransactionManagerState)
-        =
+    let newTransaction (fileMgr: FileManager)
+                       (logMgr: LogManager)
+                       (catalogMgr: CatalogManager)
+                       (bufferPoolMgr: BufferPoolManager)
+                       (lockTable: LockTable)
+                       (lifecycleListener: TransactionLifecycleListener)
+                       (state: TransactionManagerState)
+                       =
         fun readOnly isolationLevel ->
             let recoveryMgr, recoveryListener =
                 RecoveryManager.newRecoveryManager fileMgr logMgr catalogMgr state.NextTxNo readOnly
@@ -91,8 +89,16 @@ module TransactionManager =
                 ConcurrencyManager.newConcurrencyManager lockTable state.NextTxNo isolationLevel
 
             let tx =
-                Transaction.newTransaction lifecycleListener recoveryMgr recoveryListener concurMgr concurListener
-                    bufferMgr bufferListener state.NextTxNo readOnly
+                Transaction.newTransaction
+                    lifecycleListener
+                    recoveryMgr
+                    recoveryListener
+                    concurMgr
+                    concurListener
+                    bufferMgr
+                    bufferListener
+                    state.NextTxNo
+                    readOnly
 
             { state with
                   ActiveTxs = state.ActiveTxs.Add tx.TransactionNumber
@@ -119,13 +125,12 @@ module TransactionManager =
         { state with
               ActiveTxs = state.ActiveTxs.Remove tx.TransactionNumber }
 
-    let newTransactionManager
-        (fileMgr: FileManager)
-        (logMgr: LogManager)
-        (catalogMgr: CatalogManager)
-        (bufferPoolMgr: BufferPoolManager)
-        (lockTable: LockTable)
-        =
+    let newTransactionManager (fileMgr: FileManager)
+                              (logMgr: LogManager)
+                              (catalogMgr: CatalogManager)
+                              (bufferPoolMgr: BufferPoolManager)
+                              (lockTable: LockTable)
+                              =
         let mutable state = { ActiveTxs = Set.empty; NextTxNo = 0L }
 
         let txNoLock = obj ()
@@ -139,8 +144,16 @@ module TransactionManager =
               fun readOnly isolationLevel ->
                   lock txNoLock (fun () ->
                       let nextstate, tx =
-                          newTransaction fileMgr logMgr catalogMgr bufferPoolMgr lockTable lifecycleListener state
-                              readOnly isolationLevel
+                          newTransaction
+                              fileMgr
+                              logMgr
+                              catalogMgr
+                              bufferPoolMgr
+                              lockTable
+                              lifecycleListener
+                              state
+                              readOnly
+                              isolationLevel
 
                       state <- nextstate
                       tx)

@@ -118,7 +118,7 @@ module FileManager =
         lock (prepareAnchor state.Anchors fileName) (fun () ->
             let newFileChannel name =
                 if state.InMemory then
-                    FileChannel.newMemoryChannel()
+                    FileChannel.newMemoryChannel ()
                 else
                     System.IO.Path.Join(state.DbDirectory, name)
                     |> FileChannel.newFileChannel

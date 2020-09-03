@@ -85,7 +85,8 @@ module LogRecord =
             record.NextVal BigIntSqlType |> SqlConstant.toLong
 
         let logicalStartLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         LogicalAbortRecord(txNo, logicalStartLSN, Some record.Lsn)
@@ -108,7 +109,8 @@ module LogRecord =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let logicalStartLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         RecordFileInsertEndRecord(txNo, tblName, blockNo, slotId, logicalStartLSN, Some record.Lsn)
@@ -131,7 +133,8 @@ module LogRecord =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let logicalStartLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         RecordFileDeleteEndRecord(txNo, tblName, blockNo, slotId, logicalStartLSN, Some record.Lsn)
@@ -153,7 +156,8 @@ module LogRecord =
         let searchKey =
             [ 1 .. count ]
             |> List.map (fun _ ->
-                SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+                SqlType.fromInt
+                    (record.NextVal IntSqlType |> SqlConstant.toInt)
                     (record.NextVal IntSqlType |> SqlConstant.toInt)
                 |> record.NextVal)
             |> SearchKey.newSearchKey
@@ -165,7 +169,8 @@ module LogRecord =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let logicalStartLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         IndexInsertEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLSN, Some record.Lsn)
@@ -187,7 +192,8 @@ module LogRecord =
         let searchKey =
             [ 1 .. count ]
             |> List.map (fun _ ->
-                SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+                SqlType.fromInt
+                    (record.NextVal IntSqlType |> SqlConstant.toInt)
                     (record.NextVal IntSqlType |> SqlConstant.toInt)
                 |> record.NextVal)
             |> SearchKey.newSearchKey
@@ -199,7 +205,8 @@ module LogRecord =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let logicalStartLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         IndexDeleteEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLSN, Some record.Lsn)
@@ -220,14 +227,16 @@ module LogRecord =
         let keyType =
             [ 1 .. count ]
             |> List.map (fun _ ->
-                SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+                SqlType.fromInt
+                    (record.NextVal IntSqlType |> SqlConstant.toInt)
                     (record.NextVal IntSqlType |> SqlConstant.toInt))
             |> SearchKeyType.newSearchKeyTypeByTypes
 
         let indexBlkId =
             BlockId.newBlockId
                 (record.NextVal(VarcharSqlType 0)
-                 |> SqlConstant.toString) (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+                 |> SqlConstant.toString)
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         let slotId =
             record.NextVal IntSqlType |> SqlConstant.toInt
@@ -250,20 +259,23 @@ module LogRecord =
         let keyType =
             [ 1 .. count ]
             |> List.map (fun _ ->
-                SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+                SqlType.fromInt
+                    (record.NextVal IntSqlType |> SqlConstant.toInt)
                     (record.NextVal IntSqlType |> SqlConstant.toInt))
             |> SearchKeyType.newSearchKeyTypeByTypes
 
         let indexBlkId =
             BlockId.newBlockId
                 (record.NextVal(VarcharSqlType 0)
-                 |> SqlConstant.toString) (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+                 |> SqlConstant.toString)
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         let slotId =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let undoNextLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLSN, Some record.Lsn)
@@ -284,14 +296,16 @@ module LogRecord =
         let keyType =
             [ 1 .. count ]
             |> List.map (fun _ ->
-                SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+                SqlType.fromInt
+                    (record.NextVal IntSqlType |> SqlConstant.toInt)
                     (record.NextVal IntSqlType |> SqlConstant.toInt))
             |> SearchKeyType.newSearchKeyTypeByTypes
 
         let indexBlkId =
             BlockId.newBlockId
                 (record.NextVal(VarcharSqlType 0)
-                 |> SqlConstant.toString) (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+                 |> SqlConstant.toString)
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         let slotId =
             record.NextVal IntSqlType |> SqlConstant.toInt
@@ -314,20 +328,23 @@ module LogRecord =
         let keyType =
             [ 1 .. count ]
             |> List.map (fun _ ->
-                SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+                SqlType.fromInt
+                    (record.NextVal IntSqlType |> SqlConstant.toInt)
                     (record.NextVal IntSqlType |> SqlConstant.toInt))
             |> SearchKeyType.newSearchKeyTypeByTypes
 
         let indexBlkId =
             BlockId.newBlockId
                 (record.NextVal(VarcharSqlType 0)
-                 |> SqlConstant.toString) (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+                 |> SqlConstant.toString)
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         let slotId =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let undoNextLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLSN, Some record.Lsn)
@@ -342,13 +359,15 @@ module LogRecord =
         let blkId =
             BlockId.newBlockId
                 (record.NextVal(VarcharSqlType 0)
-                 |> SqlConstant.toString) (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+                 |> SqlConstant.toString)
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         let offset =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let sqlType =
-            SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+            SqlType.fromInt
+                (record.NextVal IntSqlType |> SqlConstant.toInt)
                 (record.NextVal IntSqlType |> SqlConstant.toInt)
 
         let value = record.NextVal sqlType
@@ -365,20 +384,23 @@ module LogRecord =
         let blkId =
             BlockId.newBlockId
                 (record.NextVal(VarcharSqlType 0)
-                 |> SqlConstant.toString) (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+                 |> SqlConstant.toString)
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         let offset =
             record.NextVal IntSqlType |> SqlConstant.toInt
 
         let sqlType =
-            SqlType.fromInt (record.NextVal IntSqlType |> SqlConstant.toInt)
+            SqlType.fromInt
+                (record.NextVal IntSqlType |> SqlConstant.toInt)
                 (record.NextVal IntSqlType |> SqlConstant.toInt)
 
         let value = record.NextVal sqlType
         let newValue = record.NextVal sqlType
 
         let undoNextLSN =
-            LogSeqNo.newLogSeqNo (record.NextVal BigIntSqlType |> SqlConstant.toLong)
+            LogSeqNo.newLogSeqNo
+                (record.NextVal BigIntSqlType |> SqlConstant.toLong)
                 (record.NextVal BigIntSqlType |> SqlConstant.toLong)
 
         SetValueClr(txNo, blkId, offset, sqlType, value, newValue, undoNextLSN, Some record.Lsn)
@@ -748,13 +770,12 @@ module RecoveryManager =
         { TxNo: int64
           mutable LogicalStartLSN: LogSeqNo option }
 
-    let rollback
-        (fileMgr: FileManager)
-        (logMgr: LogManager)
-        (catalogMgr: CatalogManager)
-        (state: RecoveryManagerState)
-        (tx: Transaction)
-        =
+    let rollback (fileMgr: FileManager)
+                 (logMgr: LogManager)
+                 (catalogMgr: CatalogManager)
+                 (state: RecoveryManagerState)
+                 (tx: Transaction)
+                 =
         let undoLogRecord =
             LogRecord.undo fileMgr logMgr catalogMgr tx
 
@@ -877,13 +898,12 @@ module RecoveryManager =
             |> LogRecord.writeToLog logMgr
             |> logMgr.Flush
 
-    let onTxRollback
-        (fileMgr: FileManager)
-        (logMgr: LogManager)
-        (catalogMgr: CatalogManager)
-        (state: RecoveryManagerState)
-        (tx: Transaction)
-        =
+    let onTxRollback (fileMgr: FileManager)
+                     (logMgr: LogManager)
+                     (catalogMgr: CatalogManager)
+                     (state: RecoveryManagerState)
+                     (tx: Transaction)
+                     =
         if not (tx.ReadOnly) then
             rollback fileMgr logMgr catalogMgr state tx
             LogRecord.newRollbackRecord state.TxNo
@@ -901,7 +921,11 @@ module RecoveryManager =
             None
         else
             let record =
-                LogRecord.newSetValueRecord state.TxNo blk offset (buffer.GetVal offset (SqlConstant.sqlType newVal))
+                LogRecord.newSetValueRecord
+                    state.TxNo
+                    blk
+                    offset
+                    (buffer.GetVal offset (SqlConstant.sqlType newVal))
                     newVal
 
             let lsn = LogRecord.writeToLog logMgr record
@@ -944,14 +968,13 @@ module RecoveryManager =
             Some(lsn)
         | _ -> failwith "Logical start LSN is null (in logRecordFileDeletionEnd)"
 
-    let logIndexInsertionEnd
-        (logMgr: LogManager)
-        (state: RecoveryManagerState)
-        indexName
-        searchKey
-        recordBlockNo
-        recordSlotId
-        =
+    let logIndexInsertionEnd (logMgr: LogManager)
+                             (state: RecoveryManagerState)
+                             indexName
+                             searchKey
+                             recordBlockNo
+                             recordSlotId
+                             =
         match state.LogicalStartLSN with
         | Some (startLsn) ->
             let record =
@@ -962,14 +985,13 @@ module RecoveryManager =
             Some(lsn)
         | _ -> failwith "Logical start LSN is null (in logIndexInsertionEnd)"
 
-    let logIndexDeletionEnd
-        (logMgr: LogManager)
-        (state: RecoveryManagerState)
-        indexName
-        searchKey
-        recordBlockNo
-        recordSlotId
-        =
+    let logIndexDeletionEnd (logMgr: LogManager)
+                            (state: RecoveryManagerState)
+                            indexName
+                            searchKey
+                            recordBlockNo
+                            recordSlotId
+                            =
         match state.LogicalStartLSN with
         | Some (startLsn) ->
             let record =
@@ -1015,7 +1037,12 @@ module RecoveryManager =
             None
         else
             let record =
-                LogRecord.newSetValueClr compTxNo blk offset (buffer.GetVal offset (SqlConstant.sqlType newVal)) newVal
+                LogRecord.newSetValueClr
+                    compTxNo
+                    blk
+                    offset
+                    (buffer.GetVal offset (SqlConstant.sqlType newVal))
+                    newVal
                     undoNextLSN
 
             let lsn = LogRecord.writeToLog logMgr record

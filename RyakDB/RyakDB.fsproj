@@ -13,6 +13,7 @@
     <Compile Include="src/Storage/Type.fs" />
     <Compile Include="src/Storage/Buffer.fs" />
     <Compile Include="src/Storage/Record.fs" />
+    <Compile Include="src/Storage/Table.fs" />
     <Compile Include="src/Storage/Index.fs" />
     <Compile Include="src/Storage/Catalog.fs" />
     <Compile Include="src/Storage/Recovery.fs" />

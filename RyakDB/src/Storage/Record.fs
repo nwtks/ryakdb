@@ -322,7 +322,8 @@ module RecordFormatter =
     let makeDefaultRecord tableInfo (offsetMap: Map<string, int32>) (buffer: Buffer) pos =
         tableInfo.Schema.Fields()
         |> List.iter (fun field ->
-            buffer.SetValue (pos + 4 + offsetMap.[field])
+            buffer.SetValue
+                (pos + 4 + offsetMap.[field])
                 (tableInfo.Schema.SqlType field
                  |> SqlConstant.defaultConstant))
 
@@ -368,7 +369,10 @@ module RecordFile =
                   CurrentBlockNo = blockNo
                   RecordPage =
                       Some
-                          (RecordPage.newRecordPage state.Tx (BlockId.newBlockId state.FileName blockNo) state.TableInfo
+                          (RecordPage.newRecordPage
+                              state.Tx
+                               (BlockId.newBlockId state.FileName blockNo)
+                               state.TableInfo
                                state.DoLog) },
             true
 

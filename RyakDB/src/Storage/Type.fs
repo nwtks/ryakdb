@@ -58,7 +58,6 @@ module Index =
 
     type SearchRange =
         { Size: unit -> int32
-          Get: int32 -> SqlConstantRange
           IsValid: unit -> bool
           GetMin: unit -> SearchKey
           GetMax: unit -> SearchKey
@@ -144,17 +143,19 @@ module Transaction =
           LifecycleListener: TransactionLifecycleListener }
 
 [<AutoOpen>]
-module Catalog =
+module Table =
     type TableInfo =
         { TableName: string
           Schema: Schema
           FileName: string
           OpenFile: Transaction -> bool -> RecordFile }
 
+[<AutoOpen>]
+module Catalog =
     type IndexInfo =
         { IndexName: string
           IndexType: IndexType
           TableName: string
           FieldNames: string list
           FileName: string
-          OpenIndex : Transaction -> Index}
+          OpenIndex: Transaction -> Index }

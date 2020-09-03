@@ -4,7 +4,7 @@ open Xunit
 open RyakDB.Sql.Type
 open RyakDB.Storage.Type
 open RyakDB.Storage.Record
-open RyakDB.Storage.Catalog
+open RyakDB.Storage.Table
 open RyakDB.Server.Database
 
 module RecordPageTest =

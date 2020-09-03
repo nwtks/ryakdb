@@ -51,12 +51,11 @@ module Planner =
           ExecuteUpdate = executeUpdate updatePlanner }
 
 module QueryPlanner =
-    let rec createPlan
-            (fileMgr: FileManager)
-            (catalogMgr: CatalogManager)
-            (tx: Transaction)
-            (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
-        =
+    let rec createPlan (fileMgr: FileManager)
+                       (catalogMgr: CatalogManager)
+                       (tx: Transaction)
+                       (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
+                       =
         let newSortScan = Materialize.newSortScan fileMgr tx
         tables
         |> List.map (fun tblname ->

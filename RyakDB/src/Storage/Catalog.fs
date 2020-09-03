@@ -5,6 +5,7 @@ open RyakDB.Sql.Parse
 open RyakDB.Storage.Type
 open RyakDB.Storage.File
 open RyakDB.Storage.Record
+open RyakDB.Storage.Table
 open RyakDB.Storage.Index
 
 type CatalogManager =
@@ -43,33 +44,18 @@ type ViewManager =
       GetViewNamesByTable: Transaction -> string -> string list
       InitViewManager: Transaction -> unit }
 
-module TableInfo =
-    let openFile (fileMgr: FileManager) (tableInfo: TableInfo) (tx: Transaction) doLog =
-        RecordFile.newRecordFile fileMgr tx doLog tableInfo
-
-    let newTableInfo (fileMgr: FileManager) tableName schema =
-        let mutable tableInfo = None
-
-        let self =
-            { TableName = tableName
-              Schema = schema
-              FileName = tableName + ".tbl"
-              OpenFile = fun tx doLog -> openFile fileMgr (tableInfo |> Option.get) tx doLog }
-
-        tableInfo <- Some self
-        self
 
 module IndexInfo =
-    let openIndex (tblgMgr: TableManager) (indexInfo: IndexInfo) (tx: Transaction) =
+    let openIndex (fileMgr: FileManager) (tblgMgr: TableManager) (indexInfo: IndexInfo) (tx: Transaction) =
         match tblgMgr.GetTableInfo tx indexInfo.TableName with
-        | Some ti -> Index.newIndex tx indexInfo (SearchKeyType.newSearchKeyType ti.Schema indexInfo.FieldNames)
+        | Some ti -> Index.newIndex fileMgr tx indexInfo (SearchKeyType.newSearchKeyType ti.Schema indexInfo.FieldNames)
         | _ ->
             failwith
                 ("table '"
                  + indexInfo.TableName
                  + "' is not defined in catalog.")
 
-    let newIndexInfo (tblgMgr: TableManager) indexName indexType tableName fieldNames =
+    let newIndexInfo (fileMgr: FileManager) (tblgMgr: TableManager) indexName indexType tableName fieldNames =
         let mutable indexInfo = None
 
         let self =
@@ -78,7 +64,7 @@ module IndexInfo =
               TableName = tableName
               FieldNames = fieldNames
               FileName = tableName + ".tbl"
-              OpenIndex = fun tx -> openIndex tblgMgr (indexInfo |> Option.get) tx }
+              OpenIndex = fun tx -> openIndex fileMgr tblgMgr (indexInfo |> Option.get) tx }
 
         indexInfo <- Some self
         self
@@ -317,7 +303,7 @@ module IndexManager =
         dropIcat tblMgr
         dropKcat tblMgr
 
-    let getIndexInfoByName tblMgr tx indexName =
+    let getIndexInfoByName fileMgr tblMgr tx indexName =
         let rec loopIcat (rf: RecordFile) indexName =
             if rf.Next() then
                 if rf.GetVal IcatIdxName |> Option.get = indexName then
@@ -340,8 +326,10 @@ module IndexManager =
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
+
                 let tbl =
                     loopIcat rf (SqlConstant.newVarchar indexName)
+
                 rf.Close()
                 tbl)
 
@@ -363,17 +351,19 @@ module IndexManager =
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
+
                 let fields =
                     loopKcat rf (SqlConstant.newVarchar indexName) []
+
                 rf.Close()
                 fields)
 
         findIcat tblMgr indexName
         |> Option.bind (fun (idxName, tblName, idxType) ->
             findKcat tblMgr indexName
-            |> Option.map (fun fields -> IndexInfo.newIndexInfo tblMgr idxName idxType tblName fields))
+            |> Option.map (fun fields -> IndexInfo.newIndexInfo fileMgr tblMgr idxName idxType tblName fields))
 
-    let getIndexInfoByField tblMgr tx tableName field =
+    let getIndexInfoByField fileMgr tblMgr tx tableName field =
         let rec loopIcat (rf: RecordFile) tableName indexes =
             if rf.Next() then
                 if rf.GetVal IcatTblName |> Option.get = tableName then
@@ -397,8 +387,10 @@ module IndexManager =
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
+
                 let indexes =
                     loopIcat rf (SqlConstant.newVarchar tableName) []
+
                 rf.Close()
                 indexes)
 
@@ -415,20 +407,22 @@ module IndexManager =
             else
                 fields
 
-        let findKcat tblMgr idxName idxType tblName =
+        let findKcat fileMgr tblMgr idxName idxType tblName =
             tblMgr.GetTableInfo tx Kcat
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
+
                 let fields =
                     loopKcat rf (SqlConstant.newVarchar idxName) []
+
                 rf.Close()
                 if fields |> List.contains field
-                then Some(IndexInfo.newIndexInfo tblMgr idxName idxType tblName fields)
+                then Some(IndexInfo.newIndexInfo fileMgr tblMgr idxName idxType tblName fields)
                 else None)
 
         fineIcat tblMgr tableName
-        |> Option.map (List.choose (fun (idxName, tblName, idxType) -> findKcat tblMgr idxName idxType tblName))
+        |> Option.map (List.choose (fun (idxName, tblName, idxType) -> findKcat fileMgr tblMgr idxName idxType tblName))
         |> Option.defaultValue []
 
     let getIndexedFields tblMgr tx tableName =
@@ -450,8 +444,10 @@ module IndexManager =
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
+
                 let indexes =
                     loopIcat rf (SqlConstant.newVarchar tableName) []
+
                 rf.Close()
                 indexes)
 
@@ -473,8 +469,10 @@ module IndexManager =
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
+
                 let fields =
                     loopKcat rf (SqlConstant.newVarchar indexName) []
+
                 rf.Close()
                 fields)
 
@@ -502,11 +500,11 @@ module IndexManager =
         createIcat tblMgr
         createKcat tblMgr
 
-    let newIndexManager tblMgr =
+    let newIndexManager fileMgr tblMgr =
         { CreateIndex = createIndex tblMgr
           DropIndex = dropIndex tblMgr
-          GetIndexInfoByName = getIndexInfoByName tblMgr
-          GetIndexInfoByField = getIndexInfoByField tblMgr
+          GetIndexInfoByName = getIndexInfoByName fileMgr tblMgr
+          GetIndexInfoByField = getIndexInfoByField fileMgr tblMgr
           GetIndexedFields = getIndexedFields tblMgr
           InitIndexManager = initIndexManager tblMgr }
 
@@ -561,8 +559,10 @@ module ViewManager =
             |> Option.map (fun ti -> ti.OpenFile tx true)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
+
                 let tn =
                     loopVcat rf (SqlConstant.newVarchar viewName)
+
                 rf.Close()
                 tn)
 
@@ -644,7 +644,7 @@ module CatalogManager =
             TableManager.newTableManager fileMgr catalogManager
 
         let indexManager =
-            IndexManager.newIndexManager tableManager
+            IndexManager.newIndexManager fileMgr tableManager
 
         let viewManager = ViewManager.newViewManager tableManager
 
