@@ -1,8 +1,10 @@
-namespace RyakDB.TestInit
+namespace RyakDB.Test.TestInit
 
-open RyakDB.Sql.Type
-open RyakDB.Storage.Type
-open RyakDB.Server.Database
+open RyakDB.DataType
+open RyakDB.Table
+open RyakDB.Table.Record
+open RyakDB.Concurrency
+open RyakDB.Database
 
 module TestInit =
     let deptMax = 40
@@ -22,7 +24,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "dept" sch)
 
         db.CatalogMgr.GetTableInfo tx "dept"
-        |> Option.map (fun ti -> ti.OpenFile tx true)
+        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
         |> Option.iter (fun rf ->
             for i in 1 .. deptMax do
                 rf.Insert()
@@ -43,7 +45,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "course" sch)
 
         db.CatalogMgr.GetTableInfo tx "course"
-        |> Option.map (fun ti -> ti.OpenFile tx true)
+        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
         |> Option.iter (fun rf ->
             for i in 1 .. courseMax do
                 rf.Insert()
@@ -66,7 +68,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "student" sch)
 
         db.CatalogMgr.GetTableInfo tx "student"
-        |> Option.map (fun ti -> ti.OpenFile tx true)
+        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
         |> Option.iter (fun rf ->
             for i in 1 .. studentMax do
                 rf.Insert()
@@ -90,7 +92,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "section" sch)
 
         db.CatalogMgr.GetTableInfo tx "section"
-        |> Option.map (fun ti -> ti.OpenFile tx true)
+        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
         |> Option.iter (fun rf ->
             for i in 1 .. sectionMax do
                 rf.Insert()
@@ -114,7 +116,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "enroll" sch)
 
         db.CatalogMgr.GetTableInfo tx "enroll"
-        |> Option.map (fun ti -> ti.OpenFile tx true)
+        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
         |> Option.iter (fun rf ->
             let grades = [| "A+"; "A"; "B"; "C"; "D" |]
             for i in 1 .. enrollMax do

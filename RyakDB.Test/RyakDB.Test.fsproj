@@ -1,29 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <IsPackable>false</IsPackable>
-    <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="src/TestInit.fs" />
-    <Compile Include="src/Sql/ParseTest.fs" />
-    <Compile Include="src/Storage/FileTest.fs" />
-    <Compile Include="src/Storage/LogTest.fs" />
-    <Compile Include="src/Storage/BufferTest.fs" />
-    <Compile Include="src/Storage/TransactionTest.fs" />
-    <Compile Include="src/Storage/RecordTest.fs" />
-    <Compile Include="src/Storage/CatalogTest.fs" />
-    <Compile Include="src/Storage/ConcurrencyTest.fs" />
-    <Compile Include="src/Storage/RecoveryTest.fs" />
-    <Compile Include="src/Query/AlgebraTest.fs" />
+    <ProjectReference Include="../RyakDB/RyakDB.fsproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../RyakDB/RyakDB.fsproj" />
+    <Compile Include="src/TestInit.fs" />
+    <Compile Include="src/Sql.ParseTest.fs" />
+    <Compile Include="src/Storage.PageTest.fs" />
+    <Compile Include="src/Storage.LogTest.fs" />
+    <Compile Include="src/BufferTest.fs" />
+    <Compile Include="src/Buffer.BufferManagerTest.fs" />
+    <Compile Include="src/Buffer.BufferPoolTest.fs" />
+    <Compile Include="src/TransactionTest.fs" />
+    <Compile Include="src/Table.RecordTest.fs" />
+    <Compile Include="src/CatalogTest.fs" />
+    <Compile Include="src/ConcurrencyTest.fs" />
+    <Compile Include="src/Concurrency.LockTableTest.fs" />
+    <Compile Include="src/RecoveryTest.fs" />
+    <Compile Include="src/Execution.PlanTest.fs" />
+    <Compile Include="src/Execution.AggregationFnScanTest.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
     <PackageReference Include="xunit" Version="2.4.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1" />
-    <PackageReference Include="coverlet.collector" Version="1.2.1" />
+    <PackageReference Include="FsUnit.xUnit" Version="4.0.1" />
+    <PackageReference Include="coverlet.collector" Version="1.3.0" />
   </ItemGroup>
 </Project>
