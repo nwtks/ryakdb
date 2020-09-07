@@ -1,5 +1,5 @@
 {
-    "name": "eShopOnWeb",
+    "name": "RyakDB",
     "build": {
         "dockerfile": "Dockerfile"
     },
@@ -9,6 +9,7 @@
     },
     "extensions": [
         "ionide.ionide-fsharp",
-        "formulahendry.dotnet-test-explorer"
+        "formulahendry.dotnet-test-explorer",
+        "ryanluker.vscode-coverage-gutters"
     ]
 }

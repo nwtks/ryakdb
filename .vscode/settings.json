@@ -1,0 +1,4 @@
+{
+    "FSharp.useSdkScripts": true,
+    "coverage-gutters.xmlname": "coverage.cobertura.xml"
+}
