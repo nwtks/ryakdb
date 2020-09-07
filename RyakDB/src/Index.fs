@@ -38,8 +38,12 @@ module SearchKey =
     let newSearchKey constants = SearchKey constants
 
 module SearchKeyType =
-    let newSearchKeyType schema indexedFields = SearchKeyType []
     let newSearchKeyTypeByTypes types = SearchKeyType types
+
+    let newSearchKeyType schema indexedFields =
+        indexedFields
+        |> List.map schema.SqlType
+        |> SearchKeyType
 
 module SearchRange =
     let newSearchRangeBySearchKey searchKey =
