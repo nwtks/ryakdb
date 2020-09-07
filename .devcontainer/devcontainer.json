@@ -1,0 +1,14 @@
+{
+    "name": "eShopOnWeb",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "remoteUser": "vscode",
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "extensions": [
+        "ionide.ionide-fsharp",
+        "formulahendry.dotnet-test-explorer"
+    ]
+}
