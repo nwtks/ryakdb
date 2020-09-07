@@ -1,6 +1,6 @@
 namespace RyakDB.Index.BTreeIndex
 
-open RyakDB.Storage
+open RyakDB.Table
 open RyakDB.Index
 
 module BTreeIndex =

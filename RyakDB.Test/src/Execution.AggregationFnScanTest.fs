@@ -2,8 +2,8 @@ namespace RyakDB.Test.Execution.AggregationFnScanTest
 
 open Xunit
 open RyakDB.DataType
-open RyakDB.Concurrency
 open RyakDB.Query
+open RyakDB.Transaction
 open RyakDB.Execution.Plan
 open RyakDB.Execution.Materialize
 open RyakDB.Database

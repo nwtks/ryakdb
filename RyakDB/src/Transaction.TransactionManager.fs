@@ -5,7 +5,7 @@ open RyakDB.Buffer
 open RyakDB.Buffer.BufferManager
 open RyakDB.Concurrency
 open RyakDB.Recovery
-open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Recovery.TransactionRecoveryFinalize
 open RyakDB.Transaction
 
 type TransactionManager =
@@ -40,15 +40,18 @@ module TransactionManager =
                 BufferManager.newBufferManager bufferPoolMgr state.NextTxNo
 
             let concurMgr =
-                ConcurrencyManager.newConcurrencyManager lockTable state.NextTxNo isolationLevel
+                match isolationLevel with
+                | ReadCommitted -> ConcurrencyManager.newReadCommitted state.NextTxNo lockTable
+                | RepeatableRead -> ConcurrencyManager.newRepeatableRead state.NextTxNo lockTable
+                | Serializable -> ConcurrencyManager.newSerializable state.NextTxNo lockTable
 
             let tx =
                 Transaction.newTransaction
                     txCommitListener
                     txRollbackListener
                     recoveryMgr
-                    (TransactionRecovery.onCommit logMgr)
-                    (TransactionRecovery.onRollback fileMgr logMgr catalogMgr)
+                    (TransactionRecoveryFinalize.onCommit logMgr)
+                    (TransactionRecoveryFinalize.onRollback fileMgr logMgr catalogMgr)
                     concurMgr
                     bufferMgr
                     state.NextTxNo

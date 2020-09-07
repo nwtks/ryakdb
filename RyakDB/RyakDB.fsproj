@@ -6,11 +6,11 @@
   <ItemGroup>
     <Compile Include="src/Task.fs" />
     <Compile Include="src/DataType.fs" />
-    <Compile Include="src/Query.fs" />
+    <Compile Include="src/Storage.fs" />
     <Compile Include="src/Table.fs" />
+    <Compile Include="src/Query.fs" />
     <Compile Include="src/Query.Predicate.fs" />
     <Compile Include="src/Sql.Parse.fs" />
-    <Compile Include="src/Storage.fs" />
     <Compile Include="src/Storage.File.fs" />
     <Compile Include="src/Storage.Page.fs" />
     <Compile Include="src/Storage.Log.fs" />
@@ -29,7 +29,7 @@
     <Compile Include="src/Index.HashIndex.fs" />
     <Compile Include="src/Index.BTreeIndex.fs" />
     <Compile Include="src/Index.IndexFactory.fs" />
-    <Compile Include="src/Recovery.TransactionRecovery.fs" />
+    <Compile Include="src/Recovery.TransactionRecoveryFinalize.fs" />
     <Compile Include="src/Recovery.SystemRecovery.fs" />
     <Compile Include="src/Transaction.TransactionManager.fs" />
     <Compile Include="src/Recovery.CheckpointTask.fs" />

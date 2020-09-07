@@ -4,7 +4,7 @@ open Xunit
 open RyakDB.DataType
 open RyakDB.Query
 open RyakDB.Table
-open RyakDB.Concurrency
+open RyakDB.Transaction
 open RyakDB.Catalog
 open RyakDB.Database
 

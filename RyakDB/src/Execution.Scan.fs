@@ -1,7 +1,6 @@
 namespace RyakDB.Execution.Scan
 
 open RyakDB.DataType
-open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Table.Record
 open RyakDB.Query

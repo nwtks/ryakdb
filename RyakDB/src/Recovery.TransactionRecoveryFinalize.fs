@@ -1,8 +1,8 @@
-namespace RyakDB.Recovery.TransactionRecovery
+namespace RyakDB.Recovery.TransactionRecoveryFinalize
 
-open RyakDB.Storage
 open RyakDB.Storage.Log
 open RyakDB.Storage.BTree
+open RyakDB.Table
 open RyakDB.Table.Record
 open RyakDB.Index
 open RyakDB.Index.IndexFactory
@@ -12,7 +12,7 @@ open RyakDB.Recovery.RecoveryLog
 open RyakDB.Transaction
 open RyakDB.Catalog
 
-module TransactionRecovery =
+module TransactionRecoveryFinalize =
     let undo fileMgr logMgr (catalogMgr: CatalogManager) tx r =
         match r with
         | LogicalStartRecord (n, l) ->

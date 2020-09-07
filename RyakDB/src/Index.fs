@@ -1,7 +1,6 @@
 namespace RyakDB.Index
 
 open RyakDB.DataType
-open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Query
 

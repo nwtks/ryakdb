@@ -6,6 +6,7 @@ open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Table.Record
 open RyakDB.Concurrency
+open RyakDB.Transaction
 open RyakDB.Database
 
 module RecordPageTest =

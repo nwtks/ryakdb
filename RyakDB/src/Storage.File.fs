@@ -27,26 +27,26 @@ module FileBuffer =
     let newFileBuffer capacity = FileBuffer(Array.create capacity 0uy)
 
 module FileManager =
-    type FileChannel =
+    type Channel =
         { Stream: System.IO.Stream
           Lock: System.Threading.ReaderWriterLockSlim }
 
-    module FileChannel =
-        let size (channel: FileChannel) =
+    module Channel =
+        let size channel =
             channel.Lock.EnterReadLock()
             try
                 channel.Stream.Length
             finally
                 channel.Lock.ExitReadLock()
 
-        let close (channel: FileChannel) =
+        let close channel =
             channel.Lock.EnterWriteLock()
             try
                 channel.Stream.Dispose()
             finally
                 channel.Lock.ExitWriteLock()
 
-        let read position (FileBuffer buffer) (channel: FileChannel) =
+        let read position (FileBuffer buffer) channel =
             channel.Lock.EnterReadLock()
             try
                 channel.Stream.Seek(position, System.IO.SeekOrigin.Begin)
@@ -55,7 +55,7 @@ module FileManager =
             finally
                 channel.Lock.ExitReadLock()
 
-        let write position (FileBuffer buffer) (channel: FileChannel) =
+        let write position (FileBuffer buffer) channel =
             channel.Lock.EnterWriteLock()
             try
                 channel.Stream.Seek(position, System.IO.SeekOrigin.Begin)
@@ -64,7 +64,7 @@ module FileManager =
             finally
                 channel.Lock.ExitWriteLock()
 
-        let append (FileBuffer buffer) (channel: FileChannel) =
+        let append (FileBuffer buffer) channel =
             channel.Lock.EnterWriteLock()
             try
                 channel.Stream.Seek(0L, System.IO.SeekOrigin.End)
@@ -93,7 +93,7 @@ module FileManager =
     type FileManagerState =
         { BlockSize: int64
           DbDirectory: string
-          OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, FileChannel>
+          OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, Channel>
           InMemory: bool
           Anchors: obj [] }
 
@@ -102,41 +102,41 @@ module FileManager =
         if h < 0 then h + anchors.Length else h
         |> anchors.GetValue
 
-    let private getFileChannel state fileName =
+    let private getChannel state fileName =
         lock (prepareAnchor state.Anchors fileName) (fun () ->
             let newFileChannel name =
                 if state.InMemory then
-                    FileChannel.newMemoryChannel ()
+                    Channel.newMemoryChannel ()
                 else
                     System.IO.Path.Join(state.DbDirectory, name)
-                    |> FileChannel.newFileChannel
+                    |> Channel.newFileChannel
 
             state.OpenFiles.GetOrAdd(fileName, newFileChannel))
 
     let read state buffer (BlockId (fileName, blockNo)) =
         buffer |> FileBuffer.clear
-        getFileChannel state fileName
-        |> FileChannel.read (blockNo * state.BlockSize) buffer
+        getChannel state fileName
+        |> Channel.read (blockNo * state.BlockSize) buffer
         |> ignore
 
     let write state buffer (BlockId (fileName, blockNo)) =
-        getFileChannel state fileName
-        |> FileChannel.write (blockNo * state.BlockSize) buffer
+        getChannel state fileName
+        |> Channel.write (blockNo * state.BlockSize) buffer
 
     let append state buffer fileName =
-        let channel = getFileChannel state fileName
-        FileChannel.append buffer channel
-        BlockId.newBlockId fileName (FileChannel.size channel / state.BlockSize - 1L)
+        let channel = getChannel state fileName
+        Channel.append buffer channel
+        BlockId.newBlockId fileName (Channel.size channel / state.BlockSize - 1L)
 
     let size state fileName =
-        (getFileChannel state fileName |> FileChannel.size)
+        (getChannel state fileName |> Channel.size)
         / state.BlockSize
 
     let close state fileName =
         lock (prepareAnchor state.Anchors fileName) (fun () ->
-            let mutable channel = Unchecked.defaultof<FileChannel>
+            let mutable channel = Unchecked.defaultof<Channel>
             if state.OpenFiles.TryRemove(fileName, &channel)
-            then channel |> FileChannel.close)
+            then channel |> Channel.close)
 
     let delete state fileName =
         close state fileName

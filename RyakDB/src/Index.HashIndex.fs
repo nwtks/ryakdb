@@ -2,9 +2,9 @@ namespace RyakDB.Index.HashIndex
 
 open RyakDB.DataType
 open RyakDB.Storage
+open RyakDB.Table
 open RyakDB.Storage.File
 open RyakDB.Table.Record
-open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Concurrency
 open RyakDB.Transaction

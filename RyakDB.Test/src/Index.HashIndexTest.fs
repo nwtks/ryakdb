@@ -1,13 +1,13 @@
 namespace RyakDB.Test.Index.HashIndexTest
 
 open Xunit
-open RyakDB.Index
-open RyakDB.Index.IndexFactory
-open RyakDB.Query
 open RyakDB.DataType
 open RyakDB.Storage
-open RyakDB.Concurrency
 open RyakDB.Table
+open RyakDB.Query
+open RyakDB.Transaction
+open RyakDB.Index
+open RyakDB.Index.IndexFactory
 open RyakDB.Database
 
 module HashIndexTest =

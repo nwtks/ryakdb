@@ -1,6 +1,7 @@
 namespace RyakDB.Table
 
 open RyakDB.DataType
+open RyakDB.Storage
 
 type Schema =
     { AddField: string -> SqlType -> unit
@@ -14,6 +15,8 @@ type TableInfo =
     { TableName: string
       Schema: Schema
       FileName: string }
+
+type RecordId = RecordId of id: int32 * blockId: BlockId
 
 module Schema =
     let addField (fieldTypes: Map<string, SqlType>) fieldName dbType = fieldTypes.Add(fieldName, dbType)
@@ -48,3 +51,9 @@ module TableInfo =
         { TableName = tableName
           Schema = schema
           FileName = tableName + ".tbl" }
+
+module RecordId =
+    let newRecordId id blockId = RecordId(id, blockId)
+
+    let newBlockRecordId id fileName blockNo =
+        RecordId(id, BlockId.newBlockId fileName blockNo)

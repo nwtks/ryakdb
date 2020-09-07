@@ -4,7 +4,7 @@ open RyakDB.Storage.Log
 open RyakDB.Storage.BTree
 open RyakDB.Buffer.BufferManager
 open RyakDB.Recovery.RecoveryLog
-open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Recovery.TransactionRecoveryFinalize
 open RyakDB.Transaction
 
 module SystemRecovery =
@@ -50,7 +50,7 @@ module SystemRecovery =
 
     let recoverSystem fileMgr logMgr catalogMgr tx =
         let undoLogRecord =
-            TransactionRecovery.undo fileMgr logMgr catalogMgr tx
+            TransactionRecoveryFinalize.undo fileMgr logMgr catalogMgr tx
 
         let mutable unCompletedTxs = Set.empty
         let mutable finishedTxs = Set.empty

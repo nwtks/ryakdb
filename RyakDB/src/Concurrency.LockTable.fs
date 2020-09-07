@@ -1,6 +1,7 @@
 namespace RyakDB.Concurrency.LockTable
 
 open RyakDB.Storage
+open RyakDB.Table
 
 type LockerKey =
     | FileNameLockerKey of string

@@ -2,10 +2,10 @@ namespace RyakDB.Test.Execution.PlanTest
 
 open Xunit
 open RyakDB.DataType
-open RyakDB.Concurrency
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Execution.Plan
+open RyakDB.Transaction
 open RyakDB.Execution.Materialize
 open RyakDB.Database
 open RyakDB.Test.TestInit

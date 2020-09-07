@@ -14,6 +14,11 @@ type Transaction =
       Rollback: unit -> unit
       EndStatement: unit -> unit }
 
+type IsolationLevel =
+    | Serializable
+    | RepeatableRead
+    | ReadCommitted
+
 module Transaction =
     let commit commitListeners tx =
         commitListeners |> List.iter (fun f -> f (tx))

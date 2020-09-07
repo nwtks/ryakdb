@@ -4,6 +4,7 @@ open Xunit
 open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Concurrency
+open RyakDB.Transaction
 open RyakDB.Execution.Plan
 open RyakDB.Database
 open RyakDB.Test.TestInit

@@ -1,12 +1,8 @@
 namespace RyakDB.Concurrency
 
 open RyakDB.Storage
+open RyakDB.Table
 open RyakDB.Concurrency.LockTable
-
-type IsolationLevel =
-    | Serializable
-    | RepeatableRead
-    | ReadCommitted
 
 type ConcurrencyManager =
     { ModifyFile: string -> unit
@@ -213,9 +209,3 @@ module ConcurrencyManager =
           OnTxCommit = fun () -> lockTable.ReleaseAll txNo false
           OnTxRollback = fun () -> lockTable.ReleaseAll txNo false
           OnTxEndStatement = fun () -> () }
-
-    let newConcurrencyManager lockTable txNo isolationLevel =
-        match isolationLevel with
-        | ReadCommitted -> newReadCommitted txNo lockTable
-        | RepeatableRead -> newRepeatableRead txNo lockTable
-        | Serializable -> newSerializable txNo lockTable

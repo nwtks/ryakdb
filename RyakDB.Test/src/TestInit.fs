@@ -3,7 +3,7 @@ namespace RyakDB.Test.TestInit
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Table.Record
-open RyakDB.Concurrency
+open RyakDB.Transaction
 open RyakDB.Database
 
 module TestInit =

@@ -1,8 +1,8 @@
 namespace RyakDB.Table.Record
 
 open RyakDB.DataType
-open RyakDB.Table
 open RyakDB.Storage
+open RyakDB.Table
 open RyakDB.Storage.File
 open RyakDB.Storage.Page
 open RyakDB.Buffer

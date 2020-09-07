@@ -52,7 +52,7 @@ module BufferPool =
             buffer.Pin())
 
     let pinNewBuffer state assignBuffer =
-        let rec roundrobinBuffer pin lastReplacedBuff currBlk =
+        let rec clockwiseBuffer pin lastReplacedBuff currBlk =
             let buffer = state.BufferPool.[currBlk]
 
             let result =
@@ -73,7 +73,7 @@ module BufferPool =
             then result
             elif currBlk = lastReplacedBuff
             then None
-            else roundrobinBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length)
+            else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length)
 
         let pinNew assignBuffer =
             fun (buffer: Buffer) ->
@@ -85,7 +85,7 @@ module BufferPool =
                 pinBuffer state buffer
                 buffer
 
-        roundrobinBuffer
+        clockwiseBuffer
             (pinNew assignBuffer)
             state.LastReplacedBuff
             ((state.LastReplacedBuff + 1) % state.BufferPool.Length)

@@ -31,7 +31,7 @@ module Page =
         |> FileBuffer.get off size
         |> SqlConstant.fromBytes sqlType
 
-    let setVal (fileMgr: FileManager) contents offset value =
+    let setVal fileMgr contents offset value =
         let bytes = value |> SqlConstant.toBytes
 
         let off =
@@ -57,7 +57,7 @@ module Page =
 
     let append (fileMgr: FileManager) contents fileName = fileMgr.Append contents fileName
 
-    let newPage (fileMgr: FileManager) =
+    let newPage fileMgr =
         let contents =
             FileBuffer.newFileBuffer fileMgr.BlockSize
 
