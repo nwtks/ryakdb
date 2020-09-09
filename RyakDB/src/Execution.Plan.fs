@@ -1,4 +1,4 @@
-namespace RyakDB.Execution.Plan
+module RyakDB.Execution.Plan
 
 open RyakDB.Table
 open RyakDB.Transaction

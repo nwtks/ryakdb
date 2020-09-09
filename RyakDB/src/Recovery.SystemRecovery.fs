@@ -1,4 +1,4 @@
-namespace RyakDB.Recovery.SystemRecovery
+module RyakDB.Recovery.SystemRecovery
 
 open RyakDB.Storage.Log
 open RyakDB.Storage.BTree
@@ -77,8 +77,7 @@ module SystemRecovery =
                     unCompletedTxs <- unCompletedTxs.Add txNo
                     redoRecords <- r :: redoRecords
                 | _ -> redoRecords <- r :: redoRecords)
-        redoRecords
-        |> List.iter (redo tx.BufferMgr)
+        redoRecords |> List.iter (redo tx.BufferMgr)
         unCompletedTxs <- unCompletedTxs.Remove tx.TransactionNumber
         let mutable txUnDoNextLSN = Map.empty
         logMgr.Records()

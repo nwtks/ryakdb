@@ -1,4 +1,4 @@
-namespace RyakDB.DataType
+module RyakDB.DataType
 
 type SqlType =
     | IntSqlType

@@ -1,4 +1,4 @@
-namespace RyakDB.Execution.Materialize
+module RyakDB.Execution.Materialize
 
 open RyakDB.DataType
 open RyakDB.Table

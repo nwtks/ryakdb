@@ -1,4 +1,4 @@
-namespace RyakDB.Test.RecoveryTest
+module RyakDB.Test.RecoveryTest
 
 open Xunit
 open RyakDB.DataType

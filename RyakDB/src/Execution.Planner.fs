@@ -1,4 +1,4 @@
-namespace RyakDB.Execution.Planner
+module RyakDB.Execution.Planner
 
 open RyakDB.DataType
 open RyakDB.Table

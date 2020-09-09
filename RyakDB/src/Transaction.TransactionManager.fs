@@ -1,4 +1,4 @@
-namespace RyakDB.Transaction.TransactionManager
+module RyakDB.Transaction.TransactionManager
 
 open RyakDB.Storage.Log
 open RyakDB.Buffer
@@ -31,7 +31,7 @@ module TransactionManager =
         { state with
               ActiveTxs = state.ActiveTxs.Remove tx.TransactionNumber }
 
-    let newTransaction fileMgr logMgr bufferPoolMgr lockTable catalogMgr txCommitListener txRollbackListener state =
+    let createTransaction fileMgr logMgr bufferPoolMgr lockTable catalogMgr txCommitListener txRollbackListener state =
         fun readOnly isolationLevel ->
             let recoveryMgr =
                 RecoveryManager.newRecoveryManager logMgr state.NextTxNo readOnly
@@ -79,7 +79,7 @@ module TransactionManager =
               fun readOnly isolationLevel ->
                   lock txNoLock (fun () ->
                       let nextstate, tx =
-                          newTransaction fileMgr logMgr bufferPoolMgr lockTable catalogMgr (fun tx ->
+                          createTransaction fileMgr logMgr bufferPoolMgr lockTable catalogMgr (fun tx ->
                               lock txNoLock (fun () -> state <- onTxCommit state tx)) (fun tx ->
                               lock txNoLock (fun () -> state <- onTxRollback state tx)) state readOnly isolationLevel
 

@@ -1,4 +1,4 @@
-namespace RyakDB.Table.Record
+module RyakDB.Table.Record
 
 open RyakDB.DataType
 open RyakDB.Storage

@@ -1,4 +1,4 @@
-namespace RyakDB.Execution.AggregationFnScan
+module RyakDB.Execution.AggregationFnScan
 
 open RyakDB.DataType
 open RyakDB.Query

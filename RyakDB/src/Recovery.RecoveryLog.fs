@@ -1,4 +1,4 @@
-namespace RyakDB.Recovery.RecoveryLog
+module RyakDB.Recovery.RecoveryLog
 
 open RyakDB.DataType
 open RyakDB.Storage

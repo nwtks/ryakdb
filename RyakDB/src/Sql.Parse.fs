@@ -1,4 +1,4 @@
-namespace RyakDB.Sql.Parse
+module RyakDB.Sql.Parse
 
 open RyakDB.DataType
 open RyakDB.Table

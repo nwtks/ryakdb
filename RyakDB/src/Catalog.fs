@@ -1,4 +1,4 @@
-namespace RyakDB.Catalog
+module RyakDB.Catalog
 
 open RyakDB.DataType
 open RyakDB.Query

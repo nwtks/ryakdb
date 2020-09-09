@@ -1,4 +1,4 @@
-namespace RyakDB.Recovery.TransactionRecoveryFinalize
+module RyakDB.Recovery.TransactionRecoveryFinalize
 
 open RyakDB.Storage.Log
 open RyakDB.Storage.BTree

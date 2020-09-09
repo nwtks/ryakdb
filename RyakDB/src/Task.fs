@@ -1,4 +1,4 @@
-namespace RyakDB.Task
+module RyakDB.Task
 
 type Task = unit -> unit
 

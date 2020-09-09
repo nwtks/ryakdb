@@ -1,4 +1,4 @@
-namespace RyakDB.Query.Predicate
+module RyakDB.Query.Predicate
 
 open RyakDB.DataType
 open RyakDB.Table

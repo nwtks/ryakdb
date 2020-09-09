@@ -1,4 +1,4 @@
-namespace RyakDB.Index.IndexFactory
+module RyakDB.Index.IndexFactory
 
 open RyakDB.Index
 open RyakDB.Index.BTreeIndex

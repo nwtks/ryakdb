@@ -1,6 +1,5 @@
-namespace RyakDB.Recovery.CheckpointTask
+module RyakDB.Recovery.CheckpointTask
 
-open RyakDB.Concurrency
 open RyakDB.Transaction
 open RyakDB.Transaction.TransactionManager
 

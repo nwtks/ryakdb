@@ -1,4 +1,4 @@
-namespace RyakDB.Execution.Scan
+module RyakDB.Execution.Scan
 
 open RyakDB.DataType
 open RyakDB.Table

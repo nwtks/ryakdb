@@ -1,4 +1,4 @@
-namespace RyakDB.Storage.BTree
+module RyakDB.Storage.BTree
 
 module BTreeDir =
     let insertASlot blockId keyType slotId = ()

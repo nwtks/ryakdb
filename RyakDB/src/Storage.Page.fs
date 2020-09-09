@@ -1,4 +1,4 @@
-namespace RyakDB.Storage.Page
+module RyakDB.Storage.Page
 
 open RyakDB.DataType
 open RyakDB.Storage

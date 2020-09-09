@@ -1,4 +1,4 @@
-namespace RyakDB.Test.TestInit
+module RyakDB.Test.TestInit
 
 open RyakDB.DataType
 open RyakDB.Table

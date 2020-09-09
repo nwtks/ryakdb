@@ -1,4 +1,4 @@
-namespace RyakDB.Index.HashIndex
+module RyakDB.Index.HashIndex
 
 open RyakDB.DataType
 open RyakDB.Storage

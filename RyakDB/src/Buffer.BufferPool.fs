@@ -1,4 +1,4 @@
-namespace RyakDB.Buffer.BufferPool
+module RyakDB.Buffer.BufferPool
 
 open RyakDB.Storage
 open RyakDB.Buffer

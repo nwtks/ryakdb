@@ -1,4 +1,4 @@
-namespace RyakDB.Storage.Log
+module RyakDB.Storage.Log
 
 open RyakDB.DataType
 open RyakDB.Storage

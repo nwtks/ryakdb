@@ -1,4 +1,4 @@
-namespace RyakDB.Concurrency.LockTable
+module RyakDB.Concurrency.LockTable
 
 open RyakDB.Storage
 open RyakDB.Table

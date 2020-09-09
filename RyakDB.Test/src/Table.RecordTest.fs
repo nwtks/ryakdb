@@ -1,11 +1,9 @@
-namespace RyakDB.Test.Table.RecordTest
+module RyakDB.Test.Table.RecordTest
 
 open Xunit
 open RyakDB.DataType
-open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Table.Record
-open RyakDB.Concurrency
 open RyakDB.Transaction
 open RyakDB.Database
 

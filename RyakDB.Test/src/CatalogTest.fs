@@ -1,4 +1,4 @@
-namespace RyakDB.Test.CatalogTest
+module RyakDB.Test.CatalogTest
 
 open Xunit
 open RyakDB.DataType
