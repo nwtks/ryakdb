@@ -2,7 +2,7 @@ module RyakDB.Test.TestInit
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.Record
+open RyakDB.Table.TableFile
 open RyakDB.Transaction
 open RyakDB.Database
 
@@ -19,17 +19,17 @@ module TestInit =
 
         Schema.newSchema ()
         |> (fun sch ->
-            sch.AddField "d_id" IntSqlType
-            sch.AddField "d_name" (VarcharSqlType 20)
+            sch.AddField "d_id" IntDbType
+            sch.AddField "d_name" (VarcharDbType 20)
             db.CatalogMgr.CreateTable tx "dept" sch)
 
         db.CatalogMgr.GetTableInfo tx "dept"
-        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
-        |> Option.iter (fun rf ->
+        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.iter (fun tf ->
             for i in 1 .. deptMax do
-                rf.Insert()
-                rf.SetVal "d_id" (IntSqlConstant i)
-                rf.SetVal "d_name" (SqlConstant.newVarchar ("dept " + i.ToString())))
+                tf.Insert()
+                tf.SetVal "d_id" (IntDbConstant i)
+                tf.SetVal "d_name" (DbConstant.newVarchar ("dept " + i.ToString())))
 
         tx.Commit()
 
@@ -39,19 +39,19 @@ module TestInit =
 
         Schema.newSchema ()
         |> (fun sch ->
-            sch.AddField "c_id" IntSqlType
-            sch.AddField "title" (VarcharSqlType 20)
-            sch.AddField "dept_id" IntSqlType
+            sch.AddField "c_id" IntDbType
+            sch.AddField "title" (VarcharDbType 20)
+            sch.AddField "dept_id" IntDbType
             db.CatalogMgr.CreateTable tx "course" sch)
 
         db.CatalogMgr.GetTableInfo tx "course"
-        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
-        |> Option.iter (fun rf ->
+        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.iter (fun tf ->
             for i in 1 .. courseMax do
-                rf.Insert()
-                rf.SetVal "c_id" (IntSqlConstant i)
-                rf.SetVal "title" (SqlConstant.newVarchar ("course " + i.ToString()))
-                rf.SetVal "dept_id" (IntSqlConstant(i % deptMax + 1)))
+                tf.Insert()
+                tf.SetVal "c_id" (IntDbConstant i)
+                tf.SetVal "title" (DbConstant.newVarchar ("course " + i.ToString()))
+                tf.SetVal "dept_id" (IntDbConstant(i % deptMax + 1)))
 
         tx.Commit()
 
@@ -61,21 +61,21 @@ module TestInit =
 
         Schema.newSchema ()
         |> (fun sch ->
-            sch.AddField "s_id" IntSqlType
-            sch.AddField "s_name" (VarcharSqlType 20)
-            sch.AddField "major_id" IntSqlType
-            sch.AddField "grad_year" IntSqlType
+            sch.AddField "s_id" IntDbType
+            sch.AddField "s_name" (VarcharDbType 20)
+            sch.AddField "major_id" IntDbType
+            sch.AddField "grad_year" IntDbType
             db.CatalogMgr.CreateTable tx "student" sch)
 
         db.CatalogMgr.GetTableInfo tx "student"
-        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
-        |> Option.iter (fun rf ->
+        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.iter (fun tf ->
             for i in 1 .. studentMax do
-                rf.Insert()
-                rf.SetVal "s_id" (IntSqlConstant i)
-                rf.SetVal "s_name" (SqlConstant.newVarchar ("student " + i.ToString()))
-                rf.SetVal "major_id" (IntSqlConstant(i % deptMax + 1))
-                rf.SetVal "grad_year" (IntSqlConstant(i % 50 + 1960)))
+                tf.Insert()
+                tf.SetVal "s_id" (IntDbConstant i)
+                tf.SetVal "s_name" (DbConstant.newVarchar ("student " + i.ToString()))
+                tf.SetVal "major_id" (IntDbConstant(i % deptMax + 1))
+                tf.SetVal "grad_year" (IntDbConstant(i % 50 + 1960)))
 
         tx.Commit()
 
@@ -85,21 +85,21 @@ module TestInit =
 
         Schema.newSchema ()
         |> (fun sch ->
-            sch.AddField "sec_id" IntSqlType
-            sch.AddField "prof" (VarcharSqlType 20)
-            sch.AddField "course_id" IntSqlType
-            sch.AddField "year_offered" IntSqlType
+            sch.AddField "sec_id" IntDbType
+            sch.AddField "prof" (VarcharDbType 20)
+            sch.AddField "course_id" IntDbType
+            sch.AddField "year_offered" IntDbType
             db.CatalogMgr.CreateTable tx "section" sch)
 
         db.CatalogMgr.GetTableInfo tx "section"
-        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
-        |> Option.iter (fun rf ->
+        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.iter (fun tf ->
             for i in 1 .. sectionMax do
-                rf.Insert()
-                rf.SetVal "sec_id" (IntSqlConstant i)
-                rf.SetVal "prof" (SqlConstant.newVarchar ("prof " + (i % 20 + 1).ToString()))
-                rf.SetVal "course_id" (IntSqlConstant(i % courseMax + 1))
-                rf.SetVal "year_offered" (IntSqlConstant(i % 30 + 1980)))
+                tf.Insert()
+                tf.SetVal "sec_id" (IntDbConstant i)
+                tf.SetVal "prof" (DbConstant.newVarchar ("prof " + (i % 20 + 1).ToString()))
+                tf.SetVal "course_id" (IntDbConstant(i % courseMax + 1))
+                tf.SetVal "year_offered" (IntDbConstant(i % 30 + 1980)))
 
         tx.Commit()
 
@@ -109,22 +109,22 @@ module TestInit =
 
         Schema.newSchema ()
         |> (fun sch ->
-            sch.AddField "e_id" IntSqlType
-            sch.AddField "grade" (VarcharSqlType 2)
-            sch.AddField "student_id" IntSqlType
-            sch.AddField "section_id" IntSqlType
+            sch.AddField "e_id" IntDbType
+            sch.AddField "grade" (VarcharDbType 2)
+            sch.AddField "student_id" IntDbType
+            sch.AddField "section_id" IntDbType
             db.CatalogMgr.CreateTable tx "enroll" sch)
 
         db.CatalogMgr.GetTableInfo tx "enroll"
-        |> Option.map (RecordFile.newRecordFile db.FileMgr tx true)
-        |> Option.iter (fun rf ->
+        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.iter (fun tf ->
             let grades = [| "A+"; "A"; "B"; "C"; "D" |]
             for i in 1 .. enrollMax do
-                rf.Insert()
-                rf.SetVal "e_id" (IntSqlConstant i)
-                rf.SetVal "grade" (SqlConstant.newVarchar (grades.[i % grades.Length]))
-                rf.SetVal "student_id" (IntSqlConstant(i % studentMax + 1))
-                rf.SetVal "section_id" (IntSqlConstant(i % sectionMax + 1)))
+                tf.Insert()
+                tf.SetVal "e_id" (IntDbConstant i)
+                tf.SetVal "grade" (DbConstant.newVarchar (grades.[i % grades.Length]))
+                tf.SetVal "student_id" (IntDbConstant(i % studentMax + 1))
+                tf.SetVal "section_id" (IntDbConstant(i % sectionMax + 1)))
 
         tx.Commit()
 

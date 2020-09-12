@@ -8,7 +8,7 @@ open RyakDB.Query.Predicate
 type QueryData = QueryData of projectionFields: string list * tables: string list * predicate: Predicate * groupFields: string list * aggregationFns: AggregationFn list * sortFields: SortField list
 
 type UpdateData =
-    | InsertData of tableName: string * fieldNames: string list * values: SqlConstant list
+    | InsertData of tableName: string * fieldNames: string list * values: DbConstant list
     | DeleteData of tableName: string * predicate: Predicate
     | ModifyData of tableName: string * predicate: Predicate * fieldValues: Map<string, Expression>
     | CreateTableData of tableName: string * schema: Schema
@@ -186,9 +186,9 @@ module Parser =
 
     let constant (lex: Lexer) =
         if lex.MatchStringConstant()
-        then lex.EatStringConstant() |> SqlConstant.newVarchar
+        then lex.EatStringConstant() |> DbConstant.newVarchar
         elif lex.MatchNumericConstant()
-        then lex.EatNumericConstant() |> DoubleSqlConstant
+        then lex.EatNumericConstant() |> DoubleDbConstant
         else failwith "Syntax error: constant"
 
     let constantList (lex: Lexer) =
@@ -454,22 +454,22 @@ module Parser =
         let schema = Schema.newSchema ()
         if lex.MatchKeyword "int" then
             lex.EatKeyword "int"
-            schema.AddField fieldName IntSqlType
+            schema.AddField fieldName IntDbType
             schema
         elif lex.MatchKeyword "bigint" then
             lex.EatKeyword "bigint"
-            schema.AddField fieldName BigIntSqlType
+            schema.AddField fieldName BigIntDbType
             schema
         elif lex.MatchKeyword "double" then
             lex.EatKeyword "double"
-            schema.AddField fieldName DoubleSqlType
+            schema.AddField fieldName DoubleDbType
             schema
         else
             lex.EatKeyword "varchar"
             lex.EatDelimimiter '('
             let arg = lex.EatNumericConstant()
             lex.EatDelimimiter ')'
-            VarcharSqlType(int arg)
+            VarcharDbType(int arg)
             |> schema.AddField fieldName
             schema
 

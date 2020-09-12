@@ -4,33 +4,35 @@ open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Storage.File
-open RyakDB.Table.Record
+open RyakDB.Table.TableFile
 open RyakDB.Index
-open RyakDB.Concurrency
+open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Transaction
 
 module HashIndex =
     type HashIndexState =
         { SearchKey: SearchKey
-          RecordFile: RecordFile }
+          TableFile: TableFile }
 
     let BucketsCount = 100
 
-    let fileSize (fileMgr: FileManager) concurMgr fileName =
-        concurMgr.ReadFile fileName
+    let fileSize (fileMgr: FileManager) txConcurrency fileName =
+        txConcurrency.ReadFile fileName
         fileMgr.Size fileName
 
     let keyTypeToSchema (SearchKeyType types) =
         let sch = Schema.newSchema ()
-        sch.AddField "block" BigIntSqlType
-        sch.AddField "id" IntSqlType
+        sch.AddField "blockNo" BigIntDbType
+        sch.AddField "slotNo" IntDbType
         types
         |> List.iteri (fun i t -> sch.AddField ("key" + i.ToString()) t)
         sch
 
-    let getKey (rf: RecordFile) (SearchKeyType types) =
+    let getKey (tableFile: TableFile) (SearchKeyType types) =
         types
-        |> List.mapi (fun i t -> rf.GetVal("key" + i.ToString()) |> Option.get)
+        |> List.mapi (fun i _ ->
+            tableFile.GetVal("key" + i.ToString())
+            |> Option.get)
         |> SearchKey.newSearchKey
 
     let preLoadToMemory fileMgr tx indexInfo =
@@ -38,10 +40,10 @@ module HashIndex =
             let tblName =
                 indexInfo.IndexName + i.ToString() + ".tbl"
 
-            let size = fileSize fileMgr tx.ConcurMgr tblName
+            let size = fileSize fileMgr tx.Concurrency tblName
             for j in 0L .. size - 1L do
                 BlockId.newBlockId tblName j
-                |> tx.BufferMgr.Pin
+                |> tx.Buffer.Pin
                 |> ignore
 
     let beforeFirst fileMgr tx indexInfo keyType searchRange =
@@ -54,106 +56,110 @@ module HashIndex =
             keyTypeToSchema keyType
             |> TableInfo.newTableInfo tblName
 
-        let rf =
-            RecordFile.newRecordFile fileMgr tx false ti
+        let tf = newTableFile fileMgr tx false ti
 
-        if rf.FileSize() = 0L
-        then RecordFile.formatFileHeader fileMgr tx ti.FileName
-        rf.BeforeFirst()
+        if tf.FileSize() = 0L
+        then TableFile.formatFileHeader fileMgr tx ti.FileName
+        tf.BeforeFirst()
         { SearchKey = searchKey
-          RecordFile = rf }
+          TableFile = tf }
 
     let next keyType state =
-        let rec loopNext keyType (rf: RecordFile) searchKey =
-            if not (rf.Next()) then
+        let rec loopNext keyType (tableFile: TableFile) searchKey =
+            if not (tableFile.Next()) then
                 false
             else
-                let key = getKey rf keyType
-                if searchKey = key then true else loopNext keyType rf searchKey
+                let key = getKey tableFile keyType
+                if searchKey = key then true else loopNext keyType tableFile searchKey
 
         match state with
-        | Some ({ SearchKey = searchKey; RecordFile = rf }) -> loopNext keyType rf searchKey
+        | Some ({ SearchKey = searchKey; TableFile = tf }) -> loopNext keyType tf searchKey
         | _ -> failwith "You must call beforeFirst()"
 
     let getDataRecordId indexInfo state =
         match state with
-        | Some ({ RecordFile = rf }) ->
+        | Some ({ TableFile = tf }) ->
             let blockNo =
-                rf.GetVal "block"
+                tf.GetVal "blockNo"
                 |> Option.get
-                |> SqlConstant.toLong
+                |> DbConstant.toLong
 
-            let rid =
-                rf.GetVal "id" |> Option.get |> SqlConstant.toInt
+            let slotNo =
+                tf.GetVal "slotNo"
+                |> Option.get
+                |> DbConstant.toInt
 
-            RecordId.newBlockRecordId rid (indexInfo.TableInfo.TableName + ".tbl") blockNo
+            RecordId.newBlockRecordId slotNo (indexInfo.TableInfo.FileName) blockNo
         | _ -> failwith "You must call beforeFirst()"
 
-    let insert tx indexInfo (rf: RecordFile) doLogicalLogging key (RecordId (rid, BlockId (_, blockNo))) =
-        if doLogicalLogging
-        then tx.RecoveryMgr.LogLogicalStart() |> ignore
-        rf.Insert()
-        rf.SetVal "block" (BigIntSqlConstant blockNo)
-        rf.SetVal "id" (IntSqlConstant rid)
+    let insert tx indexInfo (tableFile: TableFile) doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
+        if doLogicalLogging then tx.Recovery.LogLogicalStart() |> ignore
+        tableFile.Insert()
+        tableFile.SetVal "blockNo" (BigIntDbConstant blockNo)
+        tableFile.SetVal "slotNo" (IntDbConstant slotNo)
         let (SearchKey keys) = key
         keys
-        |> List.iteri (fun i t -> rf.SetVal ("key" + i.ToString()) t)
+        |> List.iteri (fun i t -> tableFile.SetVal ("key" + i.ToString()) t)
         if doLogicalLogging then
-            tx.RecoveryMgr.LogIndexInsertionEnd indexInfo.IndexName key blockNo rid
+            tx.Recovery.LogIndexInsertionEnd indexInfo.IndexName key blockNo slotNo
             |> ignore
 
-    let delete tx indexInfo (rf: RecordFile) doLogicalLogging key (RecordId (rid, BlockId (_, blockNo))) =
-        let rec loopDelete (rf: RecordFile) blockNo rid =
-            if rf.Next() then
-                let rfBlockNo =
-                    rf.GetVal "block"
+    let delete tx indexInfo tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
+        let rec loopDelete (tableFile: TableFile) blockNo slotNo =
+            if tableFile.Next() then
+                let tfBlockNo =
+                    tableFile.GetVal "blockNo"
                     |> Option.get
-                    |> SqlConstant.toLong
+                    |> DbConstant.toLong
 
-                let rfRid =
-                    rf.GetVal "id" |> Option.get |> SqlConstant.toInt
+                let tfSlotNo =
+                    tableFile.GetVal "slotNo"
+                    |> Option.get
+                    |> DbConstant.toInt
 
-                if rfBlockNo = blockNo && rfRid = rid then rf.Delete() else loopDelete rf blockNo rid
+                if tfBlockNo = blockNo && tfSlotNo = slotNo then
+                    tableFile.Delete()
+                else
+                    loopDelete tableFile blockNo slotNo
 
-        if doLogicalLogging
-        then tx.RecoveryMgr.LogLogicalStart() |> ignore
-        loopDelete rf blockNo rid
+        if doLogicalLogging then tx.Recovery.LogLogicalStart() |> ignore
+        loopDelete tableFile blockNo slotNo
         if doLogicalLogging then
-            tx.RecoveryMgr.LogIndexDeletionEnd indexInfo.IndexName key blockNo rid
+            tx.Recovery.LogIndexDeletionEnd indexInfo.IndexName key blockNo slotNo
             |> ignore
 
-    let close state =
+    let inline close state =
         state
-        |> Option.iter (fun s -> s.RecordFile.Close())
+        |> Option.iter (fun s -> s.TableFile.Close())
 
-    let newHashIndex fileMgr tx indexInfo keyType =
-        let mutable state = None
-        { BeforeFirst =
-              fun searchRange ->
-                  close state
-                  state <- Some(beforeFirst fileMgr tx indexInfo keyType searchRange)
-          Next = fun () -> next keyType state
-          GetDataRecordId = fun () -> getDataRecordId indexInfo state
-          Insert =
-              fun doLogicalLogging key dataRecordId ->
-                  close state
-                  state <- None
+let newHashIndex fileMgr tx indexInfo keyType =
+    let mutable state = None
+    { BeforeFirst =
+          fun searchRange ->
+              HashIndex.close state
+              state <- Some(HashIndex.beforeFirst fileMgr tx indexInfo keyType searchRange)
+      Next = fun () -> HashIndex.next keyType state
+      GetDataRecordId = fun () -> HashIndex.getDataRecordId indexInfo state
+      Insert =
+          fun doLogicalLogging key dataRecordId ->
+              HashIndex.close state
+              state <- None
 
-                  let { RecordFile = rf } =
-                      beforeFirst fileMgr tx indexInfo keyType (SearchRange.newSearchRangeBySearchKey key)
+              let st =
+                  HashIndex.beforeFirst fileMgr tx indexInfo keyType (SearchRange.newSearchRangeBySearchKey key)
 
-                  insert tx indexInfo rf doLogicalLogging key dataRecordId
-          Delete =
-              fun doLogicalLogging key dataRecordId ->
-                  close state
-                  state <- None
+              HashIndex.insert tx indexInfo st.TableFile doLogicalLogging key dataRecordId
+      Delete =
+          fun doLogicalLogging key dataRecordId ->
+              HashIndex.close state
+              state <- None
 
-                  let { RecordFile = rf } =
-                      beforeFirst fileMgr tx indexInfo keyType (SearchRange.newSearchRangeBySearchKey key)
+              let st =
+                  HashIndex.beforeFirst fileMgr tx indexInfo keyType (SearchRange.newSearchRangeBySearchKey key)
 
-                  delete tx indexInfo rf doLogicalLogging key dataRecordId
-          Close =
-              fun () ->
-                  close state
-                  state <- None
-          PreLoadToMemory = fun () -> preLoadToMemory fileMgr tx indexInfo }
+              HashIndex.delete tx indexInfo st.TableFile doLogicalLogging key dataRecordId
+      Close =
+          fun () ->
+              HashIndex.close state
+              state <- None
+      PreLoadToMemory = fun () -> HashIndex.preLoadToMemory fileMgr tx indexInfo }

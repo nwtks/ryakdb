@@ -1,6 +1,8 @@
 namespace RyakDB.Storage
 
-type BlockId = BlockId of fileName: string * number: int64
+type BlockId = BlockId of fileName: string * blockNo: int64
 
 module BlockId =
-    let newBlockId fileName blockNo = BlockId(fileName, blockNo)
+    let BlockNoSize = 8
+
+    let inline newBlockId fileName blockNo = BlockId(fileName, blockNo)

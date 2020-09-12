@@ -57,7 +57,7 @@ module LockTable =
         if h < 0 then h + anchors.Length else h
         |> anchors.GetValue
 
-    let prepareLockers (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) key =
+    let inline prepareLockers (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) key =
         lockerMap.GetOrAdd
             (key,
              (fun _ ->
@@ -68,51 +68,51 @@ module LockTable =
                    IXLockers = Set.empty
                    RequestSet = Set.empty }))
 
-    let getLockSet (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
-                   txNo
-                   =
+    let inline getLockSet (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
+                          txNo
+                          =
         lockByTxMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
 
-    let isSLocked lockers = not (lockers.SLockers.IsEmpty)
+    let inline isSLocked lockers = not (lockers.SLockers.IsEmpty)
 
-    let isXLocked lockers = lockers.XLocker <> -1L
+    let inline isXLocked lockers = lockers.XLocker <> -1L
 
-    let isSIXLocked lockers = lockers.SIXLocker <> -1L
+    let inline isSIXLocked lockers = lockers.SIXLocker <> -1L
 
-    let isISLocked lockers = not (lockers.ISLockers.IsEmpty)
+    let inline isISLocked lockers = not (lockers.ISLockers.IsEmpty)
 
-    let isIXLocked lockers = not (lockers.IXLockers.IsEmpty)
+    let inline isIXLocked lockers = not (lockers.IXLockers.IsEmpty)
 
-    let hasSLock lockers txNo = lockers.SLockers.Contains txNo
+    let inline hasSLock lockers txNo = lockers.SLockers.Contains txNo
 
-    let hasXLock lockers txNo = lockers.XLocker = txNo
+    let inline hasXLock lockers txNo = lockers.XLocker = txNo
 
-    let hasSIXLock lockers txNo = lockers.SIXLocker = txNo
+    let inline hasSIXLock lockers txNo = lockers.SIXLocker = txNo
 
-    let hasISLock lockers txNo = lockers.ISLockers.Contains txNo
+    let inline hasISLock lockers txNo = lockers.ISLockers.Contains txNo
 
-    let hasIXLock lockers txNo = lockers.IXLockers.Contains txNo
+    let inline hasIXLock lockers txNo = lockers.IXLockers.Contains txNo
 
-    let isTheOnlySLocker lockers txNo =
+    let inline isTheOnlySLocker lockers txNo =
         lockers.SLockers.Count = 1
         && lockers.SLockers.Contains txNo
 
-    let isTheOnlyISLocker lockers txNo =
+    let inline isTheOnlyISLocker lockers txNo =
         lockers.ISLockers.Count = 1
         && lockers.ISLockers.Contains txNo
 
-    let isTheOnlyIXLocker lockers txNo =
+    let inline isTheOnlyIXLocker lockers txNo =
         lockers.IXLockers.Count = 1
         && lockers.IXLockers.Contains txNo
 
-    let isSLockable lockers txNo =
+    let inline isSLockable lockers txNo =
         (not (isXLocked lockers) || hasXLock lockers txNo)
         && (not (isSIXLocked lockers)
             || hasSIXLock lockers txNo)
         && (not (isIXLocked lockers)
             || isTheOnlyIXLocker lockers txNo)
 
-    let isXLockable lockers txNo =
+    let inline isXLockable lockers txNo =
         (not (isSLocked lockers)
          || isTheOnlySLocker lockers txNo)
         && (not (isXLocked lockers) || hasXLock lockers txNo)
@@ -123,7 +123,7 @@ module LockTable =
         && (not (isIXLocked lockers)
             || isTheOnlyIXLocker lockers txNo)
 
-    let isSIXLockable lockers txNo =
+    let inline isSIXLockable lockers txNo =
         (not (isSLocked lockers)
          || isTheOnlySLocker lockers txNo)
         && (not (isXLocked lockers) || hasXLock lockers txNo)
@@ -132,10 +132,10 @@ module LockTable =
         && (not (isIXLocked lockers)
             || isTheOnlyIXLocker lockers txNo)
 
-    let isISLockable lockers txNo =
+    let inline isISLockable lockers txNo =
         not (isXLocked lockers) || hasXLock lockers txNo
 
-    let isIXLockable lockers txNo =
+    let inline isIXLockable lockers txNo =
         (not (isSLocked lockers)
          || isTheOnlySLocker lockers txNo)
         && (not (isXLocked lockers) || hasXLock lockers txNo)
@@ -203,23 +203,23 @@ module LockTable =
                     |> ignore)
             state.TxWaitMap.TryRemove txNo |> ignore
 
-    let sLock state =
+    let inline sLock state =
         createLock state SLock isSLockable hasSLock (fun txNo lockers ->
             { lockers with
                   SLockers = lockers.SLockers.Add txNo })
 
-    let xLock state =
+    let inline xLock state =
         createLock state XLock isXLockable hasXLock (fun txNo lockers -> { lockers with XLocker = txNo })
 
-    let sixLock state =
+    let inline sixLock state =
         createLock state SIXLock isSIXLockable hasSIXLock (fun txNo lockers -> { lockers with SIXLocker = txNo })
 
-    let isLock state =
+    let inline isLock state =
         createLock state ISLock isISLockable hasISLock (fun txNo lockers ->
             { lockers with
                   ISLockers = lockers.ISLockers.Add txNo })
 
-    let ixLock state =
+    let inline ixLock state =
         createLock state IXLock isIXLockable hasIXLock (fun txNo lockers ->
             { lockers with
                   IXLockers = lockers.IXLockers.Add txNo })
@@ -302,15 +302,15 @@ module LockTable =
                     state.LockerMap.TryUpdate(key, newLockers, lockers)
                     |> ignore)
 
-    let releaseSLock state = release state SLock
+    let inline releaseSLock state = release state SLock
 
-    let releaseXLock state = release state XLock
+    let inline releaseXLock state = release state XLock
 
-    let releaseSIXLock state = release state SIXLock
+    let inline releaseSIXLock state = release state SIXLock
 
-    let releaseISLock state = release state ISLock
+    let inline releaseISLock state = release state ISLock
 
-    let releaseIXLock state = release state IXLock
+    let inline releaseIXLock state = release state IXLock
 
     let releaseAll state txNo sLockOnly =
         getLockSet state.LockByTxMap txNo
@@ -348,25 +348,25 @@ module LockTable =
                 if state.TxWaitMap.TryGetValue(txNo, &anchor)
                 then lock anchor (fun () -> System.Threading.Monitor.PulseAll anchor)
 
-    let newLockTable waitTime =
-        let state =
-            { LockerMap = System.Collections.Concurrent.ConcurrentDictionary()
-              LockByTxMap = System.Collections.Concurrent.ConcurrentDictionary()
-              TxnsToBeAborted = System.Collections.Concurrent.ConcurrentDictionary()
-              TxWaitMap = System.Collections.Concurrent.ConcurrentDictionary()
-              ToBeNotified = new System.Collections.Concurrent.BlockingCollection<int64>()
-              Anchors = Array.init 1019 (fun _ -> obj ())
-              WaitTime = waitTime }
+let newLockTable waitTime =
+    let state: LockTable.LockTableState =
+        { LockerMap = System.Collections.Concurrent.ConcurrentDictionary()
+          LockByTxMap = System.Collections.Concurrent.ConcurrentDictionary()
+          TxnsToBeAborted = System.Collections.Concurrent.ConcurrentDictionary()
+          TxWaitMap = System.Collections.Concurrent.ConcurrentDictionary()
+          ToBeNotified = new System.Collections.Concurrent.BlockingCollection<int64>()
+          Anchors = Array.init 1019 (fun _ -> obj ())
+          WaitTime = waitTime }
 
-        { SLock = sLock state
-          XLock = xLock state
-          SIXLock = sixLock state
-          ISLock = isLock state
-          IXLock = ixLock state
-          ReleaseSLock = releaseSLock state
-          ReleaseXLock = releaseXLock state
-          ReleaseSIXLock = releaseSIXLock state
-          ReleaseISLock = releaseISLock state
-          ReleaseIXLock = releaseIXLock state
-          ReleaseAll = releaseAll state
-          LocktableNotifier = fun () -> locktableNotifier state }
+    { SLock = LockTable.sLock state
+      XLock = LockTable.xLock state
+      SIXLock = LockTable.sixLock state
+      ISLock = LockTable.isLock state
+      IXLock = LockTable.ixLock state
+      ReleaseSLock = LockTable.releaseSLock state
+      ReleaseXLock = LockTable.releaseXLock state
+      ReleaseSIXLock = LockTable.releaseSIXLock state
+      ReleaseISLock = LockTable.releaseISLock state
+      ReleaseIXLock = LockTable.releaseIXLock state
+      ReleaseAll = LockTable.releaseAll state
+      LocktableNotifier = fun () -> LockTable.locktableNotifier state }

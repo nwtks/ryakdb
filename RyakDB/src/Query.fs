@@ -2,14 +2,7 @@ namespace RyakDB.Query
 
 open RyakDB.DataType
 
-type Record = string -> SqlConstant
-
-type AggregationFn =
-    | AvgFn of fieldName: string
-    | CountFn of fieldName: string
-    | MaxFn of fieldName: string
-    | MinFn of fieldName: string
-    | SumFn of fieldName: string
+type Record = string -> DbConstant
 
 type SortDirection =
     | SortAsc
@@ -20,6 +13,13 @@ type SortField = SortField of field: string * direction: SortDirection
 type IndexType =
     | Hash = 1
     | BTree = 2
+
+type AggregationFn =
+    | AvgFn of fieldName: string
+    | CountFn of fieldName: string
+    | MaxFn of fieldName: string
+    | MinFn of fieldName: string
+    | SumFn of fieldName: string
 
 module AggregationFn =
     let fieldName aggregationFn =

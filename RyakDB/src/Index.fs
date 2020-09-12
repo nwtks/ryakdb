@@ -4,9 +4,9 @@ open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Query
 
-type SearchKey = SearchKey of constants: SqlConstant list
+type SearchKey = SearchKey of constants: DbConstant list
 
-type SearchKeyType = SearchKeyType of types: SqlType list
+type SearchKeyType = SearchKeyType of types: DbType list
 
 type SearchRange =
     { Size: unit -> int32
@@ -41,7 +41,7 @@ module SearchKeyType =
 
     let newSearchKeyType schema indexedFields =
         indexedFields
-        |> List.map schema.SqlType
+        |> List.map schema.DbType
         |> SearchKeyType
 
 module SearchRange =

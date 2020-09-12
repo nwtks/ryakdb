@@ -40,23 +40,23 @@ module Plan =
             openScan fileMgr plan
             |> newSortScan schema sortFields
 
-    let newTablePlan tx tableInfo = TablePlan(tx, tableInfo)
+    let inline newTablePlan tx tableInfo = TablePlan(tx, tableInfo)
 
-    let newSelectPlan predicate plan = SelectPlan(plan, predicate)
+    let inline newSelectPlan predicate plan = SelectPlan(plan, predicate)
 
-    let newProductPlan plan1 plan2 =
+    let inline newProductPlan plan1 plan2 =
         let sch = Schema.newSchema ()
         schema plan1 |> sch.AddAll
         schema plan2 |> sch.AddAll
         ProductPlan(plan1, plan2, sch)
 
-    let newProjectPlan fieldNames plan =
+    let inline newProjectPlan fieldNames plan =
         let sch = Schema.newSchema ()
         fieldNames
         |> List.iter (fun f -> schema plan |> sch.Add f)
         ProjectPlan(plan, sch)
 
-    let newSortPlan newSortScan sortFields plan =
+    let inline newSortPlan newSortScan sortFields plan =
         let sch = schema plan
         SortPlan(plan, sch, sortFields, newSortScan)
 
@@ -80,7 +80,7 @@ module Plan =
         aggFnScans
         |> List.iter (fun fn ->
             if fn.IsArgumentTypeDependent
-            then (schema plan).SqlType fn.ArgumentFieldName
+            then (schema plan).DbType fn.ArgumentFieldName
             else fn.FieldType()
             |> sch.AddField fn.FieldName)
         GroupByPlan(sp, sch, groupFlds, aggFnScans)

@@ -1,6 +1,7 @@
 module RyakDB.Test.Sql.ParseTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Query
 open RyakDB.Query.Predicate
@@ -31,7 +32,7 @@ let ``parse select`` () =
         Assert.Equal([ "student"; "dept" ], tables |> List.toSeq)
         Assert.Equal
             (Predicate
-                ([ Term(EqualOperator, FieldNameExpression "name", ConstantExpression(SqlConstant.newVarchar "Scott"))
+                ([ Term(EqualOperator, FieldNameExpression "name", ConstantExpression(DbConstant.newVarchar "Scott"))
                    Term(EqualOperator, FieldNameExpression "sdid", FieldNameExpression "did") ]),
              predicate)
         Assert.Equal([ "student_grade"; "student_name" ], groupFields |> List.toSeq)
@@ -62,10 +63,10 @@ let ``parse insert`` () =
         Assert.Equal("test_lab", tableName)
         Assert.Equal([ "id"; "name"; "l_budget"; "l_serial" ], fields |> List.toSeq)
         Assert.Equal
-            ([ DoubleSqlConstant(11.0)
-               SqlConstant.newVarchar "net DB"
-               DoubleSqlConstant(700.26)
-               DoubleSqlConstant(-1234567891025.0) ],
+            ([ DoubleDbConstant(11.0)
+               DbConstant.newVarchar "net DB"
+               DoubleDbConstant(700.26)
+               DoubleDbConstant(-1234567891025.0) ],
              values |> List.toSeq)
     | _ -> Assert.True(false)
 
@@ -89,25 +90,24 @@ let ``parse update`` () =
              fields |> Map.toSeq |> Seq.map (fun (k, _) -> k))
         Assert.Equal
             (BinaryArithmeticExpression
-                (AddOperator, FieldNameExpression "days", ConstantExpression(DoubleSqlConstant 2.0)),
+                (AddOperator, FieldNameExpression "days", ConstantExpression(DoubleDbConstant 2.0)),
              fields.["days"])
         Assert.Equal
             (BinaryArithmeticExpression
-                (MulOperator, ConstantExpression(DoubleSqlConstant 0.2), FieldNameExpression "rate"),
+                (MulOperator, ConstantExpression(DoubleDbConstant 0.2), FieldNameExpression "rate"),
              fields.["rate"])
-        Assert.Equal(ConstantExpression(SqlConstant.newVarchar "yes"), fields.["use"])
+        Assert.Equal(ConstantExpression(DbConstant.newVarchar "yes"), fields.["use"])
         Assert.Equal
             (BinaryArithmeticExpression
-                (SubOperator, FieldNameExpression "level", ConstantExpression(DoubleSqlConstant 1.0)),
+                (SubOperator, FieldNameExpression "level", ConstantExpression(DoubleDbConstant 1.0)),
              fields.["level"])
         Assert.Equal
             (BinaryArithmeticExpression(DivOperator, FieldNameExpression "total", FieldNameExpression "cnt"),
              fields.["summary"])
         Assert.Equal
             (Predicate
-                ([ Term
-                    (GraterThanEqualOperator, FieldNameExpression "cid", ConstantExpression(DoubleSqlConstant 2165.0))
-                   Term(LessThanEqualOperator, FieldNameExpression "sid", ConstantExpression(DoubleSqlConstant 25000.0)) ]),
+                ([ Term(GraterThanEqualOperator, FieldNameExpression "cid", ConstantExpression(DoubleDbConstant 2165.0))
+                   Term(LessThanEqualOperator, FieldNameExpression "sid", ConstantExpression(DoubleDbConstant 25000.0)) ]),
              predicate)
     | _ -> Assert.True(false)
 
@@ -123,8 +123,8 @@ let ``parse delete`` () =
         Assert.Equal("student", tableName)
         Assert.Equal
             (Predicate
-                ([ Term(LessThanOperator, FieldNameExpression "sid", ConstantExpression(DoubleSqlConstant 555.0))
-                   Term(GraterThanOperator, FieldNameExpression "sdid", ConstantExpression(DoubleSqlConstant 3021.0)) ]),
+                ([ Term(LessThanOperator, FieldNameExpression "sid", ConstantExpression(DoubleDbConstant 555.0))
+                   Term(GraterThanOperator, FieldNameExpression "sdid", ConstantExpression(DoubleDbConstant 3021.0)) ]),
              predicate)
     | _ -> Assert.True(false)
 
@@ -141,10 +141,10 @@ let ``parse create table`` () =
     match Parser.updateCommand sql with
     | CreateTableData (tableName, schema) ->
         Assert.Equal("enro11", tableName)
-        Assert.Equal(IntSqlType, schema.SqlType "eid")
-        Assert.Equal(BigIntSqlType, schema.SqlType "student_id")
-        Assert.Equal(BigIntSqlType, schema.SqlType "student_id")
-        Assert.Equal(DoubleSqlType, schema.SqlType "section_id")
+        Assert.Equal(IntDbType, schema.DbType "eid")
+        Assert.Equal(BigIntDbType, schema.DbType "student_id")
+        Assert.Equal(BigIntDbType, schema.DbType "student_id")
+        Assert.Equal(DoubleDbType, schema.DbType "section_id")
     | _ -> Assert.True(false)
 
 [<Fact>]

@@ -4,37 +4,38 @@ open RyakDB.DataType
 open RyakDB.Storage
 
 type Schema =
-    { AddField: string -> SqlType -> unit
+    { AddField: string -> DbType -> unit
       Add: string -> Schema -> unit
       AddAll: Schema -> unit
       Fields: unit -> string list
       HasField: string -> bool
-      SqlType: string -> SqlType }
+      DbType: string -> DbType }
 
 type TableInfo =
     { TableName: string
       Schema: Schema
       FileName: string }
 
-type RecordId = RecordId of id: int32 * blockId: BlockId
+type RecordId = RecordId of slotNo: int32 * blockId: BlockId
 
 module Schema =
-    let addField (fieldTypes: Map<string, SqlType>) fieldName dbType = fieldTypes.Add(fieldName, dbType)
+    let inline addField (fieldTypes: Map<string, DbType>) fieldName dbType = fieldTypes.Add(fieldName, dbType)
 
-    let add (fieldTypes: Map<string, SqlType>) fieldName schema =
-        fieldTypes.Add(fieldName, schema.SqlType fieldName)
+    let inline add (fieldTypes: Map<string, DbType>) fieldName schema =
+        fieldTypes.Add(fieldName, schema.DbType fieldName)
 
-    let addAll fieldTypes schema =
+    let inline addAll fieldTypes schema =
         schema.Fields()
         |> List.fold (fun st f -> add st f schema) fieldTypes
 
-    let fields fieldTypes =
+    let inline fields fieldTypes =
         fieldTypes
         |> Map.toList
         |> List.map (fun (k, _) -> k)
 
-    let hasField (fieldTypes: Map<string, SqlType>) fieldName = fieldTypes.ContainsKey fieldName
-    let sqlType (fieldTypes: Map<string, SqlType>) fieldName = fieldTypes.[fieldName]
+    let inline hasField (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.ContainsKey fieldName
+
+    let inline dbType (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.[fieldName]
 
     let newSchema () =
         let mutable fieldTypes = Map.empty
@@ -44,16 +45,18 @@ module Schema =
           AddAll = fun schema -> fieldTypes <- addAll fieldTypes schema
           Fields = fun () -> fields fieldTypes
           HasField = fun fieldName -> hasField fieldTypes fieldName
-          SqlType = fun fieldName -> sqlType fieldTypes fieldName }
+          DbType = fun fieldName -> dbType fieldTypes fieldName }
 
 module TableInfo =
-    let newTableInfo tableName schema =
+    let inline newTableInfo tableName schema =
         { TableName = tableName
           Schema = schema
           FileName = tableName + ".tbl" }
 
 module RecordId =
-    let newRecordId id blockId = RecordId(id, blockId)
+    let SlotNoSize = 4
 
-    let newBlockRecordId id fileName blockNo =
-        RecordId(id, BlockId.newBlockId fileName blockNo)
+    let inline newRecordId slotNo blockId = RecordId(slotNo, blockId)
+
+    let inline newBlockRecordId slotNo fileName blockNo =
+        RecordId(slotNo, BlockId.newBlockId fileName blockNo)

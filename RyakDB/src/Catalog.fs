@@ -4,7 +4,7 @@ open RyakDB.DataType
 open RyakDB.Query
 open RyakDB.Sql.Parse
 open RyakDB.Transaction
-open RyakDB.Table.Record
+open RyakDB.Table.TableFile
 open RyakDB.Table
 open RyakDB.Index
 
@@ -57,26 +57,26 @@ module TableManager =
     let MaxName = 30
 
     let formatFileHeader fileMgr tx tableName =
-        RecordFile.formatFileHeader fileMgr tx (tableName + ".tbl")
+        TableFile.formatFileHeader fileMgr tx (tableName + ".tbl")
 
     let newTcatInfo () =
         let tcatSchema = Schema.newSchema ()
-        tcatSchema.AddField TcatTableName (VarcharSqlType MaxName)
+        tcatSchema.AddField TcatTableName (VarcharDbType MaxName)
         TableInfo.newTableInfo Tcat tcatSchema
 
     let newFcatInfo () =
         let fcatSchema = Schema.newSchema ()
-        fcatSchema.AddField FcatTableName (VarcharSqlType MaxName)
-        fcatSchema.AddField FcatFieldName (VarcharSqlType MaxName)
-        fcatSchema.AddField FcatType IntSqlType
-        fcatSchema.AddField FcatTypeArg IntSqlType
+        fcatSchema.AddField FcatTableName (VarcharDbType MaxName)
+        fcatSchema.AddField FcatFieldName (VarcharDbType MaxName)
+        fcatSchema.AddField FcatType IntDbType
+        fcatSchema.AddField FcatTypeArg IntDbType
         TableInfo.newTableInfo Fcat fcatSchema
 
     let getTableInfo fileMgr tx tableName =
-        let rec findTcatfile (tcatfile: RecordFile) =
+        let rec findTcatfile (tcatfile: TableFile) =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
-                   |> Option.map SqlConstant.toString
+                   |> Option.map DbConstant.toString
                    |> Option.map (fun tn -> tn = tableName)
                    |> Option.defaultValue false then
                     true
@@ -86,35 +86,33 @@ module TableManager =
                 false
 
         let findTcatInfo tcatInfo =
-            let tcatfile =
-                RecordFile.newRecordFile fileMgr tx true tcatInfo
+            let tcatfile = newTableFile fileMgr tx true tcatInfo
 
             tcatfile.BeforeFirst()
             let found = findTcatfile tcatfile
             tcatfile.Close()
             found
 
-        let rec addField (fcatfile: RecordFile) schema =
+        let rec addField (fcatfile: TableFile) schema =
             if fcatfile.Next() then
                 if fcatfile.GetVal FcatTableName
-                   |> Option.map SqlConstant.toString
+                   |> Option.map DbConstant.toString
                    |> Option.map (fun tn -> tn = tableName)
                    |> Option.defaultValue false then
                     match fcatfile.GetVal FcatFieldName
-                          |> Option.map SqlConstant.toString,
+                          |> Option.map DbConstant.toString,
                           fcatfile.GetVal FcatType
-                          |> Option.map SqlConstant.toInt,
+                          |> Option.map DbConstant.toInt,
                           fcatfile.GetVal FcatTypeArg
-                          |> Option.map SqlConstant.toInt with
-                    | Some (fn), Some (ft), Some (fa) -> SqlType.fromInt ft fa |> schema.AddField fn
+                          |> Option.map DbConstant.toInt with
+                    | Some (fn), Some (ft), Some (fa) -> DbType.fromInt ft fa |> schema.AddField fn
                     | _ -> ()
                 addField fcatfile schema
             else
                 schema
 
         let createSchema fcatInfo =
-            let fcatfile =
-                RecordFile.newRecordFile fileMgr tx true fcatInfo
+            let fcatfile = newTableFile fileMgr tx true fcatInfo
 
             fcatfile.BeforeFirst()
             let schema = Schema.newSchema () |> addField fcatfile
@@ -131,25 +129,23 @@ module TableManager =
 
     let createTable fileMgr tx tableName schema =
         let addTcatInfo tcatInfo =
-            let tcatfile =
-                RecordFile.newRecordFile fileMgr tx true tcatInfo
+            let tcatfile = newTableFile fileMgr tx true tcatInfo
 
             tcatfile.Insert()
-            SqlConstant.newVarchar tableName
+            DbConstant.newVarchar tableName
             |> tcatfile.SetVal TcatTableName
             tcatfile.Close()
 
-        let addFieldName (fcatfile: RecordFile) fieldName =
+        let addFieldName (fcatfile: TableFile) fieldName =
             fcatfile.Insert()
-            fcatfile.SetVal FcatTableName (SqlConstant.newVarchar tableName)
-            fcatfile.SetVal FcatFieldName (SqlConstant.newVarchar fieldName)
-            let fldType = schema.SqlType fieldName
-            fcatfile.SetVal FcatType (SqlType.toInt fldType |> IntSqlConstant)
-            fcatfile.SetVal FcatTypeArg (SqlType.argument fldType |> IntSqlConstant)
+            fcatfile.SetVal FcatTableName (DbConstant.newVarchar tableName)
+            fcatfile.SetVal FcatFieldName (DbConstant.newVarchar fieldName)
+            let fldType = schema.DbType fieldName
+            fcatfile.SetVal FcatType (DbType.toInt fldType |> IntDbConstant)
+            fcatfile.SetVal FcatTypeArg (DbType.argument fldType |> IntDbConstant)
 
         let addFcatInfo fcatInfo =
-            let fcatfile =
-                RecordFile.newRecordFile fileMgr tx true fcatInfo
+            let fcatfile = newTableFile fileMgr tx true fcatInfo
 
             schema.Fields()
             |> List.iter (addFieldName fcatfile)
@@ -164,38 +160,36 @@ module TableManager =
     let dropTable fileMgr (catalogMgr: CatalogManager) tx tableName =
         let removeTableInfo fileMgr =
             getTableInfo fileMgr tx tableName
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf -> rf.Delete())
 
-        let rec deleteTcatfile (tcatfile: RecordFile) =
+        let rec deleteTcatfile (tcatfile: TableFile) =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
-                   |> Option.map SqlConstant.toString
+                   |> Option.map DbConstant.toString
                    |> Option.map (fun tn -> tn = tableName)
                    |> Option.defaultValue false then
                     tcatfile.Delete()
                 deleteTcatfile tcatfile
 
         let removeTcatInfo tcatInfo =
-            let tcatfile =
-                RecordFile.newRecordFile fileMgr tx true tcatInfo
+            let tcatfile = newTableFile fileMgr tx true tcatInfo
 
             tcatfile.BeforeFirst()
             deleteTcatfile tcatfile
             tcatfile.Close()
 
-        let rec deleteFcatfile (fcatfile: RecordFile) =
+        let rec deleteFcatfile (fcatfile: TableFile) =
             if fcatfile.Next() then
                 if fcatfile.GetVal FcatTableName
-                   |> Option.map SqlConstant.toString
+                   |> Option.map DbConstant.toString
                    |> Option.map (fun tn -> tn = tableName)
                    |> Option.defaultValue false then
                     fcatfile.Delete()
                 deleteFcatfile fcatfile
 
         let removeFcatInfo fcatInfo =
-            let fcatfile =
-                RecordFile.newRecordFile fileMgr tx true fcatInfo
+            let fcatfile = newTableFile fileMgr tx true fcatInfo
 
             fcatfile.BeforeFirst()
             deleteFcatfile fcatfile
@@ -218,11 +212,11 @@ module TableManager =
         createTable fileMgr tx Tcat (newTcatInfo ()).Schema
         createTable fileMgr tx Fcat (newFcatInfo ()).Schema
 
-    let newTableManager fileMgr catalogMgr =
-        { CreateTable = createTable fileMgr
-          DropTable = dropTable fileMgr catalogMgr
-          GetTableInfo = getTableInfo fileMgr
-          InitTableManager = initTableManager fileMgr }
+let newTableManager fileMgr catalogMgr =
+    { CreateTable = TableManager.createTable fileMgr
+      DropTable = TableManager.dropTable fileMgr catalogMgr
+      GetTableInfo = TableManager.getTableInfo fileMgr
+      InitTableManager = TableManager.initTableManager fileMgr }
 
 module IndexManager =
     let Icat = "cat_idx"
@@ -236,30 +230,30 @@ module IndexManager =
     let createIndex fileMgr tblMgr tx indexName indexType tableName fields =
         let createIcat tblMgr =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf ->
                 rf.Insert()
-                rf.SetVal IcatIdxName (SqlConstant.newVarchar indexName)
-                rf.SetVal IcatTblName (SqlConstant.newVarchar tableName)
-                rf.SetVal IcatIdxType (IntSqlConstant(int32 indexType))
+                rf.SetVal IcatIdxName (DbConstant.newVarchar indexName)
+                rf.SetVal IcatTblName (DbConstant.newVarchar tableName)
+                rf.SetVal IcatIdxType (IntDbConstant(int32 indexType))
                 rf.Close())
 
         let createKcat tblMgr =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf ->
                 fields
                 |> List.iter (fun field ->
                     rf.Insert()
-                    rf.SetVal KcatIdxName (SqlConstant.newVarchar indexName)
-                    rf.SetVal KcatKeyName (SqlConstant.newVarchar field)
+                    rf.SetVal KcatIdxName (DbConstant.newVarchar indexName)
+                    rf.SetVal KcatKeyName (DbConstant.newVarchar field)
                     rf.Close()))
 
         createIcat tblMgr
         createKcat tblMgr
 
     let dropIndex fileMgr tblMgr tx indexName =
-        let rec loopIcat (rf: RecordFile) indexName =
+        let rec loopIcat (rf: TableFile) indexName =
             if rf.Next() then
                 if rf.GetVal IcatIdxName |> Option.get = indexName
                 then rf.Delete()
@@ -267,13 +261,13 @@ module IndexManager =
 
         let dropIcat tblMgr =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf ->
                 rf.BeforeFirst()
-                loopIcat rf (SqlConstant.newVarchar indexName)
+                loopIcat rf (DbConstant.newVarchar indexName)
                 rf.Close())
 
-        let rec loopVcat (rf: RecordFile) indexName =
+        let rec loopVcat (rf: TableFile) indexName =
             if rf.Next() then
                 if rf.GetVal KcatIdxName |> Option.get = indexName
                 then rf.Delete()
@@ -281,26 +275,26 @@ module IndexManager =
 
         let dropKcat tblMgr =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf ->
                 rf.BeforeFirst()
-                loopVcat rf (SqlConstant.newVarchar indexName)
+                loopVcat rf (DbConstant.newVarchar indexName)
                 rf.Close())
 
         dropIcat tblMgr
         dropKcat tblMgr
 
     let getIndexInfoByName fileMgr tblMgr tx indexName =
-        let rec loopIcat (rf: RecordFile) indexName =
+        let rec loopIcat (rf: TableFile) indexName =
             if rf.Next() then
                 if rf.GetVal IcatIdxName |> Option.get = indexName then
                     match rf.GetVal IcatIdxName
-                          |> Option.map SqlConstant.toString,
+                          |> Option.map DbConstant.toString,
                           rf.GetVal IcatTblName
-                          |> Option.map SqlConstant.toString
+                          |> Option.map DbConstant.toString
                           |> Option.bind (tblMgr.GetTableInfo tx),
                           rf.GetVal IcatIdxType
-                          |> Option.map SqlConstant.toInt
+                          |> Option.map DbConstant.toInt
                           |> Option.map enum<IndexType> with
                     | Some (idxName), (Some tblInfo), (Some idxType) -> Some(idxName, tblInfo, idxType)
                     | _ -> loopIcat rf indexName
@@ -311,23 +305,23 @@ module IndexManager =
 
         let findIcat tblMgr indexName =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
 
                 let tbl =
-                    loopIcat rf (SqlConstant.newVarchar indexName)
+                    loopIcat rf (DbConstant.newVarchar indexName)
 
                 rf.Close()
                 tbl)
 
-        let rec loopKcat (rf: RecordFile) indexName fields =
+        let rec loopKcat (rf: TableFile) indexName fields =
             if rf.Next() then
                 rf.GetVal KcatIdxName
                 |> Option.filter (fun v -> v = indexName)
                 |> Option.bind (fun _ ->
                     rf.GetVal KcatKeyName
-                    |> Option.map SqlConstant.toString)
+                    |> Option.map DbConstant.toString)
                 |> Option.map (fun field -> field :: fields)
                 |> Option.defaultValue fields
                 |> loopKcat rf indexName
@@ -336,12 +330,12 @@ module IndexManager =
 
         let findKcat tblMgr indexName =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
                 let fields =
-                    loopKcat rf (SqlConstant.newVarchar indexName) []
+                    loopKcat rf (DbConstant.newVarchar indexName) []
 
                 rf.Close()
                 fields)
@@ -352,16 +346,16 @@ module IndexManager =
             |> Option.map (fun fields -> IndexInfo.newIndexInfo idxName idxType tblInfo fields))
 
     let getIndexInfoByField fileMgr tblMgr tx tableName field =
-        let rec loopIcat (rf: RecordFile) tableName indexes =
+        let rec loopIcat (rf: TableFile) tableName indexes =
             if rf.Next() then
                 if rf.GetVal IcatTblName |> Option.get = tableName then
                     match rf.GetVal IcatIdxName
-                          |> Option.map SqlConstant.toString,
+                          |> Option.map DbConstant.toString,
                           rf.GetVal IcatTblName
-                          |> Option.map SqlConstant.toString
+                          |> Option.map DbConstant.toString
                           |> Option.bind (tblMgr.GetTableInfo tx),
                           rf.GetVal IcatIdxType
-                          |> Option.map SqlConstant.toInt
+                          |> Option.map DbConstant.toInt
                           |> Option.map enum<IndexType> with
                     | Some (idxName), (Some tblInfo), (Some idxType) -> (idxName, tblInfo, idxType) :: indexes
                     | _ -> indexes
@@ -373,23 +367,23 @@ module IndexManager =
 
         let fineIcat tblMgr tableName =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
                 let indexes =
-                    loopIcat rf (SqlConstant.newVarchar tableName) []
+                    loopIcat rf (DbConstant.newVarchar tableName) []
 
                 rf.Close()
                 indexes)
 
-        let rec loopKcat (rf: RecordFile) indexName fields =
+        let rec loopKcat (rf: TableFile) indexName fields =
             if rf.Next() then
                 rf.GetVal KcatIdxName
                 |> Option.filter (fun v -> v = indexName)
                 |> Option.bind (fun _ ->
                     rf.GetVal KcatKeyName
-                    |> Option.map SqlConstant.toString)
+                    |> Option.map DbConstant.toString)
                 |> Option.map (fun f -> f :: fields)
                 |> Option.defaultValue fields
                 |> loopKcat rf indexName
@@ -398,12 +392,12 @@ module IndexManager =
 
         let findKcat fileMgr tblMgr idxName idxType tblInfo =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
 
                 let fields =
-                    loopKcat rf (SqlConstant.newVarchar idxName) []
+                    loopKcat rf (DbConstant.newVarchar idxName) []
 
                 rf.Close()
                 if fields |> List.contains field
@@ -415,11 +409,11 @@ module IndexManager =
         |> Option.defaultValue []
 
     let getIndexedFields fileMgr tblMgr tx tableName =
-        let rec loopIcat (rf: RecordFile) tableName indexes =
+        let rec loopIcat (rf: TableFile) tableName indexes =
             if rf.Next() then
                 if rf.GetVal IcatTblName |> Option.get = tableName then
                     match rf.GetVal IcatIdxName
-                          |> Option.map SqlConstant.toString with
+                          |> Option.map DbConstant.toString with
                     | Some (idxName) -> idxName :: indexes
                     | _ -> indexes
                 else
@@ -430,23 +424,23 @@ module IndexManager =
 
         let findIcat tblMgr tableName =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
                 let indexes =
-                    loopIcat rf (SqlConstant.newVarchar tableName) []
+                    loopIcat rf (DbConstant.newVarchar tableName) []
 
                 rf.Close()
                 indexes)
 
-        let rec loopKcat (rf: RecordFile) indexName fields =
+        let rec loopKcat (rf: TableFile) indexName fields =
             if rf.Next() then
                 rf.GetVal KcatIdxName
                 |> Option.filter (fun v -> v = indexName)
                 |> Option.bind (fun _ ->
                     rf.GetVal KcatKeyName
-                    |> Option.map SqlConstant.toString)
+                    |> Option.map DbConstant.toString)
                 |> Option.map (fun field -> field :: fields)
                 |> Option.defaultValue fields
                 |> loopKcat rf indexName
@@ -455,12 +449,12 @@ module IndexManager =
 
         let findKcat tblMgr indexName =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
                 let fields =
-                    loopKcat rf (SqlConstant.newVarchar indexName) []
+                    loopKcat rf (DbConstant.newVarchar indexName) []
 
                 rf.Close()
                 fields)
@@ -475,27 +469,27 @@ module IndexManager =
     let initIndexManager tblMgr tx =
         let createIcat tblMgr =
             let icatSchema = Schema.newSchema ()
-            icatSchema.AddField IcatIdxName (VarcharSqlType TableManager.MaxName)
-            icatSchema.AddField IcatTblName (VarcharSqlType TableManager.MaxName)
-            icatSchema.AddField IcatIdxType IntSqlType
+            icatSchema.AddField IcatIdxName (VarcharDbType TableManager.MaxName)
+            icatSchema.AddField IcatTblName (VarcharDbType TableManager.MaxName)
+            icatSchema.AddField IcatIdxType IntDbType
             tblMgr.CreateTable tx Icat icatSchema
 
         let createKcat tblMgr =
             let kcatSchema = Schema.newSchema ()
-            kcatSchema.AddField KcatIdxName (VarcharSqlType TableManager.MaxName)
-            kcatSchema.AddField KcatKeyName (VarcharSqlType TableManager.MaxName)
+            kcatSchema.AddField KcatIdxName (VarcharDbType TableManager.MaxName)
+            kcatSchema.AddField KcatKeyName (VarcharDbType TableManager.MaxName)
             tblMgr.CreateTable tx Kcat kcatSchema
 
         createIcat tblMgr
         createKcat tblMgr
 
-    let newIndexManager fileMgr tblMgr =
-        { CreateIndex = createIndex fileMgr tblMgr
-          DropIndex = dropIndex fileMgr tblMgr
-          GetIndexInfoByName = getIndexInfoByName fileMgr tblMgr
-          GetIndexInfoByField = getIndexInfoByField fileMgr tblMgr
-          GetIndexedFields = getIndexedFields fileMgr tblMgr
-          InitIndexManager = initIndexManager tblMgr }
+let newIndexManager fileMgr tblMgr =
+    { CreateIndex = IndexManager.createIndex fileMgr tblMgr
+      DropIndex = IndexManager.dropIndex fileMgr tblMgr
+      GetIndexInfoByName = IndexManager.getIndexInfoByName fileMgr tblMgr
+      GetIndexInfoByField = IndexManager.getIndexInfoByField fileMgr tblMgr
+      GetIndexedFields = IndexManager.getIndexedFields fileMgr tblMgr
+      InitIndexManager = IndexManager.initIndexManager tblMgr }
 
 module ViewManager =
     let Vcat = "cat_view"
@@ -506,17 +500,17 @@ module ViewManager =
     let createView fileMgr tblMgr tx viewName viewDef =
         let createVcat tblMgr =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf ->
                 rf.Insert()
-                rf.SetVal VcatVname (SqlConstant.newVarchar viewName)
-                rf.SetVal VcatVdef (SqlConstant.newVarchar viewDef)
+                rf.SetVal VcatVname (DbConstant.newVarchar viewName)
+                rf.SetVal VcatVdef (DbConstant.newVarchar viewDef)
                 rf.Close())
 
         createVcat tblMgr
 
     let dropView fileMgr tblMgr tx viewName =
-        let rec loopVcat (rf: RecordFile) viewName =
+        let rec loopVcat (rf: TableFile) viewName =
             if rf.Next() then
                 if rf.GetVal VcatVname |> Option.get = viewName
                 then rf.Delete()
@@ -524,20 +518,20 @@ module ViewManager =
 
         let dropVcat tblMgr =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.iter (fun rf ->
                 rf.BeforeFirst()
-                loopVcat rf (SqlConstant.newVarchar viewName)
+                loopVcat rf (DbConstant.newVarchar viewName)
                 rf.Close())
 
         dropVcat tblMgr
 
     let getViewDef fileMgr tblMgr tx viewName =
-        let rec loopVcat (rf: RecordFile) viewName =
+        let rec loopVcat (rf: TableFile) viewName =
             if rf.Next() then
                 if rf.GetVal VcatVname |> Option.get = viewName then
                     rf.GetVal VcatVdef
-                    |> Option.map SqlConstant.toString
+                    |> Option.map DbConstant.toString
                 else
                     loopVcat rf viewName
             else
@@ -545,12 +539,12 @@ module ViewManager =
 
         let findVcat tblMgr viewName =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
 
                 let tn =
-                    loopVcat rf (SqlConstant.newVarchar viewName)
+                    loopVcat rf (DbConstant.newVarchar viewName)
 
                 rf.Close()
                 tn)
@@ -558,10 +552,10 @@ module ViewManager =
         findVcat tblMgr viewName
 
     let getViewNamesByTable fileMgr tblMgr tx tableName =
-        let rec loopVcat (rf: RecordFile) tableName viewNames =
+        let rec loopVcat (rf: TableFile) tableName viewNames =
             if rf.Next() then
                 rf.GetVal VcatVdef
-                |> Option.map SqlConstant.toString
+                |> Option.map DbConstant.toString
                 |> Option.map Parser.queryCommand
                 |> Option.map (fun qd ->
                     let QueryData(tables = tables) = qd
@@ -569,7 +563,7 @@ module ViewManager =
                 |> Option.filter (List.contains tableName)
                 |> Option.bind (fun _ ->
                     rf.GetVal VcatVname
-                    |> Option.map SqlConstant.toString)
+                    |> Option.map DbConstant.toString)
                 |> Option.map (fun viewName -> viewName :: viewNames)
                 |> Option.defaultValue viewNames
                 |> loopVcat rf tableName
@@ -578,7 +572,7 @@ module ViewManager =
 
         let findVcat tblMgr tableName =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> RecordFile.newRecordFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
                 let viewNames = loopVcat rf tableName []
@@ -590,55 +584,51 @@ module ViewManager =
 
     let initViewManager tblMgr tx =
         let schema = Schema.newSchema ()
-        schema.AddField VcatVname (VarcharSqlType TableManager.MaxName)
-        schema.AddField VcatVdef (VarcharSqlType MaxViewDef)
+        schema.AddField VcatVname (VarcharDbType TableManager.MaxName)
+        schema.AddField VcatVdef (VarcharDbType MaxViewDef)
         tblMgr.CreateTable tx Vcat schema
 
-    let newViewManager fileMgr tblMgr =
-        { CreateView = createView fileMgr tblMgr
-          DropView = dropView fileMgr tblMgr
-          GetViewDef = getViewDef fileMgr tblMgr
-          GetViewNamesByTable = getViewNamesByTable fileMgr tblMgr
-          InitViewManager = initViewManager tblMgr }
+let newViewManager fileMgr tblMgr =
+    { CreateView = ViewManager.createView fileMgr tblMgr
+      DropView = ViewManager.dropView fileMgr tblMgr
+      GetViewDef = ViewManager.getViewDef fileMgr tblMgr
+      GetViewNamesByTable = ViewManager.getViewNamesByTable fileMgr tblMgr
+      InitViewManager = ViewManager.initViewManager tblMgr }
 
-module CatalogManager =
-    let newCatalogManager fileMgr =
-        let mutable tblMgr = None
-        let mutable idxMgr = None
-        let mutable viewMgr = None
+let newCatalogManager fileMgr =
+    let mutable tblMgr = None
+    let mutable idxMgr = None
+    let mutable viewMgr = None
 
-        let catalogManager =
-            { CreateTable = fun tx tableName schema -> (tblMgr |> Option.get).CreateTable tx tableName schema
-              DropTable = fun tx tableName -> (tblMgr |> Option.get).DropTable tx tableName
-              GetTableInfo = fun tx tableName -> (tblMgr |> Option.get).GetTableInfo tx tableName
-              CreateIndex =
-                  fun tx indexName indexType tableName fieldNames ->
-                      (idxMgr |> Option.get).CreateIndex tx indexName indexType tableName fieldNames
-              DropIndex = fun tx indexName -> (idxMgr |> Option.get).DropIndex tx indexName
-              GetIndexInfoByName = fun tx indexName -> (idxMgr |> Option.get).GetIndexInfoByName tx indexName
-              GetIndexInfoByField =
-                  fun tx indexName fieldName -> (idxMgr |> Option.get).GetIndexInfoByField tx indexName fieldName
-              GetIndexedFields = fun tx indexName -> (idxMgr |> Option.get).GetIndexedFields tx indexName
-              CreateView = fun tx viewName query -> (viewMgr |> Option.get).CreateView tx viewName query
-              DropView = fun tx viewName -> (viewMgr |> Option.get).DropView tx viewName
-              GetViewDef = fun tx viewName -> (viewMgr |> Option.get).GetViewDef tx viewName
-              GetViewNamesByTable = fun tx tableName -> (viewMgr |> Option.get).GetViewNamesByTable tx tableName
-              InitCatalogManager =
-                  fun tx ->
-                      (tblMgr |> Option.get).InitTableManager tx
-                      (idxMgr |> Option.get).InitIndexManager tx
-                      (viewMgr |> Option.get).InitViewManager tx }
+    let catalogManager =
+        { CreateTable = fun tx tableName schema -> (tblMgr |> Option.get).CreateTable tx tableName schema
+          DropTable = fun tx tableName -> (tblMgr |> Option.get).DropTable tx tableName
+          GetTableInfo = fun tx tableName -> (tblMgr |> Option.get).GetTableInfo tx tableName
+          CreateIndex =
+              fun tx indexName indexType tableName fieldNames ->
+                  (idxMgr |> Option.get).CreateIndex tx indexName indexType tableName fieldNames
+          DropIndex = fun tx indexName -> (idxMgr |> Option.get).DropIndex tx indexName
+          GetIndexInfoByName = fun tx indexName -> (idxMgr |> Option.get).GetIndexInfoByName tx indexName
+          GetIndexInfoByField =
+              fun tx indexName fieldName -> (idxMgr |> Option.get).GetIndexInfoByField tx indexName fieldName
+          GetIndexedFields = fun tx indexName -> (idxMgr |> Option.get).GetIndexedFields tx indexName
+          CreateView = fun tx viewName query -> (viewMgr |> Option.get).CreateView tx viewName query
+          DropView = fun tx viewName -> (viewMgr |> Option.get).DropView tx viewName
+          GetViewDef = fun tx viewName -> (viewMgr |> Option.get).GetViewDef tx viewName
+          GetViewNamesByTable = fun tx tableName -> (viewMgr |> Option.get).GetViewNamesByTable tx tableName
+          InitCatalogManager =
+              fun tx ->
+                  (tblMgr |> Option.get).InitTableManager tx
+                  (idxMgr |> Option.get).InitIndexManager tx
+                  (viewMgr |> Option.get).InitViewManager tx }
 
-        let tableManager =
-            TableManager.newTableManager fileMgr catalogManager
+    let tableManager = newTableManager fileMgr catalogManager
 
-        let indexManager =
-            IndexManager.newIndexManager fileMgr tableManager
+    let indexManager = newIndexManager fileMgr tableManager
 
-        let viewManager =
-            ViewManager.newViewManager fileMgr tableManager
+    let viewManager = newViewManager fileMgr tableManager
 
-        tblMgr <- Some tableManager
-        idxMgr <- Some indexManager
-        viewMgr <- Some viewManager
-        catalogManager
+    tblMgr <- Some tableManager
+    idxMgr <- Some indexManager
+    viewMgr <- Some viewManager
+    catalogManager

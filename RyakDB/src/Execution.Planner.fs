@@ -8,7 +8,7 @@ open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Sql.Parse
 open RyakDB.Execution.Plan
-open RyakDB.Execution.Materialize
+open RyakDB.Execution.MergeSort
 open RyakDB.Execution.Scan
 
 type Planner =
@@ -19,7 +19,7 @@ type QueryPlanner =
     { CreatePlan: Transaction -> QueryData -> Plan }
 
 type UpdatePlanner =
-    { ExecuteInsert: Transaction -> string -> string list -> SqlConstant list -> int
+    { ExecuteInsert: Transaction -> string -> string list -> DbConstant list -> int
       ExecuteDelete: Transaction -> string -> Predicate -> int
       ExecuteModify: Transaction -> string -> Predicate -> Map<string, Expression> -> int
       ExecuteCreateTable: Transaction -> string -> Schema -> int
@@ -30,11 +30,11 @@ type UpdatePlanner =
       ExecuteDropView: Transaction -> string -> int }
 
 module Planner =
-    let createQueryPlan queryPlanner tx cmd =
+    let inline createQueryPlan queryPlanner tx cmd =
         Parser.queryCommand cmd
         |> queryPlanner.CreatePlan tx
 
-    let executeUpdate updatePlanner tx cmd =
+    let inline executeUpdate updatePlanner tx cmd =
         if tx.ReadOnly then failwith "Read only transaction"
         match Parser.updateCommand cmd with
         | InsertData (tableName, fields, values) -> updatePlanner.ExecuteInsert tx tableName fields values
@@ -48,9 +48,9 @@ module Planner =
         | CreateViewData (viewName, viewDef) -> updatePlanner.ExecuteCreateView tx viewName viewDef
         | DropViewData (viewName) -> updatePlanner.ExecuteDropView tx viewName
 
-    let newPlanner queryPlanner updatePlanner =
-        { CreateQueryPlan = createQueryPlan queryPlanner
-          ExecuteUpdate = executeUpdate updatePlanner }
+let newPlanner queryPlanner updatePlanner =
+    { CreateQueryPlan = Planner.createQueryPlan queryPlanner
+      ExecuteUpdate = Planner.executeUpdate updatePlanner }
 
 module QueryPlanner =
     let rec createPlan fileMgr
@@ -58,7 +58,7 @@ module QueryPlanner =
                        tx
                        (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
                        =
-        let newSortScan = Materialize.newSortScan fileMgr tx
+        let newSortScan = MergeSort.newSortScan fileMgr tx
         tables
         |> List.map (fun tblname ->
             match catalogMgr.GetViewDef tx tblname with
@@ -75,8 +75,8 @@ module QueryPlanner =
         |> Plan.newProjectPlan projectionFields
         |> Plan.newSortPlan newSortScan sortFields
 
-    let newQueryPlanner fileMgr catalogMgr =
-        { CreatePlan = createPlan fileMgr catalogMgr }
+let newQueryPlanner fileMgr catalogMgr =
+    { CreatePlan = QueryPlanner.createPlan fileMgr catalogMgr }
 
 module UpdatePlanner =
     let executeInsert fileMgr (catalogMgr: CatalogManager) tx tableName fieldNames values =
@@ -133,37 +133,37 @@ module UpdatePlanner =
         scan.Close()
         count
 
-    let executeCreateTable (catalogMgr: CatalogManager) tx tableName schema =
+    let inline executeCreateTable (catalogMgr: CatalogManager) tx tableName schema =
         catalogMgr.CreateTable tx tableName schema
         0
 
-    let executeDropTable (catalogMgr: CatalogManager) tx tableName =
+    let inline executeDropTable (catalogMgr: CatalogManager) tx tableName =
         catalogMgr.DropTable tx tableName
         0
 
-    let executeCreateIndex (catalogMgr: CatalogManager) tx indexName indexType tableName fieldNames =
+    let inline executeCreateIndex (catalogMgr: CatalogManager) tx indexName indexType tableName fieldNames =
         catalogMgr.CreateIndex tx indexName indexType tableName fieldNames
         0
 
-    let executeDropIndex (catalogMgr: CatalogManager) tx indexName =
+    let inline executeDropIndex (catalogMgr: CatalogManager) tx indexName =
         catalogMgr.DropIndex tx indexName
         0
 
-    let executeCreateView (catalogMgr: CatalogManager) tx viewName viewDef =
+    let inline executeCreateView (catalogMgr: CatalogManager) tx viewName viewDef =
         catalogMgr.CreateView tx viewName viewDef
         0
 
-    let executeDropView (catalogMgr: CatalogManager) tx viewName =
+    let inline executeDropView (catalogMgr: CatalogManager) tx viewName =
         catalogMgr.DropView tx viewName
         0
 
-    let newUpdatePlanner fileMgr catalogMgr =
-        { ExecuteInsert = executeInsert fileMgr catalogMgr
-          ExecuteDelete = executeDelete fileMgr catalogMgr
-          ExecuteModify = executeModify fileMgr catalogMgr
-          ExecuteCreateTable = executeCreateTable catalogMgr
-          ExecuteDropTable = executeDropTable catalogMgr
-          ExecuteCreateIndex = executeCreateIndex catalogMgr
-          ExecuteDropIndex = executeDropIndex catalogMgr
-          ExecuteCreateView = executeCreateView catalogMgr
-          ExecuteDropView = executeDropView catalogMgr }
+let newUpdatePlanner fileMgr catalogMgr =
+    { ExecuteInsert = UpdatePlanner.executeInsert fileMgr catalogMgr
+      ExecuteDelete = UpdatePlanner.executeDelete fileMgr catalogMgr
+      ExecuteModify = UpdatePlanner.executeModify fileMgr catalogMgr
+      ExecuteCreateTable = UpdatePlanner.executeCreateTable catalogMgr
+      ExecuteDropTable = UpdatePlanner.executeDropTable catalogMgr
+      ExecuteCreateIndex = UpdatePlanner.executeCreateIndex catalogMgr
+      ExecuteDropIndex = UpdatePlanner.executeDropIndex catalogMgr
+      ExecuteCreateView = UpdatePlanner.executeCreateView catalogMgr
+      ExecuteDropView = UpdatePlanner.executeDropView catalogMgr }

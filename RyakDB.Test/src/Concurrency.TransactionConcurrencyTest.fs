@@ -1,9 +1,9 @@
-module RyakDB.Test.ConcurrencyTest
+module RyakDB.Test.Concurrency.TransactionConcurrencyTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Storage
-open RyakDB.Concurrency
 open RyakDB.Transaction
 open RyakDB.Execution.Plan
 open RyakDB.Database
@@ -23,7 +23,7 @@ let ``serializable, read modify`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -31,9 +31,9 @@ let ``serializable, read modify`` () =
     let tx2 =
         db.TxMgr.NewTransaction false Serializable
 
-    tx1.ConcurMgr.ReadFile filename
-    tx1.ConcurMgr.ReadBlock blocks.[0]
-    Assert.Throws(fun () -> tx2.ConcurMgr.ModifyBlock blocks.[0])
+    tx1.Concurrency.ReadFile filename
+    tx1.Concurrency.ReadBlock blocks.[0]
+    Assert.Throws(fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
     |> ignore
 
     tx1.Rollback()
@@ -50,7 +50,7 @@ let ``serializable, read read`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -58,9 +58,9 @@ let ``serializable, read read`` () =
     let tx2 =
         db.TxMgr.NewTransaction false Serializable
 
-    tx1.ConcurMgr.ReadFile filename
-    tx2.ConcurMgr.ReadBlock blocks.[0]
-    tx1.ConcurMgr.ReadBlock blocks.[1]
+    tx1.Concurrency.ReadFile filename
+    tx2.Concurrency.ReadBlock blocks.[0]
+    tx1.Concurrency.ReadBlock blocks.[1]
 
     tx1.Rollback()
     tx2.Rollback()
@@ -76,7 +76,7 @@ let ``serializable, modify read`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -84,8 +84,8 @@ let ``serializable, modify read`` () =
     let tx2 =
         db.TxMgr.NewTransaction false Serializable
 
-    tx1.ConcurMgr.ModifyBlock blocks.[0]
-    tx2.ConcurMgr.ReadBlock blocks.[1]
+    tx1.Concurrency.ModifyBlock blocks.[0]
+    tx2.Concurrency.ReadBlock blocks.[1]
 
     tx1.Rollback()
     tx2.Rollback()
@@ -101,7 +101,7 @@ let ``serializable, phantom`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -109,8 +109,8 @@ let ``serializable, phantom`` () =
     let tx2 =
         db.TxMgr.NewTransaction false Serializable
 
-    tx1.ConcurMgr.ReadBlock blocks.[0]
-    Assert.Throws(fun () -> tx2.ConcurMgr.InsertBlock blocks.[1])
+    tx1.Concurrency.ReadBlock blocks.[0]
+    Assert.Throws(fun () -> tx2.Concurrency.InsertBlock blocks.[1])
     |> ignore
 
     tx1.Rollback()
@@ -127,7 +127,7 @@ let ``repeatable read, read modify`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false RepeatableRead
@@ -135,8 +135,8 @@ let ``repeatable read, read modify`` () =
     let tx2 =
         db.TxMgr.NewTransaction false RepeatableRead
 
-    tx1.ConcurMgr.ReadBlock blocks.[0]
-    Assert.Throws(fun () -> tx2.ConcurMgr.ModifyBlock blocks.[0])
+    tx1.Concurrency.ReadBlock blocks.[0]
+    Assert.Throws(fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
     |> ignore
 
     tx1.Rollback()
@@ -153,7 +153,7 @@ let ``repeatable read, phantom`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false RepeatableRead
@@ -161,10 +161,10 @@ let ``repeatable read, phantom`` () =
     let tx2 =
         db.TxMgr.NewTransaction false RepeatableRead
 
-    tx1.ConcurMgr.ReadFile filename
-    tx1.ConcurMgr.ReadBlock blocks.[0]
-    tx2.ConcurMgr.InsertBlock blocks.[1]
-    tx2.ConcurMgr.ModifyBlock blocks.[1]
+    tx1.Concurrency.ReadFile filename
+    tx1.Concurrency.ReadBlock blocks.[0]
+    tx2.Concurrency.InsertBlock blocks.[1]
+    tx2.Concurrency.ModifyBlock blocks.[1]
 
     tx1.Rollback()
     tx2.Rollback()
@@ -180,7 +180,7 @@ let ``read committed, end statement`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false ReadCommitted
@@ -188,10 +188,10 @@ let ``read committed, end statement`` () =
     let tx2 =
         db.TxMgr.NewTransaction false ReadCommitted
 
-    tx1.ConcurMgr.ReadBlock blocks.[0]
-    tx1.ConcurMgr.ReadBlock blocks.[1]
+    tx1.Concurrency.ReadBlock blocks.[0]
+    tx1.Concurrency.ReadBlock blocks.[1]
     tx1.EndStatement()
-    tx2.ConcurMgr.ModifyBlock blocks.[2]
+    tx2.Concurrency.ModifyBlock blocks.[2]
 
     tx1.Rollback()
     tx2.Rollback()
@@ -201,7 +201,7 @@ let ``serializable, serializable`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -252,7 +252,7 @@ let ``serializable, repeatable read`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -308,7 +308,7 @@ let ``serializable, read committed`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -331,7 +331,7 @@ let ``serializable, read committed`` () =
         |> (fun scan1 ->
             scan1.BeforeFirst()
             scan2.Next() |> ignore
-            Assert.Equal(IntSqlConstant 1, scan2.GetVal "s_id")
+            Assert.Equal(IntDbConstant 1, scan2.GetVal "s_id")
             tx2.EndStatement()
             scan1.Next() |> ignore
             scan1.Insert()

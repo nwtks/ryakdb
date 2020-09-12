@@ -3,157 +3,155 @@ module RyakDB.Recovery.TransactionRecoveryFinalize
 open RyakDB.Storage.Log
 open RyakDB.Storage.BTree
 open RyakDB.Table
-open RyakDB.Table.Record
+open RyakDB.Table.TableFile
 open RyakDB.Index
 open RyakDB.Index.IndexFactory
-open RyakDB.Buffer.BufferManager
-open RyakDB.Recovery
+open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
 open RyakDB.Transaction
 open RyakDB.Catalog
 
-module TransactionRecoveryFinalize =
-    let undo fileMgr logMgr (catalogMgr: CatalogManager) tx r =
-        match r with
-        | LogicalStartRecord (n, l) ->
-            l
-            |> Option.bind (tx.RecoveryMgr.LogLogicalAbort n)
+let undo fileMgr logMgr (catalogMgr: CatalogManager) tx recoveryLog =
+    match recoveryLog with
+    | LogicalStartRecord (n, l) ->
+        l
+        |> Option.bind (tx.Recovery.LogLogicalAbort n)
+        |> Option.iter logMgr.Flush
+    | TableFileInsertEndRecord (n, tn, bn, sid, start, _) ->
+        catalogMgr.GetTableInfo tx tn
+        |> Option.bind (fun ti ->
+            let rf =
+                newTableFile fileMgr tx true ti
+
+            let rid =
+                RecordId.newBlockRecordId sid ti.FileName bn
+
+            rf.DeleteByRecordId rid
+            tx.Recovery.LogLogicalAbort n start)
+        |> Option.iter logMgr.Flush
+    | TableFileDeleteEndRecord (n, tn, bn, sid, start, _) ->
+        catalogMgr.GetTableInfo tx tn
+        |> Option.bind (fun ti ->
+            let rf =
+                newTableFile fileMgr tx true ti
+
+            let rid =
+                RecordId.newBlockRecordId sid ti.FileName bn
+
+            rf.InsertByRecordId rid
+            tx.Recovery.LogLogicalAbort n start)
+        |> Option.iter logMgr.Flush
+    | IndexInsertEndRecord (n, inm, sk, bn, sid, start, _) ->
+        catalogMgr.GetIndexInfoByName tx inm
+        |> Option.bind (fun ii ->
+            let idx = IndexFactory.newIndex fileMgr tx ii
+
+            let rid =
+                RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
+
+            idx.Delete false sk rid
+            idx.Close()
+            tx.Recovery.LogLogicalAbort n start)
+        |> Option.iter logMgr.Flush
+    | IndexDeleteEndRecord (n, inm, sk, bn, sid, start, _) ->
+        catalogMgr.GetIndexInfoByName tx inm
+        |> Option.bind (fun ii ->
+            let idx = newIndex fileMgr tx ii
+
+            let rid =
+                RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
+
+            idx.Insert false sk rid
+            idx.Close()
+            tx.Recovery.LogLogicalAbort n start)
+        |> Option.iter logMgr.Flush
+    | IndexPageInsertRecord (n, ibid, dir, kt, sid, optlsn) ->
+        let buffer = tx.Buffer.Pin ibid
+        match optlsn with
+        | Some lsn when lsn < buffer.LastLogSeqNo() ->
+            if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+            tx.Recovery.LogIndexPageDeletionClr dir n ibid kt sid lsn
             |> Option.iter logMgr.Flush
-        | RecordFileInsertEndRecord (n, tn, bn, sid, start, _) ->
-            catalogMgr.GetTableInfo tx tn
-            |> Option.bind (fun ti ->
-                let rf =
-                    RecordFile.newRecordFile fileMgr tx true ti
-
-                let rid =
-                    RecordId.newBlockRecordId sid ti.FileName bn
-
-                rf.DeleteByRecordId rid
-                tx.RecoveryMgr.LogLogicalAbort n start)
-            |> Option.iter logMgr.Flush
-        | RecordFileDeleteEndRecord (n, tn, bn, sid, start, _) ->
-            catalogMgr.GetTableInfo tx tn
-            |> Option.bind (fun ti ->
-                let rf =
-                    RecordFile.newRecordFile fileMgr tx true ti
-
-                let rid =
-                    RecordId.newBlockRecordId sid ti.FileName bn
-
-                rf.InsertByRecordId rid
-                tx.RecoveryMgr.LogLogicalAbort n start)
-            |> Option.iter logMgr.Flush
-        | IndexInsertEndRecord (n, inm, sk, bn, sid, start, _) ->
-            catalogMgr.GetIndexInfoByName tx inm
-            |> Option.bind (fun ii ->
-                let idx = IndexFactory.newIndex fileMgr tx ii
-
-                let rid =
-                    RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
-
-                idx.Delete false sk rid
-                idx.Close()
-                tx.RecoveryMgr.LogLogicalAbort n start)
-            |> Option.iter logMgr.Flush
-        | IndexDeleteEndRecord (n, inm, sk, bn, sid, start, _) ->
-            catalogMgr.GetIndexInfoByName tx inm
-            |> Option.bind (fun ii ->
-                let idx = IndexFactory.newIndex fileMgr tx ii
-
-                let rid =
-                    RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
-
-                idx.Insert false sk rid
-                idx.Close()
-                tx.RecoveryMgr.LogLogicalAbort n start)
-            |> Option.iter logMgr.Flush
-        | IndexPageInsertRecord (n, ibid, dir, kt, sid, optlsn) ->
-            let buffer = tx.BufferMgr.Pin ibid
-            match optlsn with
-            | Some lsn when lsn < buffer.LastLsn() ->
-                if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
-                tx.RecoveryMgr.LogIndexPageDeletionClr dir n ibid kt sid lsn
-                |> Option.iter logMgr.Flush
-            | _ -> ()
-            tx.BufferMgr.Unpin buffer
-        | IndexPageDeleteRecord (n, ibid, dir, kt, sid, optlsn) ->
-            let buffer = tx.BufferMgr.Pin ibid
-            match optlsn with
-            | Some lsn when lsn < buffer.LastLsn() ->
-                if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
-                tx.RecoveryMgr.LogIndexPageInsertionClr dir n ibid kt sid lsn
-                |> Option.iter logMgr.Flush
-            | _ -> ()
-            tx.BufferMgr.Unpin buffer
-        | SetValueRecord (n, bid, off, _, v, _, optlsn) ->
-            let buffer = tx.BufferMgr.Pin bid
-            optlsn
-            |> Option.bind (tx.RecoveryMgr.LogSetValClr n buffer off v)
-            |> Option.iter logMgr.Flush
-            buffer.SetVal off v None
-            tx.BufferMgr.Unpin buffer
         | _ -> ()
+        tx.Buffer.Unpin buffer
+    | IndexPageDeleteRecord (n, ibid, dir, kt, sid, optlsn) ->
+        let buffer = tx.Buffer.Pin ibid
+        match optlsn with
+        | Some lsn when lsn < buffer.LastLogSeqNo() ->
+            if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+            tx.Recovery.LogIndexPageInsertionClr dir n ibid kt sid lsn
+            |> Option.iter logMgr.Flush
+        | _ -> ()
+        tx.Buffer.Unpin buffer
+    | SetValueRecord (n, bid, off, _, v, _, optlsn) ->
+        let buffer = tx.Buffer.Pin bid
+        optlsn
+        |> Option.bind (tx.Recovery.LogSetValClr n buffer off v)
+        |> Option.iter logMgr.Flush
+        buffer.SetVal off v None
+        tx.Buffer.Unpin buffer
+    | _ -> ()
 
-    let rollback fileMgr logMgr catalogMgr tx =
-        let undoLogRecord = undo fileMgr logMgr catalogMgr tx
+let rollback fileMgr logMgr catalogMgr tx =
+    let undoLogRecord = undo fileMgr logMgr catalogMgr tx
 
-        let mutable txUnDoNextLSN = None
-        let mutable inStart = false
-        logMgr.Records()
-        |> Seq.map RecoveryLog.fromLogRecord
-        |> Seq.filter (fun r -> RecoveryLog.transactionNumber r = tx.TransactionNumber)
-        |> Seq.iter (fun r ->
-            if not (inStart) then
-                match txUnDoNextLSN, RecoveryLog.getLSN r with
-                | None, _ ->
-                    match r with
-                    | StartRecord (_) -> inStart <- true
-                    | LogicalAbortRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | RecordFileInsertEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | RecordFileDeleteEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | IndexInsertEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | _ -> undoLogRecord r
-                | Some (lsn1), Some (lsn2) when lsn1 > lsn2 ->
-                    match r with
-                    | StartRecord (_) -> inStart <- true
-                    | LogicalAbortRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | RecordFileInsertEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | RecordFileDeleteEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | IndexInsertEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
-                        undoLogRecord r
-                        txUnDoNextLSN <- Some lsn
-                    | _ -> undoLogRecord r
-                | _, _ -> ())
+    let mutable txUnDoNextLSN = None
+    let mutable inStart = false
+    logMgr.Records()
+    |> Seq.map fromLogRecord
+    |> Seq.filter (fun rlog -> transactionNumber rlog = tx.TransactionNumber)
+    |> Seq.iter (fun rlog ->
+        if not (inStart) then
+            match txUnDoNextLSN, getLSN rlog with
+            | None, _ ->
+                match rlog with
+                | StartRecord (_) -> inStart <- true
+                | LogicalAbortRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | TableFileInsertEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | TableFileDeleteEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | IndexInsertEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | _ -> undoLogRecord rlog
+            | Some (lsn1), Some (lsn2) when lsn1 > lsn2 ->
+                match rlog with
+                | StartRecord (_) -> inStart <- true
+                | LogicalAbortRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | TableFileInsertEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | TableFileDeleteEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | IndexInsertEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
+                    undoLogRecord rlog
+                    txUnDoNextLSN <- Some lsn
+                | _ -> undoLogRecord rlog
+            | _, _ -> ())
 
-    let onCommit logMgr tx =
-        if not (tx.ReadOnly) then
-            RecoveryLog.newCommitRecord tx.TransactionNumber
-            |> RecoveryLog.writeToLog logMgr
-            |> logMgr.Flush
+let onCommit logMgr tx =
+    if not (tx.ReadOnly) then
+        newCommitRecord tx.TransactionNumber
+        |> writeToLog logMgr
+        |> logMgr.Flush
 
-    let onRollback fileMgr logMgr catalogMgr tx =
-        if not (tx.ReadOnly) then
-            rollback fileMgr logMgr catalogMgr tx
-            RecoveryLog.newRollbackRecord tx.TransactionNumber
-            |> RecoveryLog.writeToLog logMgr
-            |> logMgr.Flush
+let onRollback fileMgr logMgr catalogMgr tx =
+    if not (tx.ReadOnly) then
+        rollback fileMgr logMgr catalogMgr tx
+        newRollbackRecord tx.TransactionNumber
+        |> writeToLog logMgr
+        |> logMgr.Flush

@@ -1,30 +1,31 @@
-namespace RyakDB.Recovery
+module RyakDB.Recovery.TransactionRecovery
 
 open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
-open RyakDB.Buffer
+open RyakDB.Buffer.Buffer
+open RyakDB.Recovery
 open RyakDB.Recovery.RecoveryLog
 open RyakDB.Index
 
-type RecoveryManager =
+type TransactionRecovery =
     { Checkpoint: int64 list -> LogSeqNo
-      LogSetVal: Buffer -> int32 -> SqlConstant -> LogSeqNo option
+      LogSetVal: Buffer -> int32 -> DbConstant -> LogSeqNo option
       LogLogicalStart: unit -> LogSeqNo option
       LogLogicalAbort: int64 -> LogSeqNo -> LogSeqNo option
-      LogRecordFileInsertionEnd: string -> int64 -> int32 -> LogSeqNo option
-      LogRecordFileDeletionEnd: string -> int64 -> int32 -> LogSeqNo option
+      LogTableFileInsertionEnd: string -> int64 -> int32 -> LogSeqNo option
+      LogTableFileDeletionEnd: string -> int64 -> int32 -> LogSeqNo option
       LogIndexInsertionEnd: string -> SearchKey -> int64 -> int32 -> LogSeqNo option
       LogIndexDeletionEnd: string -> SearchKey -> int64 -> int32 -> LogSeqNo option
       LogIndexPageInsertion: bool -> BlockId -> SearchKeyType -> int32 -> LogSeqNo option
       LogIndexPageDeletion: bool -> BlockId -> SearchKeyType -> int32 -> LogSeqNo option
       LogIndexPageInsertionClr: bool -> int64 -> BlockId -> SearchKeyType -> int32 -> LogSeqNo -> LogSeqNo option
       LogIndexPageDeletionClr: bool -> int64 -> BlockId -> SearchKeyType -> int32 -> LogSeqNo -> LogSeqNo option
-      LogSetValClr: int64 -> Buffer -> int32 -> SqlConstant -> LogSeqNo -> LogSeqNo option }
+      LogSetValClr: int64 -> Buffer -> int32 -> DbConstant -> LogSeqNo -> LogSeqNo option }
 
-module RecoveryManager =
-    type RecoveryManagerState =
+module TransactionRecovery =
+    type TransactionRecoveryState =
         { TxNo: int64
           mutable LogicalStartLSN: LogSeqNo option }
 
@@ -43,7 +44,7 @@ module RecoveryManager =
                     state.TxNo
                     blk
                     offset
-                    (buffer.GetVal offset (SqlConstant.sqlType newVal))
+                    (buffer.GetVal offset (DbConstant.dbType newVal))
                     newVal
 
             let lsn = RecoveryLog.writeToLog logMgr record
@@ -64,27 +65,27 @@ module RecoveryManager =
         let lsn = RecoveryLog.writeToLog logMgr record
         Some(lsn)
 
-    let logRecordFileInsertionEnd logMgr state tableName blockNo slotId =
+    let logTableFileInsertionEnd logMgr state tableName blockNo slotId =
         match state.LogicalStartLSN with
         | Some (startLsn) ->
             let record =
-                RecoveryLog.newRecordFileInsertEndRecord state.TxNo tableName blockNo slotId startLsn
+                RecoveryLog.newTableFileInsertEndRecord state.TxNo tableName blockNo slotId startLsn
 
             let lsn = RecoveryLog.writeToLog logMgr record
             state.LogicalStartLSN <- None
             Some(lsn)
-        | _ -> failwith "Logical start LSN is null (in logRecordFileInsertionEnd)"
+        | _ -> failwith "Logical start LSN is null (in logTableFileInsertionEnd)"
 
-    let logRecordFileDeletionEnd logMgr state tableName blockNo slotId =
+    let logTableFileDeletionEnd logMgr state tableName blockNo slotId =
         match state.LogicalStartLSN with
         | Some (startLsn) ->
             let record =
-                RecoveryLog.newRecordFileDeleteEndRecord state.TxNo tableName blockNo slotId startLsn
+                RecoveryLog.newTableFileDeleteEndRecord state.TxNo tableName blockNo slotId startLsn
 
             let lsn = RecoveryLog.writeToLog logMgr record
             state.LogicalStartLSN <- None
             Some(lsn)
-        | _ -> failwith "Logical start LSN is null (in logRecordFileDeletionEnd)"
+        | _ -> failwith "Logical start LSN is null (in logTableFileDeletionEnd)"
 
     let logIndexInsertionEnd logMgr state indexName searchKey recordBlockNo recordSlotId =
         match state.LogicalStartLSN with
@@ -147,31 +148,31 @@ module RecoveryManager =
                     compTxNo
                     blk
                     offset
-                    (buffer.GetVal offset (SqlConstant.sqlType newVal))
+                    (buffer.GetVal offset (DbConstant.dbType newVal))
                     newVal
                     undoNextLSN
 
             let lsn = RecoveryLog.writeToLog logMgr record
             Some(lsn)
 
-    let newRecoveryManager logMgr txNo isReadOnly =
-        let state = { TxNo = txNo; LogicalStartLSN = None }
+let newTransactionRecovery logMgr txNo isReadOnly =
+    let state :TransactionRecovery.TransactionRecoveryState= { TxNo = txNo; LogicalStartLSN = None }
 
-        if not (isReadOnly) then
-            RecoveryLog.newStartRecord txNo
-            |> RecoveryLog.writeToLog logMgr
-            |> ignore
+    if not (isReadOnly) then
+        newStartRecord txNo
+        |> writeToLog logMgr
+        |> ignore
 
-        { Checkpoint = checkpoint logMgr
-          LogSetVal = logSetVal logMgr state
-          LogLogicalStart = (fun () -> logLogicalStart logMgr state)
-          LogLogicalAbort = logLogicalAbort logMgr
-          LogRecordFileInsertionEnd = logRecordFileInsertionEnd logMgr state
-          LogRecordFileDeletionEnd = logRecordFileDeletionEnd logMgr state
-          LogIndexInsertionEnd = logIndexInsertionEnd logMgr state
-          LogIndexDeletionEnd = logIndexDeletionEnd logMgr state
-          LogIndexPageInsertion = logIndexPageInsertion logMgr state
-          LogIndexPageDeletion = logIndexPageDeletion logMgr state
-          LogIndexPageInsertionClr = logIndexPageInsertionClr logMgr
-          LogIndexPageDeletionClr = logIndexPageDeletionClr logMgr
-          LogSetValClr = logSetValClr logMgr }
+    { Checkpoint = TransactionRecovery.checkpoint logMgr
+      LogSetVal = TransactionRecovery.logSetVal logMgr state
+      LogLogicalStart = (fun () -> TransactionRecovery.logLogicalStart logMgr state)
+      LogLogicalAbort = TransactionRecovery.logLogicalAbort logMgr
+      LogTableFileInsertionEnd = TransactionRecovery.logTableFileInsertionEnd logMgr state
+      LogTableFileDeletionEnd = TransactionRecovery.logTableFileDeletionEnd logMgr state
+      LogIndexInsertionEnd = TransactionRecovery.logIndexInsertionEnd logMgr state
+      LogIndexDeletionEnd = TransactionRecovery.logIndexDeletionEnd logMgr state
+      LogIndexPageInsertion = TransactionRecovery.logIndexPageInsertion logMgr state
+      LogIndexPageDeletion = TransactionRecovery.logIndexPageDeletion logMgr state
+      LogIndexPageInsertionClr = TransactionRecovery.logIndexPageInsertionClr logMgr
+      LogIndexPageDeletionClr = TransactionRecovery.logIndexPageDeletionClr logMgr
+      LogSetValClr = TransactionRecovery.logSetValClr logMgr }

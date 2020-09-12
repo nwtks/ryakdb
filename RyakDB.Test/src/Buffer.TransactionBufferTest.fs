@@ -1,12 +1,12 @@
-module RyakDB.Test.Buffer.BufferManagerTest
+module RyakDB.Test.Buffer.TransactionBufferTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.Storage
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
-open RyakDB.Buffer
 open RyakDB.Buffer.BufferPool
-open RyakDB.Buffer.BufferManager
+open RyakDB.Buffer.TransactionBuffer
 
 [<Fact>]
 let ``available buffers`` () =
@@ -17,16 +17,13 @@ let ``available buffers`` () =
     let logfilename = "test_available_buffers.log"
 
     let fileMgr =
-        FileManager.newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        LogManager.newLogManager fileMgr logfilename
+    let logMgr = newLogManager fileMgr logfilename
 
-    let bufferPool =
-        BufferPool.newBufferPool fileMgr logMgr 10 1000
+    let bufferPool = newBufferPool fileMgr logMgr 10 1000
 
-    let buffMgr =
-        BufferManager.newBufferManager bufferPool 12341L
+    let buffMgr = newTransactionBuffer bufferPool 12341L
 
     let a1 = buffMgr.Available()
 
@@ -67,19 +64,15 @@ let ``concurrent buffer manager pin`` () =
     let logfilename = "test_concurrent_buffer_manager_pin.log"
 
     let fileMgr =
-        FileManager.newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        LogManager.newLogManager fileMgr logfilename
+    let logMgr = newLogManager fileMgr logfilename
 
-    let bufferPool =
-        BufferPool.newBufferPool fileMgr logMgr 5 3000
+    let bufferPool = newBufferPool fileMgr logMgr 5 3000
 
-    let buffMgr1 =
-        BufferManager.newBufferManager bufferPool 1234562L
+    let buffMgr1 = newTransactionBuffer bufferPool 1234562L
 
-    let buffMgr2 =
-        BufferManager.newBufferManager bufferPool 1234563L
+    let buffMgr2 = newTransactionBuffer bufferPool 1234563L
 
     let result = System.Text.StringBuilder(200)
     result.Append "start0." |> ignore

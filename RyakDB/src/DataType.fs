@@ -1,256 +1,256 @@
 module RyakDB.DataType
 
-type SqlType =
-    | IntSqlType
-    | BigIntSqlType
-    | DoubleSqlType
-    | VarcharSqlType of argument: int32
+type DbType =
+    | IntDbType
+    | BigIntDbType
+    | DoubleDbType
+    | VarcharDbType of argument: int32
 
-type SqlConstant =
-    | IntSqlConstant of value: int32
-    | BigIntSqlConstant of value: int64
-    | DoubleSqlConstant of value: double
-    | VarcharSqlConstant of value: string * sqlType: SqlType
+type DbConstant =
+    | IntDbConstant of value: int32
+    | BigIntDbConstant of value: int64
+    | DoubleDbConstant of value: double
+    | VarcharDbConstant of value: string * dbType: DbType
 
-type SqlConstantRange =
-    { Low: unit -> SqlConstant
-      High: unit -> SqlConstant
+type DbConstantRange =
+    { Low: unit -> DbConstant
+      High: unit -> DbConstant
       IsValid: unit -> bool
       HasLowerBound: unit -> bool
       HasUpperBound: unit -> bool
       IsLowInclusive: unit -> bool
       IsHighInclusive: unit -> bool
       Size: unit -> int32
-      ApplyLow: bool -> SqlConstant -> SqlConstantRange
-      ApplyHigh: bool -> SqlConstant -> SqlConstantRange
-      ApplyConstant: SqlConstant -> SqlConstantRange
+      ApplyLow: bool -> DbConstant -> DbConstantRange
+      ApplyHigh: bool -> DbConstant -> DbConstantRange
+      ApplyConstant: DbConstant -> DbConstantRange
       IsConstant: unit -> bool
-      ToConstant: unit -> SqlConstant
-      Contains: SqlConstant -> bool
-      LessThan: SqlConstant -> bool
-      GraterThan: SqlConstant -> bool
-      IsOverlappingRange: SqlConstantRange -> bool
-      ContainsRange: SqlConstantRange -> bool
-      Intersect: SqlConstantRange -> SqlConstantRange
-      Union: SqlConstantRange -> SqlConstantRange }
+      ToConstant: unit -> DbConstant
+      Contains: DbConstant -> bool
+      LessThan: DbConstant -> bool
+      GraterThan: DbConstant -> bool
+      IsOverlappingRange: DbConstantRange -> bool
+      ContainsRange: DbConstantRange -> bool
+      Intersect: DbConstantRange -> DbConstantRange
+      Union: DbConstantRange -> DbConstantRange }
 
-module SqlType =
-    let argument t =
+module DbType =
+    let inline argument t =
         match t with
-        | VarcharSqlType arg -> arg
+        | VarcharDbType arg -> arg
         | _ -> -1
 
-    let isFixedSize t =
+    let inline isFixedSize t =
         match t with
-        | IntSqlType
-        | BigIntSqlType
-        | DoubleSqlType -> true
+        | IntDbType
+        | BigIntDbType
+        | DoubleDbType -> true
         | _ -> false
 
-    let isNumeric t =
+    let inline isNumeric t =
         match t with
-        | IntSqlType
-        | BigIntSqlType
-        | DoubleSqlType -> true
+        | IntDbType
+        | BigIntDbType
+        | DoubleDbType -> true
         | _ -> false
 
-    let maxSize t =
+    let inline maxSize t =
         match t with
-        | IntSqlType -> 4
-        | BigIntSqlType -> 8
-        | DoubleSqlType -> 8
-        | VarcharSqlType arg -> System.Text.UTF8Encoding().GetMaxByteCount(arg)
+        | IntDbType -> 4
+        | BigIntDbType -> 8
+        | DoubleDbType -> 8
+        | VarcharDbType arg -> System.Text.UTF8Encoding().GetMaxByteCount(arg)
 
-    let minValue t =
+    let inline minValue t =
         match t with
-        | IntSqlType -> IntSqlConstant System.Int32.MinValue
-        | BigIntSqlType -> BigIntSqlConstant System.Int64.MinValue
-        | DoubleSqlType -> DoubleSqlConstant System.Double.MinValue
-        | VarcharSqlType _ -> VarcharSqlConstant("", VarcharSqlType 0)
+        | IntDbType -> IntDbConstant System.Int32.MinValue
+        | BigIntDbType -> BigIntDbConstant System.Int64.MinValue
+        | DoubleDbType -> DoubleDbConstant System.Double.MinValue
+        | VarcharDbType _ -> VarcharDbConstant("", VarcharDbType 0)
 
-    let maxValue t =
+    let inline maxValue t =
         match t with
-        | IntSqlType -> IntSqlConstant System.Int32.MaxValue
-        | BigIntSqlType -> BigIntSqlConstant System.Int64.MaxValue
-        | DoubleSqlType -> DoubleSqlConstant System.Double.MaxValue
+        | IntDbType -> IntDbConstant System.Int32.MaxValue
+        | BigIntDbType -> BigIntDbConstant System.Int64.MaxValue
+        | DoubleDbType -> DoubleDbConstant System.Double.MaxValue
         | _ -> failwith "Invalid type"
 
-    let toInt t =
+    let inline toInt t =
         match t with
-        | IntSqlType -> 1
-        | BigIntSqlType -> 2
-        | DoubleSqlType -> 3
-        | VarcharSqlType _ -> 4
+        | IntDbType -> 1
+        | BigIntDbType -> 2
+        | DoubleDbType -> 3
+        | VarcharDbType _ -> 4
 
-    let fromInt t arg =
+    let inline fromInt t arg =
         match t with
-        | 1 -> IntSqlType
-        | 2 -> BigIntSqlType
-        | 3 -> DoubleSqlType
-        | 4 -> VarcharSqlType arg
+        | 1 -> IntDbType
+        | 2 -> BigIntDbType
+        | 3 -> DoubleDbType
+        | 4 -> VarcharDbType arg
         | _ -> failwith "Invalid type"
 
-module SqlConstant =
-    let newVarchar s =
-        VarcharSqlConstant(s, VarcharSqlType s.Length)
+module DbConstant =
+    let inline newVarchar s =
+        VarcharDbConstant(s, VarcharDbType s.Length)
 
-    let DefaultInt = IntSqlConstant 0
-    let DefaultBigInt = BigIntSqlConstant 0L
-    let DefaultDouble = DoubleSqlConstant 0.0
+    let DefaultInt = IntDbConstant 0
+    let DefaultBigInt = BigIntDbConstant 0L
+    let DefaultDouble = DoubleDbConstant 0.0
     let DefaultVarchar = newVarchar ""
 
-    let sqlType c =
+    let inline dbType c =
         match c with
-        | IntSqlConstant _ -> IntSqlType
-        | BigIntSqlConstant _ -> BigIntSqlType
-        | DoubleSqlConstant _ -> DoubleSqlType
-        | VarcharSqlConstant (_, t) -> t
+        | IntDbConstant _ -> IntDbType
+        | BigIntDbConstant _ -> BigIntDbType
+        | DoubleDbConstant _ -> DoubleDbType
+        | VarcharDbConstant (_, t) -> t
 
-    let toBytes c: byte [] =
+    let inline toBytes c: byte [] =
         match c with
-        | IntSqlConstant v -> System.BitConverter.GetBytes(v)
-        | BigIntSqlConstant v -> System.BitConverter.GetBytes(v)
-        | DoubleSqlConstant v -> System.BitConverter.GetBytes(v)
-        | VarcharSqlConstant (v, _) -> System.Text.UTF8Encoding().GetBytes(v)
+        | IntDbConstant v -> System.BitConverter.GetBytes(v)
+        | BigIntDbConstant v -> System.BitConverter.GetBytes(v)
+        | DoubleDbConstant v -> System.BitConverter.GetBytes(v)
+        | VarcharDbConstant (v, _) -> System.Text.UTF8Encoding().GetBytes(v)
 
-    let fromBytes sqlType (bytes: byte []) =
-        match sqlType with
-        | IntSqlType ->
+    let inline fromBytes dbType (bytes: byte []) =
+        match dbType with
+        | IntDbType ->
             System.BitConverter.ToInt32(System.ReadOnlySpan(bytes))
-            |> IntSqlConstant
-        | BigIntSqlType ->
+            |> IntDbConstant
+        | BigIntDbType ->
             System.BitConverter.ToInt64(System.ReadOnlySpan(bytes))
-            |> BigIntSqlConstant
-        | DoubleSqlType ->
+            |> BigIntDbConstant
+        | DoubleDbType ->
             System.BitConverter.ToDouble(System.ReadOnlySpan(bytes))
-            |> DoubleSqlConstant
-        | VarcharSqlType _ ->
+            |> DoubleDbConstant
+        | VarcharDbType _ ->
             System.Text.UTF8Encoding().GetString(bytes)
             |> newVarchar
 
-    let size c = (toBytes c).Length
+    let inline size c = (toBytes c).Length
 
-    let defaultConstant sqlType =
-        match sqlType with
-        | IntSqlType -> DefaultInt
-        | BigIntSqlType -> DefaultBigInt
-        | DoubleSqlType -> DefaultDouble
-        | VarcharSqlType _ -> DefaultVarchar
+    let inline defaultConstant dbType =
+        match dbType with
+        | IntDbType -> DefaultInt
+        | BigIntDbType -> DefaultBigInt
+        | DoubleDbType -> DefaultDouble
+        | VarcharDbType _ -> DefaultVarchar
 
-    let toInt value =
+    let inline toInt value =
         match value with
-        | IntSqlConstant v -> v
-        | BigIntSqlConstant v -> int32 v
-        | DoubleSqlConstant v -> int32 v
+        | IntDbConstant v -> v
+        | BigIntDbConstant v -> int32 v
+        | DoubleDbConstant v -> int32 v
         | _ -> failwith "Can't cast"
 
-    let toLong value =
+    let inline toLong value =
         match value with
-        | IntSqlConstant v -> int64 v
-        | BigIntSqlConstant v -> v
-        | DoubleSqlConstant v -> int64 v
+        | IntDbConstant v -> int64 v
+        | BigIntDbConstant v -> v
+        | DoubleDbConstant v -> int64 v
         | _ -> failwith "Can't cast"
 
-    let toDouble value =
+    let inline toDouble value =
         match value with
-        | IntSqlConstant v -> double v
-        | BigIntSqlConstant v -> double v
-        | DoubleSqlConstant v -> v
+        | IntDbConstant v -> double v
+        | BigIntDbConstant v -> double v
+        | DoubleDbConstant v -> v
         | _ -> failwith "Can't cast"
 
-    let toString value =
+    let inline toString value =
         match value with
-        | IntSqlConstant v -> v.ToString()
-        | BigIntSqlConstant v -> v.ToString()
-        | DoubleSqlConstant v -> v.ToString()
-        | VarcharSqlConstant (v, _) -> v
+        | IntDbConstant v -> v.ToString()
+        | BigIntDbConstant v -> v.ToString()
+        | DoubleDbConstant v -> v.ToString()
+        | VarcharDbConstant (v, _) -> v
 
-    let castTo sqlType value =
-        match value, sqlType with
-        | IntSqlConstant _, IntSqlType -> value
-        | IntSqlConstant v, BigIntSqlType -> int64 v |> BigIntSqlConstant
-        | IntSqlConstant v, DoubleSqlType -> double v |> DoubleSqlConstant
-        | IntSqlConstant v, VarcharSqlType _ -> v.ToString() |> newVarchar
-        | BigIntSqlConstant _, BigIntSqlType -> value
-        | BigIntSqlConstant v, IntSqlType -> int32 v |> IntSqlConstant
-        | BigIntSqlConstant v, DoubleSqlType -> double v |> DoubleSqlConstant
-        | BigIntSqlConstant v, VarcharSqlType _ -> v.ToString() |> newVarchar
-        | DoubleSqlConstant _, DoubleSqlType -> value
-        | DoubleSqlConstant v, IntSqlType -> int32 v |> IntSqlConstant
-        | DoubleSqlConstant v, BigIntSqlType -> int64 v |> BigIntSqlConstant
-        | DoubleSqlConstant v, VarcharSqlType _ -> v.ToString() |> newVarchar
-        | VarcharSqlConstant _, VarcharSqlType _ -> value
+    let inline castTo dbType value =
+        match value, dbType with
+        | IntDbConstant _, IntDbType -> value
+        | IntDbConstant v, BigIntDbType -> int64 v |> BigIntDbConstant
+        | IntDbConstant v, DoubleDbType -> double v |> DoubleDbConstant
+        | IntDbConstant v, VarcharDbType _ -> v.ToString() |> newVarchar
+        | BigIntDbConstant _, BigIntDbType -> value
+        | BigIntDbConstant v, IntDbType -> int32 v |> IntDbConstant
+        | BigIntDbConstant v, DoubleDbType -> double v |> DoubleDbConstant
+        | BigIntDbConstant v, VarcharDbType _ -> v.ToString() |> newVarchar
+        | DoubleDbConstant _, DoubleDbType -> value
+        | DoubleDbConstant v, IntDbType -> int32 v |> IntDbConstant
+        | DoubleDbConstant v, BigIntDbType -> int64 v |> BigIntDbConstant
+        | DoubleDbConstant v, VarcharDbType _ -> v.ToString() |> newVarchar
+        | VarcharDbConstant _, VarcharDbType _ -> value
         | _ -> failwith "Can't cast"
 
-    let compare lhs rhs =
+    let inline compare lhs rhs =
         let compareValue v1 v2 =
             if v1 < v2 then -1
             elif v1 > v2 then 1
             else 0
 
         match lhs, rhs with
-        | IntSqlConstant lv, IntSqlConstant rv -> compareValue lv rv
-        | BigIntSqlConstant lv, BigIntSqlConstant rv -> compareValue lv rv
-        | IntSqlConstant lv, BigIntSqlConstant rv -> compareValue (int64 lv) rv
-        | BigIntSqlConstant lv, IntSqlConstant rv -> compareValue lv (int64 rv)
-        | DoubleSqlConstant lv, DoubleSqlConstant rv -> compareValue lv rv
-        | IntSqlConstant lv, DoubleSqlConstant rv -> compareValue (double lv) rv
-        | DoubleSqlConstant lv, IntSqlConstant rv -> compareValue lv (double rv)
-        | BigIntSqlConstant lv, DoubleSqlConstant rv -> compareValue (double lv) rv
-        | DoubleSqlConstant lv, BigIntSqlConstant rv -> compareValue lv (double rv)
-        | VarcharSqlConstant (lv, _), VarcharSqlConstant (rv, _) -> compareValue lv rv
+        | IntDbConstant lv, IntDbConstant rv -> compareValue lv rv
+        | BigIntDbConstant lv, BigIntDbConstant rv -> compareValue lv rv
+        | IntDbConstant lv, BigIntDbConstant rv -> compareValue (int64 lv) rv
+        | BigIntDbConstant lv, IntDbConstant rv -> compareValue lv (int64 rv)
+        | DoubleDbConstant lv, DoubleDbConstant rv -> compareValue lv rv
+        | IntDbConstant lv, DoubleDbConstant rv -> compareValue (double lv) rv
+        | DoubleDbConstant lv, IntDbConstant rv -> compareValue lv (double rv)
+        | BigIntDbConstant lv, DoubleDbConstant rv -> compareValue (double lv) rv
+        | DoubleDbConstant lv, BigIntDbConstant rv -> compareValue lv (double rv)
+        | VarcharDbConstant (lv, _), VarcharDbConstant (rv, _) -> compareValue lv rv
         | _ -> failwith "Invalid operation"
 
-    let add lhs rhs =
+    let inline add lhs rhs =
         match lhs, rhs with
-        | IntSqlConstant lv, IntSqlConstant rv -> lv + rv |> IntSqlConstant
-        | BigIntSqlConstant lv, BigIntSqlConstant rv -> lv + rv |> BigIntSqlConstant
-        | IntSqlConstant lv, BigIntSqlConstant rv -> int64 lv + rv |> BigIntSqlConstant
-        | BigIntSqlConstant lv, IntSqlConstant rv -> lv + int64 rv |> BigIntSqlConstant
-        | DoubleSqlConstant lv, DoubleSqlConstant rv -> lv + rv |> DoubleSqlConstant
-        | IntSqlConstant lv, DoubleSqlConstant rv -> double lv + rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, IntSqlConstant rv -> lv + double rv |> DoubleSqlConstant
-        | BigIntSqlConstant lv, DoubleSqlConstant rv -> double lv + rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, BigIntSqlConstant rv -> lv + double rv |> DoubleSqlConstant
-        | VarcharSqlConstant (lv, _), VarcharSqlConstant (rv, _) ->
-            VarcharSqlConstant(lv + rv, lv.Length + rv.Length |> VarcharSqlType)
+        | IntDbConstant lv, IntDbConstant rv -> lv + rv |> IntDbConstant
+        | BigIntDbConstant lv, BigIntDbConstant rv -> lv + rv |> BigIntDbConstant
+        | IntDbConstant lv, BigIntDbConstant rv -> int64 lv + rv |> BigIntDbConstant
+        | BigIntDbConstant lv, IntDbConstant rv -> lv + int64 rv |> BigIntDbConstant
+        | DoubleDbConstant lv, DoubleDbConstant rv -> lv + rv |> DoubleDbConstant
+        | IntDbConstant lv, DoubleDbConstant rv -> double lv + rv |> DoubleDbConstant
+        | DoubleDbConstant lv, IntDbConstant rv -> lv + double rv |> DoubleDbConstant
+        | BigIntDbConstant lv, DoubleDbConstant rv -> double lv + rv |> DoubleDbConstant
+        | DoubleDbConstant lv, BigIntDbConstant rv -> lv + double rv |> DoubleDbConstant
+        | VarcharDbConstant (lv, _), VarcharDbConstant (rv, _) ->
+            VarcharDbConstant(lv + rv, lv.Length + rv.Length |> VarcharDbType)
         | _ -> failwith "Invalid operation"
 
-    let sub lhs rhs =
+    let inline sub lhs rhs =
         match lhs, rhs with
-        | IntSqlConstant lv, IntSqlConstant rv -> lv - rv |> IntSqlConstant
-        | BigIntSqlConstant lv, BigIntSqlConstant rv -> lv - rv |> BigIntSqlConstant
-        | IntSqlConstant lv, BigIntSqlConstant rv -> int64 lv - rv |> BigIntSqlConstant
-        | BigIntSqlConstant lv, IntSqlConstant rv -> lv - int64 rv |> BigIntSqlConstant
-        | DoubleSqlConstant lv, DoubleSqlConstant rv -> lv - rv |> DoubleSqlConstant
-        | IntSqlConstant lv, DoubleSqlConstant rv -> double lv - rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, IntSqlConstant rv -> lv - double rv |> DoubleSqlConstant
-        | BigIntSqlConstant lv, DoubleSqlConstant rv -> double lv - rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, BigIntSqlConstant rv -> lv - double rv |> DoubleSqlConstant
+        | IntDbConstant lv, IntDbConstant rv -> lv - rv |> IntDbConstant
+        | BigIntDbConstant lv, BigIntDbConstant rv -> lv - rv |> BigIntDbConstant
+        | IntDbConstant lv, BigIntDbConstant rv -> int64 lv - rv |> BigIntDbConstant
+        | BigIntDbConstant lv, IntDbConstant rv -> lv - int64 rv |> BigIntDbConstant
+        | DoubleDbConstant lv, DoubleDbConstant rv -> lv - rv |> DoubleDbConstant
+        | IntDbConstant lv, DoubleDbConstant rv -> double lv - rv |> DoubleDbConstant
+        | DoubleDbConstant lv, IntDbConstant rv -> lv - double rv |> DoubleDbConstant
+        | BigIntDbConstant lv, DoubleDbConstant rv -> double lv - rv |> DoubleDbConstant
+        | DoubleDbConstant lv, BigIntDbConstant rv -> lv - double rv |> DoubleDbConstant
         | _ -> failwith "Invalid operation"
 
-    let mul lhs rhs =
+    let inline mul lhs rhs =
         match lhs, rhs with
-        | IntSqlConstant lv, IntSqlConstant rv -> lv * rv |> IntSqlConstant
-        | BigIntSqlConstant lv, BigIntSqlConstant rv -> lv * rv |> BigIntSqlConstant
-        | IntSqlConstant lv, BigIntSqlConstant rv -> int64 lv * rv |> BigIntSqlConstant
-        | BigIntSqlConstant lv, IntSqlConstant rv -> lv * int64 rv |> BigIntSqlConstant
-        | DoubleSqlConstant lv, DoubleSqlConstant rv -> lv * rv |> DoubleSqlConstant
-        | IntSqlConstant lv, DoubleSqlConstant rv -> double lv * rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, IntSqlConstant rv -> lv * double rv |> DoubleSqlConstant
-        | BigIntSqlConstant lv, DoubleSqlConstant rv -> double lv * rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, BigIntSqlConstant rv -> lv * double rv |> DoubleSqlConstant
+        | IntDbConstant lv, IntDbConstant rv -> lv * rv |> IntDbConstant
+        | BigIntDbConstant lv, BigIntDbConstant rv -> lv * rv |> BigIntDbConstant
+        | IntDbConstant lv, BigIntDbConstant rv -> int64 lv * rv |> BigIntDbConstant
+        | BigIntDbConstant lv, IntDbConstant rv -> lv * int64 rv |> BigIntDbConstant
+        | DoubleDbConstant lv, DoubleDbConstant rv -> lv * rv |> DoubleDbConstant
+        | IntDbConstant lv, DoubleDbConstant rv -> double lv * rv |> DoubleDbConstant
+        | DoubleDbConstant lv, IntDbConstant rv -> lv * double rv |> DoubleDbConstant
+        | BigIntDbConstant lv, DoubleDbConstant rv -> double lv * rv |> DoubleDbConstant
+        | DoubleDbConstant lv, BigIntDbConstant rv -> lv * double rv |> DoubleDbConstant
         | _ -> failwith "Invalid operation"
 
-    let div lhs rhs =
+    let inline div lhs rhs =
         match lhs, rhs with
-        | IntSqlConstant lv, IntSqlConstant rv -> lv / rv |> IntSqlConstant
-        | BigIntSqlConstant lv, BigIntSqlConstant rv -> lv / rv |> BigIntSqlConstant
-        | IntSqlConstant lv, BigIntSqlConstant rv -> int64 lv / rv |> BigIntSqlConstant
-        | BigIntSqlConstant lv, IntSqlConstant rv -> lv / int64 rv |> BigIntSqlConstant
-        | DoubleSqlConstant lv, DoubleSqlConstant rv -> lv / rv |> DoubleSqlConstant
-        | IntSqlConstant lv, DoubleSqlConstant rv -> double lv / rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, IntSqlConstant rv -> lv / double rv |> DoubleSqlConstant
-        | BigIntSqlConstant lv, DoubleSqlConstant rv -> double lv / rv |> DoubleSqlConstant
-        | DoubleSqlConstant lv, BigIntSqlConstant rv -> lv / double rv |> DoubleSqlConstant
+        | IntDbConstant lv, IntDbConstant rv -> lv / rv |> IntDbConstant
+        | BigIntDbConstant lv, BigIntDbConstant rv -> lv / rv |> BigIntDbConstant
+        | IntDbConstant lv, BigIntDbConstant rv -> int64 lv / rv |> BigIntDbConstant
+        | BigIntDbConstant lv, IntDbConstant rv -> lv / int64 rv |> BigIntDbConstant
+        | DoubleDbConstant lv, DoubleDbConstant rv -> lv / rv |> DoubleDbConstant
+        | IntDbConstant lv, DoubleDbConstant rv -> double lv / rv |> DoubleDbConstant
+        | DoubleDbConstant lv, IntDbConstant rv -> lv / double rv |> DoubleDbConstant
+        | BigIntDbConstant lv, DoubleDbConstant rv -> double lv / rv |> DoubleDbConstant
+        | DoubleDbConstant lv, BigIntDbConstant rv -> lv / double rv |> DoubleDbConstant
         | _ -> failwith "Invalid operation"

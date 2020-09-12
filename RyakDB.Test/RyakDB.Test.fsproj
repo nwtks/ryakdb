@@ -10,18 +10,21 @@
     <Compile Include="src/Sql.ParseTest.fs" />
     <Compile Include="src/Storage.PageTest.fs" />
     <Compile Include="src/Storage.LogTest.fs" />
-    <Compile Include="src/BufferTest.fs" />
-    <Compile Include="src/Buffer.BufferManagerTest.fs" />
+    <Compile Include="src/Buffer.BufferTest.fs" />
+    <Compile Include="src/Buffer.TransactionBufferTest.fs" />
     <Compile Include="src/Buffer.BufferPoolTest.fs" />
-    <Compile Include="src/TransactionTest.fs" />
-    <Compile Include="src/Table.RecordTest.fs" />
-    <Compile Include="src/CatalogTest.fs" />
-    <Compile Include="src/ConcurrencyTest.fs" />
+    <Compile Include="src/Concurrency.TransactionConcurrencyTest.fs" />
     <Compile Include="src/Concurrency.LockTableTest.fs" />
-    <Compile Include="src/RecoveryTest.fs" />
+    <Compile Include="src/Recovery.TransactionRecoveryTest.fs" />
+    <Compile Include="src/TransactionTest.fs" />
+    <Compile Include="src/Table.SlottedPageTest.fs" />
+    <Compile Include="src/Table.TableFileTest.fs" />
+    <Compile Include="src/Index.HashIndexTest.fs" />
+    <Compile Include="src/Catalog.TableManagerTest.fs" />
+    <Compile Include="src/Catalog.IndexManagerTest.fs" />
+    <Compile Include="src/Catalog.ViewManagerTest.fs" />
     <Compile Include="src/Execution.PlanTest.fs" />
     <Compile Include="src/Execution.AggregationFnScanTest.fs" />
-    <Compile Include="src/Index.HashIndexTest.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />

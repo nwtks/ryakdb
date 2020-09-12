@@ -2,50 +2,50 @@ module RyakDB.Recovery.SystemRecovery
 
 open RyakDB.Storage.Log
 open RyakDB.Storage.BTree
-open RyakDB.Buffer.BufferManager
+open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
 open RyakDB.Recovery.TransactionRecoveryFinalize
 open RyakDB.Transaction
 
 module SystemRecovery =
-    let redo bufferMgr r =
-        match r with
+    let redo txBuffer recoveryLog =
+        match recoveryLog with
         | IndexPageInsertRecord (n, ibid, dir, kt, sid, optlsn) ->
-            let buffer = bufferMgr.Pin ibid
+            let buffer = txBuffer.Pin ibid
             match optlsn with
-            | Some l when l > buffer.LastLsn() ->
+            | Some l when l > buffer.LastLogSeqNo() ->
                 if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
             | _ -> ()
-            bufferMgr.Unpin buffer
+            txBuffer.Unpin buffer
         | IndexPageInsertClr (n, ibid, dir, kt, sid, _, optlsn) ->
-            let buffer = bufferMgr.Pin ibid
+            let buffer = txBuffer.Pin ibid
             match optlsn with
-            | Some l when l > buffer.LastLsn() ->
+            | Some l when l > buffer.LastLogSeqNo() ->
                 if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
             | _ -> ()
-            bufferMgr.Unpin buffer
+            txBuffer.Unpin buffer
         | IndexPageDeleteRecord (n, ibid, dir, kt, sid, optlsn) ->
-            let buffer = bufferMgr.Pin ibid
+            let buffer = txBuffer.Pin ibid
             match optlsn with
-            | Some l when l > buffer.LastLsn() ->
+            | Some l when l > buffer.LastLogSeqNo() ->
                 if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
             | _ -> ()
-            bufferMgr.Unpin buffer
+            txBuffer.Unpin buffer
         | IndexPageDeleteClr (n, ibid, dir, kt, sid, _, optlsn) ->
-            let buffer = bufferMgr.Pin ibid
+            let buffer = txBuffer.Pin ibid
             match optlsn with
-            | Some l when l > buffer.LastLsn() ->
+            | Some l when l > buffer.LastLogSeqNo() ->
                 if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
             | _ -> ()
-            bufferMgr.Unpin buffer
+            txBuffer.Unpin buffer
         | SetValueRecord (_, bid, off, _, _, nv, _) ->
-            let buffer = bufferMgr.Pin bid
+            let buffer = txBuffer.Pin bid
             buffer.SetVal off nv None
-            bufferMgr.Unpin buffer
+            txBuffer.Unpin buffer
         | SetValueClr (_, bid, off, _, _, nv, _, _) ->
-            let buffer = bufferMgr.Pin bid
+            let buffer = txBuffer.Pin bid
             buffer.SetVal off nv None
-            bufferMgr.Unpin buffer
+            txBuffer.Unpin buffer
         | _ -> ()
 
     let recoverSystem fileMgr logMgr catalogMgr tx =
@@ -58,10 +58,10 @@ module SystemRecovery =
         let mutable inCheckpoint = false
 
         logMgr.Records()
-        |> Seq.map RecoveryLog.fromLogRecord
-        |> Seq.iter (fun r ->
+        |> Seq.map fromLogRecord
+        |> Seq.iter (fun rlog ->
             if not (inCheckpoint) then
-                match r with
+                match rlog with
                 | CheckpointRecord(txNos = txNos) ->
                     txNos
                     |> List.filter (finishedTxs.Contains >> not)
@@ -69,54 +69,57 @@ module SystemRecovery =
                     inCheckpoint <- true
                 | CommitRecord(txNo = txNo) ->
                     finishedTxs <- finishedTxs.Add txNo
-                    redoRecords <- r :: redoRecords
+                    redoRecords <- rlog :: redoRecords
                 | RollbackRecord(txNo = txNo) ->
                     finishedTxs <- finishedTxs.Add txNo
-                    redoRecords <- r :: redoRecords
+                    redoRecords <- rlog :: redoRecords
                 | StartRecord(txNo = txNo) when not (finishedTxs.Contains txNo) ->
                     unCompletedTxs <- unCompletedTxs.Add txNo
-                    redoRecords <- r :: redoRecords
-                | _ -> redoRecords <- r :: redoRecords)
-        redoRecords |> List.iter (redo tx.BufferMgr)
+                    redoRecords <- rlog :: redoRecords
+                | _ -> redoRecords <- rlog :: redoRecords)
+
+        redoRecords |> List.iter (redo tx.Buffer)
+
         unCompletedTxs <- unCompletedTxs.Remove tx.TransactionNumber
+
         let mutable txUnDoNextLSN = Map.empty
         logMgr.Records()
-        |> Seq.map RecoveryLog.fromLogRecord
-        |> Seq.iter (fun r ->
+        |> Seq.map fromLogRecord
+        |> Seq.iter (fun rlog ->
             if not (unCompletedTxs.IsEmpty) then
-                let txNo = RecoveryLog.transactionNumber r
-                RecoveryLog.getLSN r
+                let txNo = RecoveryLog.transactionNumber rlog
+                RecoveryLog.getLSN rlog
                 |> Option.iter (fun lsn ->
                     if unCompletedTxs.Contains txNo
                        && txUnDoNextLSN.ContainsKey txNo
                        && txUnDoNextLSN.[txNo] > lsn then
-                        match r with
+                        match rlog with
                         | CommitRecord (_) -> ()
                         | RollbackRecord (_) -> ()
                         | StartRecord (_) -> unCompletedTxs <- unCompletedTxs.Remove txNo
                         | LogicalAbortRecord(logicalStartLSN = lsn) ->
-                            undoLogRecord r
+                            undoLogRecord rlog
                             txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
-                        | RecordFileInsertEndRecord(logicalStartLSN = lsn) ->
-                            undoLogRecord r
+                        | TableFileInsertEndRecord(logicalStartLSN = lsn) ->
+                            undoLogRecord rlog
                             txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
-                        | RecordFileDeleteEndRecord(logicalStartLSN = lsn) ->
-                            undoLogRecord r
+                        | TableFileDeleteEndRecord(logicalStartLSN = lsn) ->
+                            undoLogRecord rlog
                             txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
                         | IndexInsertEndRecord(logicalStartLSN = lsn) ->
-                            undoLogRecord r
+                            undoLogRecord rlog
                             txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
                         | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
-                            undoLogRecord r
+                            undoLogRecord rlog
                             txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
                         | IndexPageInsertClr(undoNextLSN = lsn) -> txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
                         | IndexPageDeleteClr(undoNextLSN = lsn) -> txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
                         | SetValueClr(undoNextLSN = lsn) -> txUnDoNextLSN <- txUnDoNextLSN.Add(txNo, lsn)
-                        | _ -> undoLogRecord r))
+                        | _ -> undoLogRecord rlog))
 
     let recover fileMgr logMgr catalogMgr tx =
         recoverSystem fileMgr logMgr catalogMgr tx
-        tx.BufferMgr.FlushAll()
+        tx.Buffer.FlushAll()
         logMgr.RemoveAndCreateNewLog()
         tx.TransactionNumber
         |> RecoveryLog.newStartRecord

@@ -2,19 +2,19 @@ module RyakDB.Execution.Scan
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.Record
+open RyakDB.Table.TableFile
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Execution.AggregationFnScan
 
 [<ReferenceEquality>]
 type Scan =
-    { GetVal: string -> SqlConstant
+    { GetVal: string -> DbConstant
       BeforeFirst: unit -> unit
       Close: unit -> unit
       Next: unit -> bool
       HasField: string -> bool
-      SetVal: string -> SqlConstant -> unit
+      SetVal: string -> DbConstant -> unit
       Insert: unit -> unit
       Delete: unit -> unit
       GetRecordId: unit -> RecordId
@@ -22,24 +22,22 @@ type Scan =
 
 module Scan =
     let newTableScan fileMgr tx tableInfo =
-        let recodFile =
-            RecordFile.newRecordFile fileMgr tx true tableInfo
-
+        let tableFile = newTableFile fileMgr tx true tableInfo
         let schema = tableInfo.Schema
 
-        { GetVal = fun field -> recodFile.GetVal field |> Option.get
-          BeforeFirst = fun () -> recodFile.BeforeFirst()
-          Close = fun () -> recodFile.Close()
-          Next = fun () -> recodFile.Next()
+        { GetVal = fun field -> tableFile.GetVal field |> Option.get
+          BeforeFirst = fun () -> tableFile.BeforeFirst()
+          Close = fun () -> tableFile.Close()
+          Next = fun () -> tableFile.Next()
           HasField = schema.HasField
-          SetVal = recodFile.SetVal
-          Insert = fun () -> recodFile.Insert()
-          Delete = fun () -> recodFile.Delete()
-          GetRecordId = fun () -> recodFile.CurrentRecordId() |> Option.get
-          MoveToRecordId = recodFile.MoveToRecordId }
+          SetVal = tableFile.SetVal
+          Insert = fun () -> tableFile.Insert()
+          Delete = fun () -> tableFile.Delete()
+          GetRecordId = fun () -> tableFile.CurrentRecordId() |> Option.get
+          MoveToRecordId = tableFile.MoveToRecordId }
 
     let newSelectScan scan predicate =
-        let next () =
+        let inline next () =
             let rec loopNext () =
                 if scan.Next() then
                     if Predicate.isSatisfied scan.GetVal predicate
@@ -64,18 +62,18 @@ module Scan =
     let newProductScan scan1 scan2 =
         let mutable isScan1Empty = false
 
-        let getVal field =
+        let inline getVal field =
             if scan1.HasField field then scan1.GetVal field else scan2.GetVal field
 
-        let hasField field =
+        let inline hasField field =
             scan1.HasField field || scan2.HasField field
 
-        let beforeFirst () =
+        let inline beforeFirst () =
             scan1.BeforeFirst()
             isScan1Empty <- not (scan1.Next())
             scan2.BeforeFirst()
 
-        let next () =
+        let inline next () =
             if isScan1Empty then
                 false
             elif scan2.Next() then
@@ -88,7 +86,7 @@ module Scan =
                 else
                     false
 
-        let close () =
+        let inline close () =
             scan1.Close()
             scan2.Close()
 
@@ -104,12 +102,12 @@ module Scan =
           MoveToRecordId = fun _ -> () }
 
     let newProjectScan scan fields =
-        let getVal field =
+        let inline getVal field =
             if fields |> List.contains field
             then scan.GetVal field
             else failwith ("field " + field + " not found.")
 
-        let hasField field = fields |> List.contains field
+        let inline hasField field = fields |> List.contains field
 
         { GetVal = getVal
           BeforeFirst = fun () -> scan.BeforeFirst()
@@ -164,7 +162,7 @@ module Scan =
             else
                 false
 
-        let close () =
+        let inline close () =
             scan1.Close()
             scan2 |> Option.iter (fun s -> s.Close())
 

@@ -10,7 +10,7 @@ type BinaryArithmeticOperator =
     | DivOperator
 
 type Expression =
-    | ConstantExpression of value: SqlConstant
+    | ConstantExpression of value: DbConstant
     | FieldNameExpression of fieldName: string
     | BinaryArithmeticExpression of op: BinaryArithmeticOperator * lhs: Expression * rhs: Expression
 
@@ -26,12 +26,12 @@ type Term = Term of op: TermOperator * lhs: Expression * rhs: Expression
 type Predicate = Predicate of terms: Term list
 
 module BinaryArithmeticOperator =
-    let operate lhs rhs op =
+    let inline operate lhs rhs op =
         match op with
-        | AddOperator -> SqlConstant.add lhs rhs
-        | SubOperator -> SqlConstant.sub lhs rhs
-        | MulOperator -> SqlConstant.mul lhs rhs
-        | DivOperator -> SqlConstant.div lhs rhs
+        | AddOperator -> DbConstant.add lhs rhs
+        | SubOperator -> DbConstant.sub lhs rhs
+        | MulOperator -> DbConstant.mul lhs rhs
+        | DivOperator -> DbConstant.div lhs rhs
 
 module Expression =
     let rec evaluate record exp =
@@ -50,7 +50,7 @@ module Expression =
             |> isApplicableTo schema
             && rhs |> isApplicableTo schema
 
-    let fieldName exp =
+    let inline fieldName exp =
         match exp with
         | FieldNameExpression fn -> Some fn
         | _ -> None
@@ -65,22 +65,22 @@ module Expression =
         | _ -> None
 
 module TermOperator =
-    let isSatisfied record lhs rhs op =
+    let inline isSatisfied record lhs rhs op =
         match op with
         | EqualOperator ->
-            SqlConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) = 0
+            DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) = 0
         | GraterThanOperator ->
-            SqlConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) > 0
+            DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) > 0
         | LessThanOperator ->
-            SqlConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) < 0
+            DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) < 0
         | GraterThanEqualOperator ->
-            SqlConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record)
+            DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record)
             >= 0
         | LessThanEqualOperator ->
-            SqlConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record)
+            DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record)
             <= 0
 
-    let complement op =
+    let inline complement op =
         match op with
         | EqualOperator -> EqualOperator
         | GraterThanOperator -> LessThanOperator
@@ -89,27 +89,27 @@ module TermOperator =
         | LessThanEqualOperator -> GraterThanEqualOperator
 
 module Term =
-    let isSatisfied record (Term (op, lhs, rhs)) =
+    let inline isSatisfied record (Term (op, lhs, rhs)) =
         TermOperator.isSatisfied record lhs rhs op
 
-    let isApplicableTo schema (Term (_, lhs, rhs)) =
+    let inline isApplicableTo schema (Term (_, lhs, rhs)) =
         lhs
         |> Expression.isApplicableTo schema
         && rhs |> Expression.isApplicableTo schema
 
-    let operator fieldName (Term (op, lhs, rhs)) =
+    let inline operator fieldName (Term (op, lhs, rhs)) =
         match lhs |> Expression.fieldName, rhs |> Expression.fieldName with
         | Some lfn, _ when fieldName = lfn -> Some op
         | _, Some rfn when fieldName = rfn -> TermOperator.complement op |> Some
         | _ -> None
 
-    let oppositeField fieldName (Term (_, lhs, rhs)) =
+    let inline oppositeField fieldName (Term (_, lhs, rhs)) =
         match lhs |> Expression.fieldName, rhs |> Expression.fieldName with
         | Some lfn, Some rfh when fieldName = lfn -> Some rfh
         | Some lfn, Some rfn when fieldName = rfn -> Some lfn
         | _ -> None
 
-    let oppositeConstant fieldName (Term (_, lhs, rhs)) =
+    let inline oppositeConstant fieldName (Term (_, lhs, rhs)) =
         match lhs |> Expression.fieldName,
               rhs |> Expression.fieldName,
               lhs |> Expression.constant,
@@ -119,12 +119,12 @@ module Term =
         | _ -> None
 
 module Predicate =
-    let isSatisfied record (Predicate terms) =
+    let inline isSatisfied record (Predicate terms) =
         terms |> List.forall (Term.isSatisfied record)
 
-    let selectPredicate schema (Predicate terms) =
+    let inline selectPredicate schema (Predicate terms) =
         terms
         |> List.filter (Term.isApplicableTo schema)
         |> Predicate
 
-    let conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate
+    let inline conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate

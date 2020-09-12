@@ -1,10 +1,10 @@
 module RyakDB.Test.Buffer.BufferPoolTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.Storage
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
-open RyakDB.Buffer
 open RyakDB.Buffer.BufferPool
 
 [<Fact>]
@@ -18,13 +18,12 @@ let ``concurrent buffer pool pin`` () =
     let logfilename = "test_concurrent_buffer_pool_pin.log"
 
     let fileMgr =
-        FileManager.newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        LogManager.newLogManager fileMgr logfilename
+    let logMgr = newLogManager fileMgr logfilename
 
     let bufferPool =
-        BufferPool.newBufferPool fileMgr logMgr bufferCount 1000
+        newBufferPool fileMgr logMgr bufferCount 1000
 
     let buffers =
         [ for i in 0 .. bufferCount - 1 ->

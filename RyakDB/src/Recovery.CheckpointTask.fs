@@ -1,7 +1,7 @@
 module RyakDB.Recovery.CheckpointTask
 
 open RyakDB.Transaction
-open RyakDB.Transaction.TransactionManager
+open RyakDB.TransactionManager
 
 module CheckpointTask =
     let createPeriodicCheckpoint txMgr =
@@ -19,15 +19,15 @@ module CheckpointTask =
         else
             lastTxNo
 
-    let newPeriodicCheckpointTask txMgr (period: int32) =
-        fun () ->
-            while true do
-                createPeriodicCheckpoint txMgr
-                System.Threading.Thread.Sleep(period)
+let newPeriodicCheckpointTask txMgr (period: int32) =
+    fun () ->
+        while true do
+            CheckpointTask.createPeriodicCheckpoint txMgr
+            System.Threading.Thread.Sleep(period)
 
-    let newMonitorCheckpointTask txMgr (period: int32) txCount =
-        let mutable lastTxNo = 0L
-        fun () ->
-            while true do
-                lastTxNo <- createMonitorCheckpoint txMgr txCount lastTxNo
-                System.Threading.Thread.Sleep(period)
+let newMonitorCheckpointTask txMgr (period: int32) txCount =
+    let mutable lastTxNo = 0L
+    fun () ->
+        while true do
+            lastTxNo <- CheckpointTask.createMonitorCheckpoint txMgr txCount lastTxNo
+            System.Threading.Thread.Sleep(period)

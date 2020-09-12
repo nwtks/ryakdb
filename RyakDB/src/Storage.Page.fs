@@ -5,43 +5,49 @@ open RyakDB.Storage
 open RyakDB.Storage.File
 
 type Page =
-    { GetVal: int32 -> SqlType -> SqlConstant
-      SetVal: int32 -> SqlConstant -> unit
+    { GetVal: int32 -> DbType -> DbConstant
+      SetVal: int32 -> DbConstant -> unit
       Read: BlockId -> unit
       Write: BlockId -> unit
       Append: string -> BlockId }
 
 module Page =
-    let maxSize sqlType =
-        if sqlType |> SqlType.isFixedSize then sqlType |> SqlType.maxSize else 4 + (sqlType |> SqlType.maxSize)
+    let ValSizeSize = 4
 
-    let size sqlConstant =
-        let sqlType = sqlConstant |> SqlConstant.sqlType
-        if sqlType |> SqlType.isFixedSize then sqlType |> SqlType.maxSize else 4 + (sqlConstant |> SqlConstant.size)
+    let inline maxSize dbType =
+        if dbType |> DbType.isFixedSize then dbType |> DbType.maxSize else ValSizeSize + (dbType |> DbType.maxSize)
 
-    let getVal contents offset sqlType =
+    let inline size constant =
+        let dbType = constant |> DbConstant.dbType
+        if dbType |> DbType.isFixedSize
+        then dbType |> DbType.maxSize
+        else ValSizeSize + (constant |> DbConstant.size)
+
+    let getVal contents offset dbType =
         let off, size =
-            if sqlType |> SqlType.isFixedSize then
-                offset, sqlType |> SqlType.maxSize
+            if dbType |> DbType.isFixedSize then
+                offset, dbType |> DbType.maxSize
             else
-                let bytes = contents |> FileBuffer.get offset 4
+                let bytes =
+                    contents |> FileBuffer.get offset ValSizeSize
+
                 offset + bytes.Length, System.BitConverter.ToInt32(System.ReadOnlySpan(bytes))
 
         contents
         |> FileBuffer.get off size
-        |> SqlConstant.fromBytes sqlType
+        |> DbConstant.fromBytes dbType
 
     let setVal fileMgr contents offset value =
-        let bytes = value |> SqlConstant.toBytes
+        let bytes = value |> DbConstant.toBytes
 
         let off =
-            if value
-               |> SqlConstant.sqlType
-               |> SqlType.isFixedSize then
+            if value |> DbConstant.dbType |> DbType.isFixedSize then
                 offset
             else
-                if offset + 4 + bytes.Length > fileMgr.BlockSize
-                then failwith "Page buffer overflow"
+                if offset
+                   + ValSizeSize
+                   + bytes.Length > fileMgr.BlockSize then
+                    failwith "Page buffer overflow"
 
                 let sizebytes =
                     bytes.Length |> System.BitConverter.GetBytes
@@ -51,18 +57,17 @@ module Page =
 
         contents |> FileBuffer.put off bytes
 
-    let read (fileMgr: FileManager) contents blockId = fileMgr.Read contents blockId
+    let inline read (fileMgr: FileManager) contents blockId = fileMgr.Read contents blockId
 
-    let write (fileMgr: FileManager) contents blockId = fileMgr.Write contents blockId
+    let inline write (fileMgr: FileManager) contents blockId = fileMgr.Write contents blockId
 
-    let append (fileMgr: FileManager) contents fileName = fileMgr.Append contents fileName
+    let inline append (fileMgr: FileManager) contents fileName = fileMgr.Append contents fileName
 
-    let newPage fileMgr =
-        let contents =
-            FileBuffer.newFileBuffer fileMgr.BlockSize
+let newPage fileMgr =
+    let contents = newFileBuffer fileMgr.BlockSize
 
-        { GetVal = fun offset sqlType -> lock contents (fun () -> getVal contents offset sqlType)
-          SetVal = fun offset value -> lock contents (fun () -> setVal fileMgr contents offset value)
-          Read = fun blockId -> lock contents (fun () -> read fileMgr contents blockId)
-          Write = fun blockId -> lock contents (fun () -> write fileMgr contents blockId)
-          Append = fun fileName -> lock contents (fun () -> append fileMgr contents fileName) }
+    { GetVal = fun offset dbType -> lock contents (fun () -> Page.getVal contents offset dbType)
+      SetVal = fun offset value -> lock contents (fun () -> Page.setVal fileMgr contents offset value)
+      Read = fun blockId -> lock contents (fun () -> Page.read fileMgr contents blockId)
+      Write = fun blockId -> lock contents (fun () -> Page.write fileMgr contents blockId)
+      Append = fun fileName -> lock contents (fun () -> Page.append fileMgr contents fileName) }

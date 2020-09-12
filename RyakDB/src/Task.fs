@@ -9,4 +9,4 @@ module TaskManager =
         System.Threading.Tasks.Task.Factory.StartNew(task)
         |> ignore
 
-    let newTaskManager () = { RunTask = runTask }
+let newTaskManager () = { RunTask = TaskManager.runTask }

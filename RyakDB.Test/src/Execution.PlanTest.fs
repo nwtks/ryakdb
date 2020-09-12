@@ -1,12 +1,13 @@
 module RyakDB.Test.Execution.PlanTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Execution.Plan
 open RyakDB.Transaction
-open RyakDB.Execution.Materialize
+open RyakDB.Execution.MergeSort
 open RyakDB.Database
 open RyakDB.Test.TestInit
 
@@ -15,7 +16,7 @@ let ``table plan`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -31,9 +32,9 @@ let ``table plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant i, scan.GetVal "s_id")
-            Assert.Equal(SqlConstant.newVarchar ("student " + i.ToString()), scan.GetVal "s_name")
-            Assert.Equal(IntSqlConstant(i % 50 + 1960), scan.GetVal "grad_year")
+            Assert.Equal(IntDbConstant i, scan.GetVal "s_id")
+            Assert.Equal(DbConstant.newVarchar ("student " + i.ToString()), scan.GetVal "s_name")
+            Assert.Equal(IntDbConstant(i % 50 + 1960), scan.GetVal "grad_year")
         Assert.Equal(900, i)
         scan.Close())
 
@@ -44,7 +45,7 @@ let ``select plan`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -52,7 +53,7 @@ let ``select plan`` () =
         db.TxMgr.NewTransaction false Serializable
 
     let pred =
-        [ Term(EqualOperator, FieldNameExpression "major_id", IntSqlConstant 20 |> ConstantExpression) ]
+        [ Term(EqualOperator, FieldNameExpression "major_id", IntDbConstant 20 |> ConstantExpression) ]
         |> Predicate
 
     db.CatalogMgr.GetTableInfo tx "student"
@@ -65,7 +66,7 @@ let ``select plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant 20, scan.GetVal "major_id")
+            Assert.Equal(IntDbConstant 20, scan.GetVal "major_id")
         Assert.Equal(23, i)
         scan.Close())
 
@@ -76,7 +77,7 @@ let ``project plan`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -94,8 +95,8 @@ let ``project plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(SqlConstant.newVarchar ("student " + i.ToString()), scan.GetVal "s_name")
-            Assert.Equal(IntSqlConstant(i % 50 + 1960), scan.GetVal "grad_year")
+            Assert.Equal(DbConstant.newVarchar ("student " + i.ToString()), scan.GetVal "s_name")
+            Assert.Equal(IntDbConstant(i % 50 + 1960), scan.GetVal "grad_year")
             Assert.False(scan.HasField "s_id")
             Assert.False(scan.HasField "major_id")
         Assert.Equal(900, i)
@@ -108,7 +109,7 @@ let ``product plan`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
     TestInit.setupDeptTable db
@@ -134,9 +135,9 @@ let ``product plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant i, scan.GetVal "s_id")
-            Assert.Equal(IntSqlConstant(i % 40 + 1), scan.GetVal "d_id")
-            Assert.Equal(SqlConstant.newVarchar ("dept " + (i % 40 + 1).ToString()), scan.GetVal "d_name")
+            Assert.Equal(IntDbConstant i, scan.GetVal "s_id")
+            Assert.Equal(IntDbConstant(i % 40 + 1), scan.GetVal "d_id")
+            Assert.Equal(DbConstant.newVarchar ("dept " + (i % 40 + 1).ToString()), scan.GetVal "d_name")
         Assert.Equal(900, i)
         scan.Close())
 
@@ -147,14 +148,14 @@ let ``group by plan`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -171,7 +172,7 @@ let ``group by plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant 18, scan.GetVal "count_of_grad_year")
+            Assert.Equal(IntDbConstant 18, scan.GetVal "count_of_grad_year")
         Assert.Equal(50, i)
         scan.Close())
 
@@ -182,14 +183,14 @@ let ``sort plan`` () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -208,9 +209,9 @@ let ``sort plan`` () =
             i <- i + 1
 
             let gradYear =
-                scan.GetVal "grad_year" |> SqlConstant.toInt
+                scan.GetVal "grad_year" |> DbConstant.toInt
 
-            let sid = scan.GetVal "s_id" |> SqlConstant.toInt
+            let sid = scan.GetVal "s_id" |> DbConstant.toInt
             Assert.True(prevGradYear <= gradYear)
             if prevGradYear = gradYear then Assert.True(prevSid > sid)
             prevGradYear <- gradYear

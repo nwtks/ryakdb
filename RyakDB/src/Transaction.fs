@@ -1,13 +1,13 @@
-namespace RyakDB.Transaction
+module RyakDB.Transaction
 
-open RyakDB.Buffer.BufferManager
-open RyakDB.Concurrency
-open RyakDB.Recovery
+open RyakDB.Buffer.TransactionBuffer
+open RyakDB.Concurrency.TransactionConcurrency
+open RyakDB.Recovery.TransactionRecovery
 
 type Transaction =
-    { RecoveryMgr: RecoveryManager
-      ConcurMgr: ConcurrencyManager
-      BufferMgr: BufferManager
+    { Recovery: TransactionRecovery
+      Concurrency: TransactionConcurrency
+      Buffer: TransactionBuffer
       TransactionNumber: int64
       ReadOnly: bool
       Commit: unit -> unit
@@ -20,60 +20,64 @@ type IsolationLevel =
     | ReadCommitted
 
 module Transaction =
-    let commit commitListeners tx =
+    let inline commit commitListeners tx =
         commitListeners |> List.iter (fun f -> f (tx))
 
-    let rollback rollbackListeners tx =
+    let inline rollback rollbackListeners tx =
         rollbackListeners |> List.iter (fun f -> f (tx))
 
-    let endStatement endStatementListeners tx =
+    let inline endStatement endStatementListeners tx =
         endStatementListeners
         |> List.iter (fun f -> f (tx))
 
-    let newTransaction txCommitListener
-                       txRollbackListener
-                       recoveryMgr
-                       recoveryCommitListener
-                       recoveryRollbackListener
-                       concurMgr
-                       bufferMgr
-                       txNo
-                       readOnly
-                       =
-        let commitListeners =
-            [ txCommitListener
-              recoveryCommitListener
-              (fun _ -> concurMgr.OnTxCommit())
-              (fun _ -> bufferMgr.UnpinAll()) ]
+let newTransaction txCommitListener
+                   txRollbackListener
+                   txRecovery
+                   recoveryCommitListener
+                   recoveryRollbackListener
+                   txConcurrency
+                   txBuffer
+                   txNo
+                   readOnly
+                   =
+    let commitListeners =
+        [ txCommitListener
+          recoveryCommitListener
+          (fun _ -> txConcurrency.OnTxCommit())
+          (fun _ -> txBuffer.UnpinAll()) ]
 
-        let rollbackListeners =
-            [ txRollbackListener
-              recoveryRollbackListener
-              (fun _ -> concurMgr.OnTxRollback())
-              (fun _ -> bufferMgr.UnpinAll()) ]
+    let rollbackListeners =
+        [ txRollbackListener
+          recoveryRollbackListener
+          (fun _ -> txConcurrency.OnTxRollback())
+          (fun _ -> txBuffer.UnpinAll()) ]
 
-        let endStatementListeners =
-            [ (fun _ -> concurMgr.OnTxEndStatement()) ]
+    let endStatementListeners =
+        [ (fun _ -> txConcurrency.OnTxEndStatement()) ]
 
-        let mutable callbackTx = None
+    let mutable callbackTx = None
 
-        let tx =
-            { RecoveryMgr = recoveryMgr
-              ConcurMgr = concurMgr
-              BufferMgr = bufferMgr
-              TransactionNumber = txNo
-              ReadOnly = readOnly
-              Commit = fun () -> callbackTx |> Option.get |> commit commitListeners
-              Rollback =
-                  fun () ->
-                      callbackTx
-                      |> Option.get
-                      |> rollback rollbackListeners
-              EndStatement =
-                  fun () ->
-                      callbackTx
-                      |> Option.get
-                      |> endStatement endStatementListeners }
+    let tx =
+        { Recovery = txRecovery
+          Concurrency = txConcurrency
+          Buffer = txBuffer
+          TransactionNumber = txNo
+          ReadOnly = readOnly
+          Commit =
+              fun () ->
+                  callbackTx
+                  |> Option.get
+                  |> Transaction.commit commitListeners
+          Rollback =
+              fun () ->
+                  callbackTx
+                  |> Option.get
+                  |> Transaction.rollback rollbackListeners
+          EndStatement =
+              fun () ->
+                  callbackTx
+                  |> Option.get
+                  |> Transaction.endStatement endStatementListeners }
 
-        callbackTx <- Some(tx)
-        tx
+    callbackTx <- Some(tx)
+    tx

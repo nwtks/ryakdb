@@ -1,11 +1,12 @@
 module RyakDB.Test.Execution.AggregationFnScanTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Query
 open RyakDB.Transaction
 open RyakDB.Execution.Plan
-open RyakDB.Execution.Materialize
+open RyakDB.Execution.MergeSort
 open RyakDB.Database
 open RyakDB.Test.TestInit
 
@@ -14,14 +15,14 @@ let count () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -33,7 +34,7 @@ let count () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant 900, scan.GetVal "count_of_grad_year")
+            Assert.Equal(IntDbConstant 900, scan.GetVal "count_of_grad_year")
         Assert.Equal(1, i)
         scan.Close())
 
@@ -44,14 +45,14 @@ let max () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -63,7 +64,7 @@ let max () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant 2009, scan.GetVal "max_of_grad_year")
+            Assert.Equal(IntDbConstant 2009, scan.GetVal "max_of_grad_year")
         Assert.Equal(1, i)
         scan.Close())
 
@@ -74,14 +75,14 @@ let min () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -93,7 +94,7 @@ let min () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(SqlConstant.newVarchar "student 1", scan.GetVal "min_of_s_name")
+            Assert.Equal(DbConstant.newVarchar "student 1", scan.GetVal "min_of_s_name")
         Assert.Equal(1, i)
         scan.Close())
 
@@ -104,14 +105,14 @@ let sum () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -123,7 +124,7 @@ let sum () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntSqlConstant 405450, scan.GetVal "sum_of_s_id")
+            Assert.Equal(IntDbConstant 405450, scan.GetVal "sum_of_s_id")
         Assert.Equal(1, i)
         scan.Close())
 
@@ -134,14 +135,14 @@ let avg () =
     let db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> Database.createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = Materialize.newSortScan db.FileMgr tx
+    let newSortScan = MergeSort.newSortScan db.FileMgr tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -153,7 +154,7 @@ let avg () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(DoubleSqlConstant 20.3, scan.GetVal "avg_of_major_id")
+            Assert.Equal(DoubleDbConstant 20.3, scan.GetVal "avg_of_major_id")
         Assert.Equal(1, i)
         scan.Close())
 

@@ -1,10 +1,10 @@
-module RyakDB.Buffer.BufferManager
+module RyakDB.Buffer.TransactionBuffer
 
 open RyakDB.Storage
-open RyakDB.Buffer
+open RyakDB.Buffer.Buffer
 open RyakDB.Buffer.BufferPool
 
-type BufferManager =
+type TransactionBuffer =
     { Pin: BlockId -> Buffer
       PinNew: string -> BufferFormatter -> Buffer
       Unpin: Buffer -> unit
@@ -13,10 +13,10 @@ type BufferManager =
       FlushBuffers: unit -> unit
       Available: unit -> int32 }
 
-module BufferManager =
+module TransactionBuffer =
     type PinningBuffer = { Buffer: Buffer; PinCount: int }
 
-    type BufferManagerState =
+    type TransactionBufferState =
         { PinningBuffers: Map<BlockId, PinningBuffer>
           BuffersToFlush: Buffer list
           TxNo: int64 }
@@ -83,7 +83,7 @@ module BufferManager =
             state
 
     let rec pin (bufferPool: BufferPool) state blockId =
-        let pinExistBuffer state pinnedBuff =
+        let inline pinExistBuffer state pinnedBuff =
             let nextPinnedBuff =
                 { pinnedBuff with
                       PinCount = pinnedBuff.PinCount + 1 }
@@ -94,9 +94,9 @@ module BufferManager =
 
             nextstate, nextPinnedBuff.Buffer
 
-        let pinBufferPool () = bufferPool.Pin blockId
+        let inline pinBufferPool () = bufferPool.Pin blockId
 
-        let pinNext state =
+        let inline pinNext state =
             pin bufferPool (repin bufferPool state) blockId
 
         if state.PinningBuffers.ContainsKey blockId
@@ -120,46 +120,48 @@ module BufferManager =
             st1) newstate
 
     let rec pinNew (bufferPool: BufferPool) state fileName formatter =
-        let pinBufferPool () = bufferPool.PinNew fileName formatter
+        let inline pinBufferPool () = bufferPool.PinNew fileName formatter
 
-        let pinNext state =
+        let inline pinNext state =
             pinNew bufferPool (repin bufferPool state) fileName formatter
 
         pinNewBuffer bufferPool state pinBufferPool pinNext
 
-    let flushAll (bufferPool: BufferPool) = bufferPool.FlushAll()
+    let inline flushAll (bufferPool: BufferPool) = bufferPool.FlushAll()
 
-    let flushBuffers state =
+    let inline flushBuffers state =
         state.BuffersToFlush
         |> List.iter (fun b -> b.Flush())
 
-    let unpinAll (bufferPool: BufferPool) state =
+    let inline unpinAll (bufferPool: BufferPool) state =
         state.PinningBuffers
         |> Map.iter (fun _ v -> bufferPool.Unpin v.Buffer)
         lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
         { state with
               PinningBuffers = Map.empty }
 
-    let newBufferManager bufferPool txNo =
-        let mutable state =
-            { PinningBuffers = Map.empty
-              BuffersToFlush = []
-              TxNo = txNo }
+let newTransactionBuffer bufferPool txNo =
+    let mutable state: TransactionBuffer.TransactionBufferState =
+        { PinningBuffers = Map.empty
+          BuffersToFlush = []
+          TxNo = txNo }
 
-        { Pin =
-              fun blockId ->
-                  let nextstate, buffer = pin bufferPool state blockId
-                  state <- nextstate
-                  buffer
-          PinNew =
-              fun fileName formatter ->
-                  let nextstate, buffer =
-                      pinNew bufferPool state fileName formatter
+    { Pin =
+          fun blockId ->
+              let nextstate, buffer =
+                  TransactionBuffer.pin bufferPool state blockId
 
-                  state <- nextstate
-                  buffer
-          Unpin = fun buffer -> state <- unpin bufferPool state buffer
-          UnpinAll = fun () -> state <- unpinAll bufferPool state
-          FlushAll = fun () -> flushAll bufferPool
-          FlushBuffers = fun () -> flushBuffers state
-          Available = fun () -> bufferPool.Available() }
+              state <- nextstate
+              buffer
+      PinNew =
+          fun fileName formatter ->
+              let nextstate, buffer =
+                  TransactionBuffer.pinNew bufferPool state fileName formatter
+
+              state <- nextstate
+              buffer
+      Unpin = fun buffer -> state <- TransactionBuffer.unpin bufferPool state buffer
+      UnpinAll = fun () -> state <- TransactionBuffer.unpinAll bufferPool state
+      FlushAll = fun () -> TransactionBuffer.flushAll bufferPool
+      FlushBuffers = fun () -> TransactionBuffer.flushBuffers state
+      Available = fun () -> bufferPool.Available() }

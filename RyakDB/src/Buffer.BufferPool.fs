@@ -1,7 +1,7 @@
 module RyakDB.Buffer.BufferPool
 
 open RyakDB.Storage
-open RyakDB.Buffer
+open RyakDB.Buffer.Buffer
 
 type BufferPool =
     { BufferPoolSize: int32
@@ -25,7 +25,7 @@ module BufferPool =
         if h < 0 then h + anchors.Length else h
         |> anchors.GetValue
 
-    let findExistingBuffer state blockId =
+    let inline findExistingBuffer state blockId =
         let mutable buffer = Unchecked.defaultof<Buffer>
         if state.BlockMap.TryGetValue(blockId, &buffer) then
             Some buffer
@@ -33,7 +33,7 @@ module BufferPool =
         else
             None
 
-    let flushAll state =
+    let inline flushAll state =
         state.BufferPool
         |> Array.iter (fun b -> b.Flush())
 
@@ -91,7 +91,7 @@ module BufferPool =
             ((state.LastReplacedBuff + 1) % state.BufferPool.Length)
 
     let rec pin state blockId =
-        let pinExistBuffer (buffer: Buffer) =
+        let inline pinExistBuffer (buffer: Buffer) =
             if blockId = buffer.BlockId() then
                 pinBuffer state buffer
                 Some buffer
@@ -99,7 +99,6 @@ module BufferPool =
                 pin state blockId
 
         let assignBuffer buffer = buffer.AssignToBlock blockId
-
         let (BlockId (fileName, _)) = blockId
         lock (prepareAnchor state.Anchors fileName) (fun () ->
             match findExistingBuffer state blockId with
@@ -108,21 +107,20 @@ module BufferPool =
 
     let pinNew state fileName formatter =
         let assignBuffer buffer = buffer.AssignToNew fileName formatter
-
         lock (prepareAnchor state.Anchors fileName) (fun () -> pinNewBuffer state assignBuffer)
 
-    let newBufferPool fileMgr logMgr size waitTime =
-        let state =
-            { BufferPool = Array.init size (fun _ -> Buffer.newBuffer fileMgr logMgr)
-              BlockMap = System.Collections.Concurrent.ConcurrentDictionary()
-              LastReplacedBuff = 0
-              Available = size
-              Anchors = Array.init 1019 (fun _ -> obj ()) }
+let newBufferPool fileMgr logMgr size waitTime =
+    let state: BufferPool.BufferPoolState =
+        { BufferPool = Array.init size (fun _ -> newBuffer fileMgr logMgr)
+          BlockMap = System.Collections.Concurrent.ConcurrentDictionary()
+          LastReplacedBuff = 0
+          Available = size
+          Anchors = Array.init 1019 (fun _ -> obj ()) }
 
-        { BufferPoolSize = size
-          Pin = pin state
-          PinNew = pinNew state
-          Unpin = unpin state
-          FlushAll = fun () -> flushAll state
-          Available = fun () -> state.Available
-          WaitTime = waitTime }
+    { BufferPoolSize = size
+      Pin = BufferPool.pin state
+      PinNew = BufferPool.pinNew state
+      Unpin = BufferPool.unpin state
+      FlushAll = fun () -> BufferPool.flushAll state
+      Available = fun () -> state.Available
+      WaitTime = waitTime }

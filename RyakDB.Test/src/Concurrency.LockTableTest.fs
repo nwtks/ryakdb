@@ -1,6 +1,7 @@
 module RyakDB.Test.Concurrency.LockTableTest
 
 open Xunit
+open FsUnit.Xunit
 open RyakDB.Storage
 open RyakDB.Concurrency.LockTable
 
@@ -13,7 +14,7 @@ let init max =
 
 [<Fact>]
 let ``S lock`` () =
-    let lockTbl = LockTable.newLockTable 1000
+    let lockTbl = newLockTable 1000
     let blocks = init 100
     let txNo1 = 12341L
     let txNo2 = 12342L
@@ -30,7 +31,7 @@ let ``S lock`` () =
 
 [<Fact>]
 let ``X lock`` () =
-    let lockTbl = LockTable.newLockTable 1000
+    let lockTbl = newLockTable 1000
     let blocks = init 5
     let txNo1 = 123451L
     let txNo2 = 123452L
@@ -63,7 +64,7 @@ let ``X lock`` () =
 
 [<Fact>]
 let ``SIX lock`` () =
-    let lockTbl = LockTable.newLockTable 1000
+    let lockTbl = newLockTable 1000
     let blocks = init 5
     let txNo1 = 123456781L
     let txNo2 = 123456782L
@@ -81,7 +82,7 @@ let ``SIX lock`` () =
 
 [<Fact>]
 let ``IS lock`` () =
-    let lockTbl = LockTable.newLockTable 1000
+    let lockTbl = newLockTable 1000
     let blocks = init 10
     let txNo1 = 1234561L
     let txNo2 = 1234562L
@@ -107,7 +108,7 @@ let ``IS lock`` () =
 
 [<Fact>]
 let ``IX lock`` () =
-    let lockTbl = LockTable.newLockTable 1000
+    let lockTbl = newLockTable 1000
     let blocks = init 5
     let txNo1 = 12345671L
     let txNo2 = 12345672L
