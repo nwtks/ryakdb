@@ -16,10 +16,10 @@ type TransactionConcurrency =
       ReadIndex: string -> unit
       ModifyLeafBlock: BlockId -> unit
       ReadLeafBlock: BlockId -> unit
-      CrabDownDirBlockForModification: BlockId -> unit
-      CrabDownDirBlockForRead: BlockId -> unit
-      CrabBackDirBlockForModification: BlockId -> unit
-      CrabBackDirBlockForRead: BlockId -> unit
+      CrabDownBranchBlockForModification: BlockId -> unit
+      CrabDownBranchBlockForRead: BlockId -> unit
+      CrabBackBranchBlockForModification: BlockId -> unit
+      CrabBackBranchBlockForRead: BlockId -> unit
       LockTableFileHeader: BlockId -> unit
       ReleaseTableFileHeader: BlockId -> unit
       OnTxCommit: unit -> unit
@@ -83,10 +83,10 @@ let newReadCommitted txNo lockTable =
               toReleaseSLockAtEndStatement <-
                   (BlockIdLockerKey blockId)
                   :: toReleaseSLockAtEndStatement
-      CrabDownDirBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      CrabDownDirBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabBackDirBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
-      CrabBackDirBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
+      CrabBackBranchBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
+      CrabBackBranchBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
       LockTableFileHeader = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
       ReleaseTableFileHeader = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
       OnTxCommit = fun () -> lockTable.ReleaseAll txNo false
@@ -149,10 +149,10 @@ let newRepeatableRead txNo lockTable =
               toReleaseSLockAtEndStatement <-
                   (BlockIdLockerKey blockId)
                   :: toReleaseSLockAtEndStatement
-      CrabDownDirBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      CrabDownDirBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabBackDirBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
-      CrabBackDirBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
+      CrabBackBranchBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
+      CrabBackBranchBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
       LockTableFileHeader = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
       ReleaseTableFileHeader = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
       OnTxCommit = fun () -> lockTable.ReleaseAll txNo false
@@ -199,10 +199,10 @@ let newSerializable txNo lockTable =
       ReadIndex = fun fileName -> lockTable.ISLock txNo (FileNameLockerKey fileName)
       ModifyLeafBlock = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
       ReadLeafBlock = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabDownDirBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      CrabDownDirBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabBackDirBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
-      CrabBackDirBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
+      CrabBackBranchBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
+      CrabBackBranchBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
       LockTableFileHeader = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
       ReleaseTableFileHeader = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
       OnTxCommit = fun () -> lockTable.ReleaseAll txNo false

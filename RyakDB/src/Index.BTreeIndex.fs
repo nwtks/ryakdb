@@ -219,29 +219,41 @@ module BTreePage =
         txBuffer.Unpin buffer
         buffer.BlockId()
 
-    let split txBuffer txConcurrency txRecovery schema blockId buffer headerSize slotSize offsetMap newBTreePage splitSlot flags  =
-              let countOfRecords = getCountOfRecords buffer
+    let split txBuffer
+              txConcurrency
+              txRecovery
+              schema
+              blockId
+              buffer
+              headerSize
+              slotSize
+              offsetMap
+              newBTreePage
+              splitSlot
+              flags
+              =
+        let countOfRecords = getCountOfRecords buffer
 
-              let newBlockId =
-                  appendBlock txBuffer txConcurrency schema blockId flags
+        let newBlockId =
+            appendBlock txBuffer txConcurrency schema blockId flags
 
-              let newPage =
-                  newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (List.length flags)
+        let newPage =
+            newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (List.length flags)
 
-              transferRecords
-                  txRecovery
-                  schema
-                  buffer
-                  headerSize
-                  slotSize
-                  offsetMap
-                  splitSlot
-                  newPage
-                  0
-                  (countOfRecords - splitSlot)
-              newPage.Close()
-              let (BlockId (_, blockNo)) = newBlockId
-              blockNo
+        transferRecords
+            txRecovery
+            schema
+            buffer
+            headerSize
+            slotSize
+            offsetMap
+            splitSlot
+            newPage
+            0
+            (countOfRecords - splitSlot)
+        newPage.Close()
+        let (BlockId (_, blockNo)) = newBlockId
+        blockNo
 
     let close txBuffer buffer = txBuffer.Unpin buffer
 
@@ -282,7 +294,20 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
                   destStart
                   count
       Split =
-          fun splitSlot flags -> BTreePage.split txBuffer txConcurrency txRecovery schema blockId buffer headerSize slotSize offsetMap newBTreePage splitSlot flags
+          fun splitSlot flags ->
+              BTreePage.split
+                  txBuffer
+                  txConcurrency
+                  txRecovery
+                  schema
+                  blockId
+                  buffer
+                  headerSize
+                  slotSize
+                  offsetMap
+                  newBTreePage
+                  splitSlot
+                  flags
       CopyRecord =
           fun fromSlot toSlot ->
               BTreePage.copyRecord txRecovery schema buffer headerSize slotSize offsetMap fromSlot toSlot
@@ -291,28 +316,28 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
               BTreePage.setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slot fieldName value
       Close = fun () -> BTreePage.close txBuffer buffer }
 
-type DirEntry = DirEntry of key: SearchKey * blockNo: int64
+type BTreeBranchEntry = BTreeBranchEntry of key: SearchKey * blockNo: int64
 
-let inline newDirEntry key blockNo = DirEntry(key, blockNo)
+let inline newBTreeBranchEntry key blockNo = BTreeBranchEntry(key, blockNo)
 
 type SearchPurpose =
     | Read
     | Insert
     | Delete
 
-type BTreeDir =
+type BTreeBranch =
     { GetCountOfRecords: unit -> int32
-      DirsMayBeUpdated: unit -> BlockId list
+      BranchesMayBeUpdated: unit -> BlockId list
       Search: string -> SearchKey -> SearchPurpose -> BlockId
-      Insert: DirEntry -> DirEntry option
-      MakeNewRoot: DirEntry -> unit
+      Insert: BTreeBranchEntry -> BTreeBranchEntry option
+      MakeNewRoot: BTreeBranchEntry -> unit
       Close: unit -> unit }
 
-module BTreeDir =
+module BTreeBranch =
     let insertASlot blockId keyType slot = ()
     let deleteASlot blockId keyType slot = ()
 
-    let inline getFileName indexName = indexName + "_dir.idx"
+    let inline getFileName indexName = indexName + "_branch.idx"
 
     let inline keyTypeToSchema (SearchKeyType types) =
         let sch = Schema.newSchema ()
@@ -363,56 +388,56 @@ module BTreeDir =
         |> getChildBlockNo page
 
     let searchForInsert txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
-        let rec loopSearch currentPage childBlockNo dirsMayBeUpdated =
+        let rec loopSearch currentPage childBlockNo branchesMayBeUpdated =
             if getLevelFlag currentPage > 0L then
                 let (BlockId (pagefile, _)) = currentPage.BlockId
                 let childBlockId = BlockId.newBlockId pagefile childBlockNo
-                txConcurrency.CrabDownDirBlockForModification childBlockId
+                txConcurrency.CrabDownBranchBlockForModification childBlockId
 
                 let childPage =
                     newBTreePage txBuffer txConcurrency txRecovery schema childBlockId 1
 
-                let dirsMayBeUpdated =
+                let branchesMayBeUpdated =
                     if childPage.IsGettingFull() then
-                        childBlockId :: dirsMayBeUpdated
+                        childBlockId :: branchesMayBeUpdated
                     else
-                        dirsMayBeUpdated
-                        |> List.iter txConcurrency.CrabBackDirBlockForModification
+                        branchesMayBeUpdated
+                        |> List.iter txConcurrency.CrabBackBranchBlockForModification
                         [ childBlockId ]
 
                 currentPage.Close()
-                loopSearch childPage (findChildBlockNo keyType childPage searchKey) dirsMayBeUpdated
+                loopSearch childPage (findChildBlockNo keyType childPage searchKey) branchesMayBeUpdated
             else
-                currentPage, childBlockNo, dirsMayBeUpdated
+                currentPage, childBlockNo, branchesMayBeUpdated
 
-        txConcurrency.CrabDownDirBlockForModification page.BlockId
+        txConcurrency.CrabDownBranchBlockForModification page.BlockId
 
-        let currentPage, childBlockNo, dirsMayBeUpdated =
+        let currentPage, childBlockNo, branchesMayBeUpdated =
             loopSearch page (findChildBlockNo keyType page searchKey) [ page.BlockId ]
 
         let leafBlockId =
             BlockId.newBlockId leafFileName childBlockNo
 
         txConcurrency.ModifyLeafBlock leafBlockId
-        leafBlockId, currentPage, dirsMayBeUpdated |> List.rev
+        leafBlockId, currentPage, branchesMayBeUpdated |> List.rev
 
     let searchForRead txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
         let rec loopSearch currentPage childBlockNo =
             if getLevelFlag currentPage > 0L then
                 let (BlockId (pagefile, _)) = currentPage.BlockId
                 let childBlockId = BlockId.newBlockId pagefile childBlockNo
-                txConcurrency.CrabDownDirBlockForRead childBlockId
+                txConcurrency.CrabDownBranchBlockForRead childBlockId
 
                 let childPage =
                     newBTreePage txBuffer txConcurrency txRecovery schema childBlockId 1
 
-                txConcurrency.CrabBackDirBlockForRead currentPage.BlockId
+                txConcurrency.CrabBackBranchBlockForRead currentPage.BlockId
                 currentPage.Close()
                 loopSearch childPage (findChildBlockNo keyType childPage searchKey)
             else
                 currentPage, childBlockNo
 
-        txConcurrency.CrabDownDirBlockForRead page.BlockId
+        txConcurrency.CrabDownBranchBlockForRead page.BlockId
 
         let currentPage, childBlockNo =
             loopSearch page (findChildBlockNo keyType page searchKey)
@@ -421,7 +446,7 @@ module BTreeDir =
             BlockId.newBlockId leafFileName childBlockNo
 
         txConcurrency.ReadLeafBlock leafBlockId
-        txConcurrency.CrabDownDirBlockForRead currentPage.BlockId
+        txConcurrency.CrabDownBranchBlockForRead currentPage.BlockId
         leafBlockId, currentPage, []
 
     let search txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey purpose =
@@ -430,7 +455,7 @@ module BTreeDir =
         | Delete
         | Read -> searchForRead txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey
 
-    let insert txRecovery keyType (page: BTreePage) (DirEntry (key, blockNo)) =
+    let insert txRecovery keyType (page: BTreePage) (BTreeBranchEntry (key, blockNo)) =
         let newSlot =
             if page.GetCountOfRecords() > 0 then (findMatchingSlot keyType page key) + 1 else 0
 
@@ -442,7 +467,7 @@ module BTreeDir =
             let splitBlockNo =
                 page.Split splitPos [ getLevelFlag page ]
 
-            Some(newDirEntry splitKey splitBlockNo)
+            Some(newBTreeBranchEntry splitKey splitBlockNo)
         else
             None
 
@@ -459,7 +484,10 @@ module BTreeDir =
         let firstKey = getKey currentPage 0 keyType
         let level = getLevelFlag currentPage
         let splitBlockNo = currentPage.Split 0 [ level ]
-        let oldRoot = newDirEntry firstKey splitBlockNo
+
+        let oldRoot =
+            newBTreeBranchEntry firstKey splitBlockNo
+
         insert txRecovery keyType currentPage oldRoot
         |> ignore
         insert txRecovery keyType currentPage entry
@@ -467,36 +495,45 @@ module BTreeDir =
         setLevelFlag currentPage (level + 1L)
         currentPage
 
-let newBTreeDir txBuffer txConcurrency txRecovery blockId keyType =
-    let schema = BTreeDir.keyTypeToSchema keyType
+let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =
+    let schema = BTreeBranch.keyTypeToSchema keyType
 
     let mutable page =
         newBTreePage txBuffer txConcurrency txRecovery schema blockId 1
 
-    let mutable dirsMayBeUpdated = []
+    let mutable branchesMayBeUpdated = []
 
     { GetCountOfRecords = fun () -> page.GetCountOfRecords()
-      DirsMayBeUpdated = fun () -> dirsMayBeUpdated
+      BranchesMayBeUpdated = fun () -> branchesMayBeUpdated
       Search =
           fun leafFileName searchKey purpose ->
               let leafBlockId, nextPage, nextMayBeUpdated =
-                  BTreeDir.search txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey purpose
+                  BTreeBranch.search
+                      txBuffer
+                      txConcurrency
+                      txRecovery
+                      schema
+                      keyType
+                      page
+                      leafFileName
+                      searchKey
+                      purpose
 
               page <- nextPage
-              dirsMayBeUpdated <- nextMayBeUpdated
+              branchesMayBeUpdated <- nextMayBeUpdated
               leafBlockId
-      Insert = fun entry -> BTreeDir.insert txRecovery keyType page entry
+      Insert = fun entry -> BTreeBranch.insert txRecovery keyType page entry
       MakeNewRoot =
-          fun entry -> page <- BTreeDir.makeNewRoot txBuffer txConcurrency txRecovery schema keyType page entry
+          fun entry -> page <- BTreeBranch.makeNewRoot txBuffer txConcurrency txRecovery schema keyType page entry
       Close =
           fun () ->
               page.Close()
-              dirsMayBeUpdated <- [] }
+              branchesMayBeUpdated <- [] }
 
 type BTreeLeaf =
     { Next: unit -> bool
       GetDataRecordId: unit -> RecordId
-      Insert: RecordId -> DirEntry option
+      Insert: RecordId -> BTreeBranchEntry option
       Delete: RecordId -> unit
       Close: unit -> unit }
 
@@ -678,7 +715,7 @@ module BTreeLeaf =
 
             setOverflowFlag state.CurrentPage -1L
             setSiblingFlag state.CurrentPage newBlockNo
-            Some(newDirEntry splitKey newBlockNo), slot
+            Some(newBTreeBranchEntry splitKey newBlockNo), slot
         else
 
         if state.CurrentPage.IsFull() then
@@ -726,7 +763,7 @@ module BTreeLeaf =
                           getSiblingFlag state.CurrentPage ]
 
                 setSiblingFlag state.CurrentPage newBlockNo
-                Some(newDirEntry splitKey newBlockNo), slot
+                Some(newBTreeBranchEntry splitKey newBlockNo), slot
         else
             None, slot
 
@@ -825,7 +862,7 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
 module BTreeIndex =
     type BTreeIndexState =
         { Leaf: BTreeLeaf
-          DirsMayBeUpdated: BlockId list }
+          BranchesMayBeUpdated: BlockId list }
 
     let inline fileSize (fileMgr: FileManager) txConcurrency fileName =
         txConcurrency.ReadFile fileName
@@ -840,33 +877,33 @@ module BTreeIndex =
         txBuffer.Unpin buff
         buff.BlockId
 
-    let inline createRootDir txBuffer txConcurrency txRecovery keyType dirFileName =
-        newBTreeDir txBuffer txConcurrency txRecovery (BlockId.newBlockId dirFileName 0L) keyType
+    let inline createRoot txBuffer txConcurrency txRecovery keyType branchFileName =
+        newBTreeBranch txBuffer txConcurrency txRecovery (BlockId.newBlockId branchFileName 0L) keyType
 
-    let search txBuffer txConcurrency txRecovery indexInfo keyType dirFileName leafFileName searchRange purpose =
-        let rootDir =
-            createRootDir txBuffer txConcurrency txRecovery keyType dirFileName
+    let search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange purpose =
+        let root =
+            createRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
         let leafBlockId =
-            rootDir.Search leafFileName (searchRange.GetMin()) purpose
+            root.Search leafFileName (searchRange.GetMin()) purpose
 
-        let dirsMayBeUpdated =
-            if purpose = Insert then rootDir.DirsMayBeUpdated() else []
+        let branchesMayBeUpdated =
+            if purpose = Insert then root.BranchesMayBeUpdated() else []
 
-        rootDir.Close()
+        root.Close()
 
         let leaf =
             newBTreeLeaf txBuffer txConcurrency txRecovery indexInfo.TableInfo.FileName leafBlockId keyType searchRange
 
         { Leaf = leaf
-          DirsMayBeUpdated = dirsMayBeUpdated }
+          BranchesMayBeUpdated = branchesMayBeUpdated }
 
-    let preLoadToMemory fileMgr txBuffer txConcurrency dirFileName leafFileName =
-        let dirSize =
-            fileSize fileMgr txConcurrency dirFileName
+    let preLoadToMemory fileMgr txBuffer txConcurrency branchFileName leafFileName =
+        let branchSize =
+            fileSize fileMgr txConcurrency branchFileName
 
-        for i in 0L .. dirSize - 1L do
-            BlockId.newBlockId dirFileName i
+        for i in 0L .. branchSize - 1L do
+            BlockId.newBlockId branchFileName i
             |> txBuffer.Pin
             |> ignore
 
@@ -878,9 +915,19 @@ module BTreeIndex =
             |> txBuffer.Pin
             |> ignore
 
-    let inline beforeFirst txBuffer txConcurrency txRecovery indexInfo keyType dirFileName leafFileName searchRange =
+    let inline beforeFirst txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange =
         if searchRange.IsValid()
-        then Some(search txBuffer txConcurrency txRecovery indexInfo keyType dirFileName leafFileName searchRange Read)
+        then Some
+                 (search
+                     txBuffer
+                      txConcurrency
+                      txRecovery
+                      indexInfo
+                      keyType
+                      branchFileName
+                      leafFileName
+                      searchRange
+                      Read)
         else None
 
     let inline next state =
@@ -899,20 +946,20 @@ module BTreeIndex =
                txReadOnly
                indexInfo
                keyType
-               dirFileName
+               branchFileName
                leafFileName
                doLogicalLogging
                key
                dataRecordId
                =
-        let inline insertEntry entry dirBlockId =
+        let inline insertEntry entry branchBlockId =
             match entry with
             | Some (e) ->
-                let dir =
-                    newBTreeDir txBuffer txConcurrency txRecovery dirBlockId keyType
+                let branch =
+                    newBTreeBranch txBuffer txConcurrency txRecovery branchBlockId keyType
 
-                let newEntry = dir.Insert e
-                dir.Close()
+                let newEntry = branch.Insert e
+                branch.Close()
                 newEntry
             | _ -> None
 
@@ -925,24 +972,24 @@ module BTreeIndex =
                 txRecovery
                 indexInfo
                 keyType
-                dirFileName
+                branchFileName
                 leafFileName
                 (SearchRange.newSearchRangeBySearchKey key)
                 Insert
 
-        let dirEntry = newstate.Leaf.Insert dataRecordId
+        let entry = newstate.Leaf.Insert dataRecordId
         newstate.Leaf.Close()
-        if Option.isSome dirEntry then
+        if Option.isSome entry then
             if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
-            match newstate.DirsMayBeUpdated
-                  |> List.fold insertEntry dirEntry with
+            match newstate.BranchesMayBeUpdated
+                  |> List.fold insertEntry entry with
             | Some (e) ->
-                let rootDir =
-                    createRootDir txBuffer txConcurrency txRecovery keyType dirFileName
+                let root =
+                    createRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
-                rootDir.MakeNewRoot e
-                rootDir.Close()
+                root.MakeNewRoot e
+                root.Close()
             | _ -> ()
 
             if doLogicalLogging then
@@ -956,7 +1003,7 @@ module BTreeIndex =
                txReadOnly
                indexInfo
                keyType
-               dirFileName
+               branchFileName
                leafFileName
                doLogicalLogging
                key
@@ -971,7 +1018,7 @@ module BTreeIndex =
                 txRecovery
                 indexInfo
                 keyType
-                dirFileName
+                branchFileName
                 leafFileName
                 (SearchRange.newSearchRangeBySearchKey key)
                 Delete
@@ -996,18 +1043,20 @@ let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo
         BTreeIndex.appendBlock txBuffer txConcurrency leafFileName (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
         |> ignore
 
-    let dirFileName = BTreeDir.getFileName indexInfo.IndexName
-    if BTreeIndex.fileSize fileMgr txConcurrency dirFileName = 0L then
-        BTreeIndex.appendBlock txBuffer txConcurrency dirFileName (BTreeDir.keyTypeToSchema keyType) [ 0L ]
+    let branchFileName =
+        BTreeBranch.getFileName indexInfo.IndexName
+
+    if BTreeIndex.fileSize fileMgr txConcurrency branchFileName = 0L then
+        BTreeIndex.appendBlock txBuffer txConcurrency branchFileName (BTreeBranch.keyTypeToSchema keyType) [ 0L ]
         |> ignore
 
-    let rootDir =
-        BTreeIndex.createRootDir txBuffer txConcurrency txRecovery keyType dirFileName
+    let root =
+        BTreeIndex.createRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
-    if rootDir.GetCountOfRecords() = 0 then
-        rootDir.Insert(newDirEntry (SearchKeyType.getMin keyType) 0L)
+    if root.GetCountOfRecords() = 0 then
+        root.Insert(newBTreeBranchEntry (SearchKeyType.getMin keyType) 0L)
         |> ignore
-    rootDir.Close()
+    root.Close()
 
     let mutable state = None
     { BeforeFirst =
@@ -1020,7 +1069,7 @@ let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo
                       txRecovery
                       indexInfo
                       keyType
-                      dirFileName
+                      branchFileName
                       leafFileName
                       searchRange
       Next = fun () -> BTreeIndex.next state
@@ -1036,7 +1085,7 @@ let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo
                   txReadOnly
                   indexInfo
                   keyType
-                  dirFileName
+                  branchFileName
                   leafFileName
                   doLogicalLogging
                   key
@@ -1052,7 +1101,7 @@ let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo
                   txReadOnly
                   indexInfo
                   keyType
-                  dirFileName
+                  branchFileName
                   leafFileName
                   doLogicalLogging
                   key
@@ -1061,4 +1110,4 @@ let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo
           fun () ->
               BTreeIndex.close state
               state <- None
-      PreLoadToMemory = fun () -> BTreeIndex.preLoadToMemory fileMgr txBuffer txConcurrency dirFileName leafFileName }
+      PreLoadToMemory = fun () -> BTreeIndex.preLoadToMemory fileMgr txBuffer txConcurrency branchFileName leafFileName }

@@ -65,21 +65,21 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryL
             idx.Close()
             tx.Recovery.LogLogicalAbort n start)
         |> Option.iter logMgr.Flush
-    | IndexPageInsertRecord (n, ibid, dir, kt, sid, optlsn) ->
+    | IndexPageInsertRecord (n, ibid, branch, kt, sid, optlsn) ->
         let buffer = tx.Buffer.Pin ibid
         match optlsn with
         | Some lsn when lsn < buffer.LastLogSeqNo() ->
-            if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
-            tx.Recovery.LogIndexPageDeletionClr dir n ibid kt sid lsn
+            if branch then BTreeBranch.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+            tx.Recovery.LogIndexPageDeletionClr branch n ibid kt sid lsn
             |> Option.iter logMgr.Flush
         | _ -> ()
         tx.Buffer.Unpin buffer
-    | IndexPageDeleteRecord (n, ibid, dir, kt, sid, optlsn) ->
+    | IndexPageDeleteRecord (n, ibid, branch, kt, sid, optlsn) ->
         let buffer = tx.Buffer.Pin ibid
         match optlsn with
         | Some lsn when lsn < buffer.LastLogSeqNo() ->
-            if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
-            tx.Recovery.LogIndexPageInsertionClr dir n ibid kt sid lsn
+            if branch then BTreeBranch.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+            tx.Recovery.LogIndexPageInsertionClr branch n ibid kt sid lsn
             |> Option.iter logMgr.Flush
         | _ -> ()
         tx.Buffer.Unpin buffer

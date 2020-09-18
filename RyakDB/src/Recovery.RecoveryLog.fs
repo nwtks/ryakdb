@@ -34,10 +34,10 @@ type RecoveryLog =
     | TableFileDeleteEndRecord of txNo: int64 * tblName: string * blockNo: int64 * slotId: int32 * logicalStartLSN: LogSeqNo * lsn: LogSeqNo option
     | IndexInsertEndRecord of txNo: int64 * indexName: string * searchKey: SearchKey * recordBlockNo: int64 * recordSlotId: int32 * logicalStartLSN: LogSeqNo * lsn: LogSeqNo option
     | IndexDeleteEndRecord of txNo: int64 * indexName: string * searchKey: SearchKey * recordBlockNo: int64 * recordSlotId: int32 * logicalStartLSN: LogSeqNo * lsn: LogSeqNo option
-    | IndexPageInsertRecord of txNo: int64 * indexBlkId: BlockId * isDirPage: bool * keyType: SearchKeyType * slotId: int32 * lsn: LogSeqNo option
-    | IndexPageInsertClr of compTxNo: int64 * indexBlkId: BlockId * isDirPage: bool * keyType: SearchKeyType * slotId: int32 * undoNextLSN: LogSeqNo * lsn: LogSeqNo option
-    | IndexPageDeleteRecord of txNo: int64 * indexBlkId: BlockId * isDirPage: bool * keyType: SearchKeyType * slotId: int32 * lsn: LogSeqNo option
-    | IndexPageDeleteClr of compTxNo: int64 * indexBlkId: BlockId * isDirPage: bool * keyType: SearchKeyType * slotId: int32 * undoNextLSN: LogSeqNo * lsn: LogSeqNo option
+    | IndexPageInsertRecord of txNo: int64 * indexBlkId: BlockId * isBranch: bool * keyType: SearchKeyType * slotId: int32 * lsn: LogSeqNo option
+    | IndexPageInsertClr of compTxNo: int64 * indexBlkId: BlockId * isBranch: bool * keyType: SearchKeyType * slotId: int32 * undoNextLSN: LogSeqNo * lsn: LogSeqNo option
+    | IndexPageDeleteRecord of txNo: int64 * indexBlkId: BlockId * isBranch: bool * keyType: SearchKeyType * slotId: int32 * lsn: LogSeqNo option
+    | IndexPageDeleteClr of compTxNo: int64 * indexBlkId: BlockId * isBranch: bool * keyType: SearchKeyType * slotId: int32 * undoNextLSN: LogSeqNo * lsn: LogSeqNo option
     | SetValueRecord of txNo: int64 * blkId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * lsn: LogSeqNo option
     | SetValueClr of compTxNo: int64 * blkId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * undoNextLSN: LogSeqNo * lsn: LogSeqNo option
 
@@ -205,14 +205,14 @@ let newIndexDeleteEndRecordByLogRecord record =
     IndexDeleteEndRecord
         (txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLogSeqNo, Some record.LogSeqNo)
 
-let newIndexPageInsertRecord isDirPage txNo indexBlkId keyType slotId =
-    IndexPageInsertRecord(txNo, indexBlkId, isDirPage, keyType, slotId, None)
+let newIndexPageInsertRecord isBranch txNo indexBlkId keyType slotId =
+    IndexPageInsertRecord(txNo, indexBlkId, isBranch, keyType, slotId, None)
 
 let newIndexPageInsertRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let isDirPage =
+    let isBranch =
         (record.NextVal IntDbType |> DbConstant.toInt) = 1
 
     let count =
@@ -233,16 +233,16 @@ let newIndexPageInsertRecordByLogRecord record =
     let slotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    IndexPageInsertRecord(txNo, indexBlkId, isDirPage, keyType, slotId, Some record.LogSeqNo)
+    IndexPageInsertRecord(txNo, indexBlkId, isBranch, keyType, slotId, Some record.LogSeqNo)
 
-let newIndexPageInsertClr isDirPage compTxNo indexBlkId keyType slotId undoNextLogSeqNo =
-    IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, None)
+let newIndexPageInsertClr isBranch compTxNo indexBlkId keyType slotId undoNextLogSeqNo =
+    IndexPageInsertClr(compTxNo, indexBlkId, isBranch, keyType, slotId, undoNextLogSeqNo, None)
 
 let newIndexPageInsertClrByLogRecord record =
     let compTxNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let isDirPage =
+    let isBranch =
         (record.NextVal IntDbType |> DbConstant.toInt) = 1
 
     let count =
@@ -268,16 +268,16 @@ let newIndexPageInsertClrByLogRecord record =
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, Some record.LogSeqNo)
+    IndexPageInsertClr(compTxNo, indexBlkId, isBranch, keyType, slotId, undoNextLogSeqNo, Some record.LogSeqNo)
 
-let newIndexPageDeleteRecord isDirPage txNo indexBlkId keyType slotId =
-    IndexPageDeleteRecord(txNo, indexBlkId, isDirPage, keyType, slotId, None)
+let newIndexPageDeleteRecord isBranch txNo indexBlkId keyType slotId =
+    IndexPageDeleteRecord(txNo, indexBlkId, isBranch, keyType, slotId, None)
 
 let newIndexPageDeleteRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let isDirPage =
+    let isBranch =
         (record.NextVal IntDbType |> DbConstant.toInt) = 1
 
     let count =
@@ -298,16 +298,16 @@ let newIndexPageDeleteRecordByLogRecord record =
     let slotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    IndexPageDeleteRecord(txNo, indexBlkId, isDirPage, keyType, slotId, Some record.LogSeqNo)
+    IndexPageDeleteRecord(txNo, indexBlkId, isBranch, keyType, slotId, Some record.LogSeqNo)
 
-let newIndexPageDeleteClr isDirPage compTxNo indexBlkId keyType slotId undoNextLogSeqNo =
-    IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, None)
+let newIndexPageDeleteClr isBranch compTxNo indexBlkId keyType slotId undoNextLogSeqNo =
+    IndexPageDeleteClr(compTxNo, indexBlkId, isBranch, keyType, slotId, undoNextLogSeqNo, None)
 
 let newIndexPageDeleteClrByLogRecord record =
     let compTxNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let isDirPage =
+    let isBranch =
         (record.NextVal IntDbType |> DbConstant.toInt) = 1
 
     let count =
@@ -333,7 +333,7 @@ let newIndexPageDeleteClrByLogRecord record =
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, Some record.LogSeqNo)
+    IndexPageDeleteClr(compTxNo, indexBlkId, isBranch, keyType, slotId, undoNextLogSeqNo, Some record.LogSeqNo)
 
 let newSetValueRecord txNo blkId offset value newValue =
     SetValueRecord(txNo, blkId, offset, DbConstant.dbType value, value, newValue, None)
@@ -511,12 +511,12 @@ let buildRecord r =
             [ IntDbConstant(DbType.toInt t)
               IntDbConstant(DbType.argument t)
               v ])
-    | IndexPageInsertRecord (n, ibid, dir, kt, sid, _) ->
+    | IndexPageInsertRecord (n, ibid, branch, kt, sid, _) ->
         let (BlockId (fileName, blockNo)) = ibid
         let (SearchKeyType (keyType)) = kt
         IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
-        :: IntDbConstant(if dir then 1 else 0)
+        :: IntDbConstant(if branch then 1 else 0)
         :: DbConstant.newVarchar fileName
         :: BigIntDbConstant(blockNo)
         :: IntDbConstant(sid)
@@ -525,13 +525,13 @@ let buildRecord r =
             |> List.collect (fun t ->
                 [ IntDbConstant(DbType.toInt t)
                   IntDbConstant(DbType.argument t) ]))
-    | IndexPageInsertClr (n, ibid, dir, kt, sid, undo, _) ->
+    | IndexPageInsertClr (n, ibid, branch, kt, sid, undo, _) ->
         let (BlockId (fileName, blockNo)) = ibid
         let (LogSeqNo (undoBlockNo, undoOffset)) = undo
         let (SearchKeyType (keyType)) = kt
         IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
-        :: IntDbConstant(if dir then 1 else 0)
+        :: IntDbConstant(if branch then 1 else 0)
         :: DbConstant.newVarchar fileName
         :: BigIntDbConstant(blockNo)
         :: IntDbConstant(sid)
@@ -542,12 +542,12 @@ let buildRecord r =
             |> List.collect (fun t ->
                 [ IntDbConstant(DbType.toInt t)
                   IntDbConstant(DbType.argument t) ]))
-    | IndexPageDeleteRecord (n, ibid, dir, kt, sid, _) ->
+    | IndexPageDeleteRecord (n, ibid, branch, kt, sid, _) ->
         let (BlockId (fileName, blockNo)) = ibid
         let (SearchKeyType (keyType)) = kt
         IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
-        :: IntDbConstant(if dir then 1 else 0)
+        :: IntDbConstant(if branch then 1 else 0)
         :: DbConstant.newVarchar fileName
         :: BigIntDbConstant(blockNo)
         :: IntDbConstant(sid)
@@ -556,13 +556,13 @@ let buildRecord r =
             |> List.collect (fun t ->
                 [ IntDbConstant(DbType.toInt t)
                   IntDbConstant(DbType.argument t) ]))
-    | IndexPageDeleteClr (n, ibid, dir, kt, sid, undo, _) ->
+    | IndexPageDeleteClr (n, ibid, branch, kt, sid, undo, _) ->
         let (BlockId (fileName, blockNo)) = ibid
         let (LogSeqNo (undoBlockNo, undoOffset)) = undo
         let (SearchKeyType (keyType)) = kt
         IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
-        :: IntDbConstant(if dir then 1 else 0)
+        :: IntDbConstant(if branch then 1 else 0)
         :: DbConstant.newVarchar fileName
         :: BigIntDbConstant(blockNo)
         :: IntDbConstant(sid)

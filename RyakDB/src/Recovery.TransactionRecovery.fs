@@ -79,23 +79,23 @@ module TransactionRecovery =
             |> Some
         | _ -> failwith "Logical start LogSeqNo is null (in logIndexDeletionEnd)"
 
-    let logIndexPageInsertion logMgr txNo isDirPage indexBlkId keyType slotId =
-        newIndexPageInsertRecord isDirPage txNo indexBlkId keyType slotId
+    let logIndexPageInsertion logMgr txNo isBranch indexBlkId keyType slotId =
+        newIndexPageInsertRecord isBranch txNo indexBlkId keyType slotId
         |> writeToLog logMgr
         |> Some
 
-    let logIndexPageDeletion logMgr txNo isDirPage indexBlkId keyType slotId =
-        newIndexPageDeleteRecord isDirPage txNo indexBlkId keyType slotId
+    let logIndexPageDeletion logMgr txNo isBranch indexBlkId keyType slotId =
+        newIndexPageDeleteRecord isBranch txNo indexBlkId keyType slotId
         |> writeToLog logMgr
         |> Some
 
-    let logIndexPageInsertionClr logMgr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN =
-        newIndexPageInsertClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN
+    let logIndexPageInsertionClr logMgr isBranch compTxNo indexBlkId keyType slotId undoNextLSN =
+        newIndexPageInsertClr isBranch compTxNo indexBlkId keyType slotId undoNextLSN
         |> writeToLog logMgr
         |> Some
 
-    let logIndexPageDeletionClr logMgr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN =
-        newIndexPageDeleteClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN
+    let logIndexPageDeletionClr logMgr isBranch compTxNo indexBlkId keyType slotId undoNextLSN =
+        newIndexPageDeleteClr isBranch compTxNo indexBlkId keyType slotId undoNextLSN
         |> writeToLog logMgr
         |> Some
 

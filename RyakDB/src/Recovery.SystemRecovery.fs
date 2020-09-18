@@ -10,32 +10,32 @@ open RyakDB.Transaction
 module SystemRecovery =
     let redo txBuffer recoveryLog =
         match recoveryLog with
-        | IndexPageInsertRecord (n, ibid, dir, kt, sid, optlsn) ->
+        | IndexPageInsertRecord (n, ibid, branch, kt, sid, optlsn) ->
             let buffer = txBuffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+                if branch then BTreeBranch.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
             | _ -> ()
             txBuffer.Unpin buffer
-        | IndexPageInsertClr (n, ibid, dir, kt, sid, _, optlsn) ->
+        | IndexPageInsertClr (n, ibid, branch, kt, sid, _, optlsn) ->
             let buffer = txBuffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if dir then BTreeDir.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+                if branch then BTreeBranch.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
             | _ -> ()
             txBuffer.Unpin buffer
-        | IndexPageDeleteRecord (n, ibid, dir, kt, sid, optlsn) ->
+        | IndexPageDeleteRecord (n, ibid, branch, kt, sid, optlsn) ->
             let buffer = txBuffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+                if branch then BTreeBranch.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
             | _ -> ()
             txBuffer.Unpin buffer
-        | IndexPageDeleteClr (n, ibid, dir, kt, sid, _, optlsn) ->
+        | IndexPageDeleteClr (n, ibid, branch, kt, sid, _, optlsn) ->
             let buffer = txBuffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if dir then BTreeDir.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+                if branch then BTreeBranch.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
             | _ -> ()
             txBuffer.Unpin buffer
         | SetValueRecord (_, bid, off, _, _, nv, _) ->

@@ -5,7 +5,6 @@ open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
-open RyakDB.Query
 open RyakDB.Transaction
 open RyakDB.Index
 open RyakDB.Index.IndexFactory

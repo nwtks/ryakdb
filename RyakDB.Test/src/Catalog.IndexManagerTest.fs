@@ -3,7 +3,6 @@ module RyakDB.Test.Catalog.IndexManagerTest
 open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
-open RyakDB.Query
 open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Transaction
