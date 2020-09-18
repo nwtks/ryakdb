@@ -25,7 +25,7 @@ let ``set get`` () =
 
     let bufferPool = newBufferPool fileMgr logMgr 10 1000
 
-    let buffMgr = newTransactionBuffer bufferPool 12345L
+    let buffMgr = newTransactionBuffer bufferPool
 
     let blk = BlockId.newBlockId filename 13L
 

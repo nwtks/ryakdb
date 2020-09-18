@@ -2,7 +2,6 @@ namespace RyakDB.Index
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Query
 
 type SearchKey = SearchKey of constants: DbConstant list
 
@@ -17,6 +16,10 @@ type SearchRange =
       BetweenMinAndMax: SearchKey -> bool
       IsSingleValue: unit -> bool
       ToSearchKey: unit -> SearchKey }
+
+type IndexType =
+    | Hash = 1
+    | BTree = 2
 
 type IndexInfo =
     { IndexName: string
@@ -37,6 +40,16 @@ module SearchKey =
     let newSearchKey constants = SearchKey constants
 
 module SearchKeyType =
+    let getMin (SearchKeyType types) =
+        types
+        |> List.map DbType.minValue
+        |> SearchKey.newSearchKey
+
+    let getMax (SearchKeyType types) =
+        types
+        |> List.map DbType.maxValue
+        |> SearchKey.newSearchKey
+
     let newSearchKeyTypeByTypes types = SearchKeyType types
 
     let newSearchKeyType schema indexedFields =

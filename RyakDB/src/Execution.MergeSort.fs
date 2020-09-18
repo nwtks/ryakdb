@@ -125,7 +125,7 @@ module TempSlottedPage =
     let close tsp = tsp.SlottedPage.Close()
 
     let newTempSlottedPage tx blk ti =
-        { SlottedPage = newSlottedPage tx blk ti false
+        { SlottedPage = newSlottedPage tx.Buffer tx.Concurrency tx.Recovery blk ti false
           Schema = ti.Schema }
 
 module MergeSort =
@@ -137,7 +137,7 @@ module MergeSort =
                  + "-"
                  + tblcount.ToString()
                  + "-"
-                 + tx.TransactionNumber.ToString())
+                 + tx.TransactionNo.ToString())
                 schema
 
         let tsp =

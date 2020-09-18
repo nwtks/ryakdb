@@ -2,6 +2,7 @@ module RyakDB.Sql.Parse
 
 open RyakDB.DataType
 open RyakDB.Table
+open RyakDB.Index
 open RyakDB.Query
 open RyakDB.Query.Predicate
 

@@ -73,7 +73,7 @@ module DbType =
         | IntDbType -> IntDbConstant System.Int32.MaxValue
         | BigIntDbType -> BigIntDbConstant System.Int64.MaxValue
         | DoubleDbType -> DoubleDbConstant System.Double.MaxValue
-        | _ -> failwith "Invalid type"
+        | _ -> failwith ("Invalid type:" + t.ToString())
 
     let inline toInt t =
         match t with
@@ -88,7 +88,7 @@ module DbType =
         | 2 -> BigIntDbType
         | 3 -> DoubleDbType
         | 4 -> VarcharDbType arg
-        | _ -> failwith "Invalid type"
+        | _ -> failwith ("Invalid type:" + t.ToString())
 
 module DbConstant =
     let inline newVarchar s =
@@ -142,21 +142,21 @@ module DbConstant =
         | IntDbConstant v -> v
         | BigIntDbConstant v -> int32 v
         | DoubleDbConstant v -> int32 v
-        | _ -> failwith "Can't cast"
+        | _ -> failwith ("Can't cast " + value.ToString() + " to int")
 
     let inline toLong value =
         match value with
         | IntDbConstant v -> int64 v
         | BigIntDbConstant v -> v
         | DoubleDbConstant v -> int64 v
-        | _ -> failwith "Can't cast"
+        | _ -> failwith ("Can't cast " + value.ToString() + " to long")
 
     let inline toDouble value =
         match value with
         | IntDbConstant v -> double v
         | BigIntDbConstant v -> double v
         | DoubleDbConstant v -> v
-        | _ -> failwith "Can't cast"
+        | _ -> failwith ("Can't cast " + value.ToString() + " to double")
 
     let inline toString value =
         match value with
@@ -180,7 +180,12 @@ module DbConstant =
         | DoubleDbConstant v, BigIntDbType -> int64 v |> BigIntDbConstant
         | DoubleDbConstant v, VarcharDbType _ -> v.ToString() |> newVarchar
         | VarcharDbConstant _, VarcharDbType _ -> value
-        | _ -> failwith "Can't cast"
+        | _ ->
+            failwith
+                ("Can't cast "
+                 + value.ToString()
+                 + " to "
+                 + dbType.ToString())
 
     let inline compare lhs rhs =
         let compareValue v1 v2 =
@@ -199,7 +204,12 @@ module DbConstant =
         | BigIntDbConstant lv, DoubleDbConstant rv -> compareValue (double lv) rv
         | DoubleDbConstant lv, BigIntDbConstant rv -> compareValue lv (double rv)
         | VarcharDbConstant (lv, _), VarcharDbConstant (rv, _) -> compareValue lv rv
-        | _ -> failwith "Invalid operation"
+        | _ ->
+            failwith
+                ("Invalid operation:compare "
+                 + lhs.ToString()
+                 + " "
+                 + rhs.ToString())
 
     let inline add lhs rhs =
         match lhs, rhs with
@@ -214,7 +224,12 @@ module DbConstant =
         | DoubleDbConstant lv, BigIntDbConstant rv -> lv + double rv |> DoubleDbConstant
         | VarcharDbConstant (lv, _), VarcharDbConstant (rv, _) ->
             VarcharDbConstant(lv + rv, lv.Length + rv.Length |> VarcharDbType)
-        | _ -> failwith "Invalid operation"
+        | _ ->
+            failwith
+                ("Invalid operation:add "
+                 + lhs.ToString()
+                 + " "
+                 + rhs.ToString())
 
     let inline sub lhs rhs =
         match lhs, rhs with
@@ -227,7 +242,12 @@ module DbConstant =
         | DoubleDbConstant lv, IntDbConstant rv -> lv - double rv |> DoubleDbConstant
         | BigIntDbConstant lv, DoubleDbConstant rv -> double lv - rv |> DoubleDbConstant
         | DoubleDbConstant lv, BigIntDbConstant rv -> lv - double rv |> DoubleDbConstant
-        | _ -> failwith "Invalid operation"
+        | _ ->
+            failwith
+                ("Invalid operation:sub "
+                 + lhs.ToString()
+                 + " "
+                 + rhs.ToString())
 
     let inline mul lhs rhs =
         match lhs, rhs with
@@ -240,7 +260,12 @@ module DbConstant =
         | DoubleDbConstant lv, IntDbConstant rv -> lv * double rv |> DoubleDbConstant
         | BigIntDbConstant lv, DoubleDbConstant rv -> double lv * rv |> DoubleDbConstant
         | DoubleDbConstant lv, BigIntDbConstant rv -> lv * double rv |> DoubleDbConstant
-        | _ -> failwith "Invalid operation"
+        | _ ->
+            failwith
+                ("Invalid operation:mul "
+                 + lhs.ToString()
+                 + " "
+                 + rhs.ToString())
 
     let inline div lhs rhs =
         match lhs, rhs with
@@ -253,4 +278,9 @@ module DbConstant =
         | DoubleDbConstant lv, IntDbConstant rv -> lv / double rv |> DoubleDbConstant
         | BigIntDbConstant lv, DoubleDbConstant rv -> double lv / rv |> DoubleDbConstant
         | DoubleDbConstant lv, BigIntDbConstant rv -> lv / double rv |> DoubleDbConstant
-        | _ -> failwith "Invalid operation"
+        | _ ->
+            failwith
+                ("Invalid operation:div "
+                 + lhs.ToString()
+                 + " "
+                 + rhs.ToString())

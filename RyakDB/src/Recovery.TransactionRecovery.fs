@@ -5,7 +5,6 @@ open RyakDB.Storage
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
 open RyakDB.Buffer.Buffer
-open RyakDB.Recovery
 open RyakDB.Recovery.RecoveryLog
 open RyakDB.Index
 
@@ -25,117 +24,80 @@ type TransactionRecovery =
       LogSetValClr: int64 -> Buffer -> int32 -> DbConstant -> LogSeqNo -> LogSeqNo option }
 
 module TransactionRecovery =
-    type TransactionRecoveryState =
-        { TxNo: int64
-          mutable LogicalStartLSN: LogSeqNo option }
-
     let checkpoint logMgr txNos =
-        RecoveryLog.newCheckpointRecord txNos
-        |> RecoveryLog.writeToLog logMgr
+        newCheckpointRecord txNos |> writeToLog logMgr
 
-    let logSetVal logMgr state buffer offset newVal =
-        let blk = buffer.BlockId()
-        let (BlockId (fileName, _)) = blk
+    let logSetVal logMgr txNo buffer offset newVal =
+        let blockId = buffer.BlockId()
+        let (BlockId (fileName, _)) = blockId
         if FileManager.isTempFile fileName then
             None
         else
-            let record =
-                RecoveryLog.newSetValueRecord
-                    state.TxNo
-                    blk
-                    offset
-                    (buffer.GetVal offset (DbConstant.dbType newVal))
-                    newVal
+            newSetValueRecord txNo blockId offset (buffer.GetVal offset (DbConstant.dbType newVal)) newVal
+            |> writeToLog logMgr
+            |> Some
 
-            let lsn = RecoveryLog.writeToLog logMgr record
-            Some(lsn)
-
-    let logLogicalStart logMgr state =
-        let record =
-            RecoveryLog.newLogicalStartRecord state.TxNo
-
-        let lsn = RecoveryLog.writeToLog logMgr record
-        state.LogicalStartLSN <- Some(lsn)
-        state.LogicalStartLSN
+    let logLogicalStart logMgr txNo =
+        newLogicalStartRecord txNo
+        |> writeToLog logMgr
+        |> Some
 
     let logLogicalAbort logMgr txNo undoNextLSN =
-        let record =
-            RecoveryLog.newLogicalAbortRecord txNo undoNextLSN
+        newLogicalAbortRecord txNo undoNextLSN
+        |> writeToLog logMgr
+        |> Some
 
-        let lsn = RecoveryLog.writeToLog logMgr record
-        Some(lsn)
-
-    let logTableFileInsertionEnd logMgr state tableName blockNo slotId =
-        match state.LogicalStartLSN with
+    let logTableFileInsertionEnd logMgr txNo logicalStartLogSeqNo tableName blockNo slotNo =
+        match logicalStartLogSeqNo with
         | Some (startLsn) ->
-            let record =
-                RecoveryLog.newTableFileInsertEndRecord state.TxNo tableName blockNo slotId startLsn
+            newTableFileInsertEndRecord txNo tableName blockNo slotNo startLsn
+            |> writeToLog logMgr
+            |> Some
+        | _ -> failwith "Logical start LogSeqNo is null (in logTableFileInsertionEnd)"
 
-            let lsn = RecoveryLog.writeToLog logMgr record
-            state.LogicalStartLSN <- None
-            Some(lsn)
-        | _ -> failwith "Logical start LSN is null (in logTableFileInsertionEnd)"
-
-    let logTableFileDeletionEnd logMgr state tableName blockNo slotId =
-        match state.LogicalStartLSN with
+    let logTableFileDeletionEnd logMgr txNo logicalStartLogSeqNo tableName blockNo slotNo =
+        match logicalStartLogSeqNo with
         | Some (startLsn) ->
-            let record =
-                RecoveryLog.newTableFileDeleteEndRecord state.TxNo tableName blockNo slotId startLsn
+            newTableFileDeleteEndRecord txNo tableName blockNo slotNo startLsn
+            |> writeToLog logMgr
+            |> Some
+        | _ -> failwith "Logical start LogSeqNo is null (in logTableFileDeletionEnd)"
 
-            let lsn = RecoveryLog.writeToLog logMgr record
-            state.LogicalStartLSN <- None
-            Some(lsn)
-        | _ -> failwith "Logical start LSN is null (in logTableFileDeletionEnd)"
-
-    let logIndexInsertionEnd logMgr state indexName searchKey recordBlockNo recordSlotId =
-        match state.LogicalStartLSN with
+    let logIndexInsertionEnd logMgr txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
+        match logicalStartLogSeqNo with
         | Some (startLsn) ->
-            let record =
-                RecoveryLog.newIndexInsertEndRecord state.TxNo indexName searchKey recordBlockNo recordSlotId startLsn
+            newIndexInsertEndRecord txNo indexName searchKey blockNo slotNo startLsn
+            |> writeToLog logMgr
+            |> Some
+        | _ -> failwith "Logical start LogSeqNo is null (in logIndexInsertionEnd)"
 
-            let lsn = RecoveryLog.writeToLog logMgr record
-            state.LogicalStartLSN <- None
-            Some(lsn)
-        | _ -> failwith "Logical start LSN is null (in logIndexInsertionEnd)"
-
-    let logIndexDeletionEnd logMgr state indexName searchKey recordBlockNo recordSlotId =
-        match state.LogicalStartLSN with
+    let logIndexDeletionEnd logMgr txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
+        match logicalStartLogSeqNo with
         | Some (startLsn) ->
-            let record =
-                RecoveryLog.newIndexDeleteEndRecord state.TxNo indexName searchKey recordBlockNo recordSlotId startLsn
+            newIndexDeleteEndRecord txNo indexName searchKey blockNo slotNo startLsn
+            |> writeToLog logMgr
+            |> Some
+        | _ -> failwith "Logical start LogSeqNo is null (in logIndexDeletionEnd)"
 
-            let lsn = RecoveryLog.writeToLog logMgr record
-            state.LogicalStartLSN <- None
-            Some(lsn)
-        | _ -> failwith "Logical start LSN is null (in logIndexDeletionEnd)"
+    let logIndexPageInsertion logMgr txNo isDirPage indexBlkId keyType slotId =
+        newIndexPageInsertRecord isDirPage txNo indexBlkId keyType slotId
+        |> writeToLog logMgr
+        |> Some
 
-    let logIndexPageInsertion logMgr state isDirPage indexBlkId keyType slotId =
-        let record =
-            RecoveryLog.newIndexPageInsertRecord isDirPage state.TxNo indexBlkId keyType slotId
-
-        let lsn = RecoveryLog.writeToLog logMgr record
-        Some(lsn)
-
-    let logIndexPageDeletion logMgr state isDirPage indexBlkId keyType slotId =
-        let record =
-            RecoveryLog.newIndexPageDeleteRecord isDirPage state.TxNo indexBlkId keyType slotId
-
-        let lsn = RecoveryLog.writeToLog logMgr record
-        Some(lsn)
+    let logIndexPageDeletion logMgr txNo isDirPage indexBlkId keyType slotId =
+        newIndexPageDeleteRecord isDirPage txNo indexBlkId keyType slotId
+        |> writeToLog logMgr
+        |> Some
 
     let logIndexPageInsertionClr logMgr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN =
-        let record =
-            RecoveryLog.newIndexPageInsertClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN
-
-        let lsn = RecoveryLog.writeToLog logMgr record
-        Some(lsn)
+        newIndexPageInsertClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN
+        |> writeToLog logMgr
+        |> Some
 
     let logIndexPageDeletionClr logMgr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN =
-        let record =
-            RecoveryLog.newIndexPageDeleteClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN
-
-        let lsn = RecoveryLog.writeToLog logMgr record
-        Some(lsn)
+        newIndexPageDeleteClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN
+        |> writeToLog logMgr
+        |> Some
 
     let logSetValClr logMgr compTxNo buffer offset newVal undoNextLSN =
         let blk = buffer.BlockId()
@@ -143,36 +105,69 @@ module TransactionRecovery =
         if FileManager.isTempFile fileName then
             None
         else
-            let record =
-                RecoveryLog.newSetValueClr
-                    compTxNo
-                    blk
-                    offset
-                    (buffer.GetVal offset (DbConstant.dbType newVal))
-                    newVal
-                    undoNextLSN
-
-            let lsn = RecoveryLog.writeToLog logMgr record
-            Some(lsn)
+            newSetValueClr compTxNo blk offset (buffer.GetVal offset (DbConstant.dbType newVal)) newVal undoNextLSN
+            |> writeToLog logMgr
+            |> Some
 
 let newTransactionRecovery logMgr txNo isReadOnly =
-    let state :TransactionRecovery.TransactionRecoveryState= { TxNo = txNo; LogicalStartLSN = None }
+    if not (isReadOnly)
+    then newStartRecord txNo |> writeToLog logMgr |> ignore
 
-    if not (isReadOnly) then
-        newStartRecord txNo
-        |> writeToLog logMgr
-        |> ignore
-
+    let mutable logicalStartLogSeqNo = None
     { Checkpoint = TransactionRecovery.checkpoint logMgr
-      LogSetVal = TransactionRecovery.logSetVal logMgr state
-      LogLogicalStart = (fun () -> TransactionRecovery.logLogicalStart logMgr state)
+      LogSetVal = TransactionRecovery.logSetVal logMgr txNo
+      LogLogicalStart =
+          fun () ->
+              let lsn =
+                  TransactionRecovery.logLogicalStart logMgr txNo
+
+              logicalStartLogSeqNo <- lsn
+              lsn
       LogLogicalAbort = TransactionRecovery.logLogicalAbort logMgr
-      LogTableFileInsertionEnd = TransactionRecovery.logTableFileInsertionEnd logMgr state
-      LogTableFileDeletionEnd = TransactionRecovery.logTableFileDeletionEnd logMgr state
-      LogIndexInsertionEnd = TransactionRecovery.logIndexInsertionEnd logMgr state
-      LogIndexDeletionEnd = TransactionRecovery.logIndexDeletionEnd logMgr state
-      LogIndexPageInsertion = TransactionRecovery.logIndexPageInsertion logMgr state
-      LogIndexPageDeletion = TransactionRecovery.logIndexPageDeletion logMgr state
+      LogTableFileInsertionEnd =
+          fun tableName blockNo slotNo ->
+              let lsn =
+                  TransactionRecovery.logTableFileInsertionEnd logMgr txNo logicalStartLogSeqNo tableName blockNo slotNo
+
+              logicalStartLogSeqNo <- None
+              lsn
+      LogTableFileDeletionEnd =
+          fun tableName blockNo slotNo ->
+              let lsn =
+                  TransactionRecovery.logTableFileDeletionEnd logMgr txNo logicalStartLogSeqNo tableName blockNo slotNo
+
+              logicalStartLogSeqNo <- None
+              lsn
+      LogIndexInsertionEnd =
+          fun indexName searchKey blockNo slotNo ->
+              let lsn =
+                  TransactionRecovery.logIndexInsertionEnd
+                      logMgr
+                      txNo
+                      logicalStartLogSeqNo
+                      indexName
+                      searchKey
+                      blockNo
+                      slotNo
+
+              logicalStartLogSeqNo <- None
+              lsn
+      LogIndexDeletionEnd =
+          fun indexName searchKey blockNo slotNo ->
+              let lsn =
+                  TransactionRecovery.logIndexDeletionEnd
+                      logMgr
+                      txNo
+                      logicalStartLogSeqNo
+                      indexName
+                      searchKey
+                      blockNo
+                      slotNo
+
+              logicalStartLogSeqNo <- None
+              lsn
+      LogIndexPageInsertion = TransactionRecovery.logIndexPageInsertion logMgr txNo
+      LogIndexPageDeletion = TransactionRecovery.logIndexPageDeletion logMgr txNo
       LogIndexPageInsertionClr = TransactionRecovery.logIndexPageInsertionClr logMgr
       LogIndexPageDeletionClr = TransactionRecovery.logIndexPageDeletionClr logMgr
       LogSetValClr = TransactionRecovery.logSetValClr logMgr }

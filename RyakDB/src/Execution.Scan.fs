@@ -3,6 +3,7 @@ module RyakDB.Execution.Scan
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Table.TableFile
+open RyakDB.Transaction
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Execution.AggregationFnScan
@@ -22,7 +23,9 @@ type Scan =
 
 module Scan =
     let newTableScan fileMgr tx tableInfo =
-        let tableFile = newTableFile fileMgr tx true tableInfo
+        let tableFile =
+            newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tableInfo
+
         let schema = tableInfo.Schema
 
         { GetVal = fun field -> tableFile.GetVal field |> Option.get

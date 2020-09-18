@@ -16,36 +16,6 @@ let newSchema () =
     schema
 
 [<Fact>]
-let ``read only`` () =
-    let tableName = "test_read_only"
-
-    let db =
-        { Database.defaultConfig () with
-              InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
-
-    let ti =
-        TableInfo.newTableInfo tableName (newSchema ())
-
-    let tx =
-        db.TxMgr.NewTransaction true Serializable
-
-    let buff =
-        newSlottedPageFormatter ti
-        |> tx.Buffer.PinNew ti.FileName
-
-    tx.Buffer.Unpin buff
-
-    let rp =
-        newSlottedPage tx (buff.BlockId()) ti true
-
-    Assert.Throws(fun () -> rp.InsertIntoNextEmptySlot() |> ignore)
-    |> ignore
-    rp.Close()
-
-    tx.Commit()
-
-[<Fact>]
 let ``record page`` () =
     let tableName = "test_record_page"
 
@@ -70,14 +40,14 @@ let ``record page`` () =
         RecordId.newBlockRecordId -1 ti.FileName -1L
 
     let rp1 =
-        newSlottedPage tx (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     while rp1.Next() do
         rp1.Delete dummyFreeSlot
     rp1.Close()
 
     let rp2 =
-        newSlottedPage tx (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     let mutable insertId = 0
     let mutable numinserted = 0
@@ -90,7 +60,7 @@ let ``record page`` () =
     rp2.Close()
 
     let rp3 =
-        newSlottedPage tx (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     let mutable readId = 0
     while rp3.Next() do
@@ -102,7 +72,7 @@ let ``record page`` () =
     Assert.Equal(numinserted, readId)
 
     let rp4 =
-        newSlottedPage tx (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     let mutable numdeleted = 0
     while rp4.Next() do
@@ -113,7 +83,7 @@ let ``record page`` () =
     Assert.Equal(numinserted / 3, numdeleted)
 
     let rp5 =
-        newSlottedPage tx (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     while rp5.Next() do
         Assert.NotEqual(BigIntDbConstant(3000L), rp5.GetVal "deptid")

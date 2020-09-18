@@ -20,19 +20,18 @@ module TransactionManager =
 
     let inline onTxCommit state tx =
         { state with
-              ActiveTxs = state.ActiveTxs.Remove tx.TransactionNumber }
+              ActiveTxs = state.ActiveTxs.Remove tx.TransactionNo }
 
     let inline onTxRollback state tx =
         { state with
-              ActiveTxs = state.ActiveTxs.Remove tx.TransactionNumber }
+              ActiveTxs = state.ActiveTxs.Remove tx.TransactionNo }
 
     let createTransaction fileMgr logMgr bufferPool lockTable catalogMgr txCommitListener txRollbackListener state =
         fun readOnly isolationLevel ->
             let txRecovery =
                 newTransactionRecovery logMgr state.NextTxNo readOnly
 
-            let txBuffer =
-                newTransactionBuffer bufferPool state.NextTxNo
+            let txBuffer = newTransactionBuffer bufferPool
 
             let txConcurrency =
                 match isolationLevel with
@@ -53,7 +52,7 @@ module TransactionManager =
                     readOnly
 
             { state with
-                  ActiveTxs = state.ActiveTxs.Add tx.TransactionNumber
+                  ActiveTxs = state.ActiveTxs.Add tx.TransactionNo
                   NextTxNo = state.NextTxNo + 1L },
             tx
 

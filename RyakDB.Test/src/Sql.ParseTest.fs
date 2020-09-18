@@ -3,6 +3,7 @@ module RyakDB.Test.Sql.ParseTest
 open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
+open RyakDB.Index
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Sql.Parse

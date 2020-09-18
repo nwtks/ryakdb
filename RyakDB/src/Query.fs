@@ -10,10 +10,6 @@ type SortDirection =
 
 type SortField = SortField of field: string * direction: SortDirection
 
-type IndexType =
-    | Hash = 1
-    | BTree = 2
-
 type AggregationFn =
     | AvgFn of fieldName: string
     | CountFn of fieldName: string

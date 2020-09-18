@@ -5,7 +5,7 @@ open RyakDB.Storage
 open RyakDB.Storage.Log
 open RyakDB.Index
 
-type RecoveryLogOp =
+type RecoveryLogOperation =
     | Start = -42
     | Commit = -43
     | Rollback = -44
@@ -80,12 +80,12 @@ let newLogicalAbortRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let logicalStartLSN =
+    let logicalStartLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    LogicalAbortRecord(txNo, logicalStartLSN, Some record.LogSeqNo)
+    LogicalAbortRecord(txNo, logicalStartLogSeqNo, Some record.LogSeqNo)
 
 let newTableFileInsertEndRecord txNo tblName blockNo slotId logicalStartLSN =
     TableFileInsertEndRecord(txNo, tblName, blockNo, slotId, logicalStartLSN, None)
@@ -104,15 +104,15 @@ let newTableFileInsertEndRecordByLogRecord record =
     let slotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    let logicalStartLSN =
+    let logicalStartLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    TableFileInsertEndRecord(txNo, tblName, blockNo, slotId, logicalStartLSN, Some record.LogSeqNo)
+    TableFileInsertEndRecord(txNo, tblName, blockNo, slotId, logicalStartLogSeqNo, Some record.LogSeqNo)
 
-let newTableFileDeleteEndRecord txNo tblName blockNo slotId logicalStartLSN =
-    TableFileDeleteEndRecord(txNo, tblName, blockNo, slotId, logicalStartLSN, None)
+let newTableFileDeleteEndRecord txNo tblName blockNo slotId logicalStartLogSeqNo =
+    TableFileDeleteEndRecord(txNo, tblName, blockNo, slotId, logicalStartLogSeqNo, None)
 
 let newTableFileDeleteEndRecordByLogRecord record =
     let txNo =
@@ -128,12 +128,12 @@ let newTableFileDeleteEndRecordByLogRecord record =
     let slotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    let logicalStartLSN =
+    let logicalStartLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    TableFileDeleteEndRecord(txNo, tblName, blockNo, slotId, logicalStartLSN, Some record.LogSeqNo)
+    TableFileDeleteEndRecord(txNo, tblName, blockNo, slotId, logicalStartLogSeqNo, Some record.LogSeqNo)
 
 let newIndexInsertEndRecord txNo indexName searchKey recordBlockNo recordSlotId logicalStartLSN =
     IndexInsertEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLSN, None)
@@ -152,9 +152,7 @@ let newIndexInsertEndRecordByLogRecord record =
     let searchKey =
         [ 1 .. count ]
         |> List.map (fun _ ->
-            DbType.fromInt
-                (record.NextVal IntDbType |> DbConstant.toInt)
-                (record.NextVal IntDbType |> DbConstant.toInt)
+            DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt)
             |> record.NextVal)
         |> SearchKey.newSearchKey
 
@@ -164,15 +162,16 @@ let newIndexInsertEndRecordByLogRecord record =
     let recordSlotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    let logicalStartLSN =
+    let logicalStartLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    IndexInsertEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLSN, Some record.LogSeqNo)
+    IndexInsertEndRecord
+        (txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLogSeqNo, Some record.LogSeqNo)
 
-let newIndexDeleteEndRecord txNo indexName searchKey recordBlockNo recordSlotId logicalStartLSN =
-    IndexDeleteEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLSN, None)
+let newIndexDeleteEndRecord txNo indexName searchKey recordBlockNo recordSlotId logicalStartLogSeqNo =
+    IndexDeleteEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLogSeqNo, None)
 
 let newIndexDeleteEndRecordByLogRecord record =
     let txNo =
@@ -188,9 +187,7 @@ let newIndexDeleteEndRecordByLogRecord record =
     let searchKey =
         [ 1 .. count ]
         |> List.map (fun _ ->
-            DbType.fromInt
-                (record.NextVal IntDbType |> DbConstant.toInt)
-                (record.NextVal IntDbType |> DbConstant.toInt)
+            DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt)
             |> record.NextVal)
         |> SearchKey.newSearchKey
 
@@ -200,12 +197,13 @@ let newIndexDeleteEndRecordByLogRecord record =
     let recordSlotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    let logicalStartLSN =
+    let logicalStartLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    IndexDeleteEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLSN, Some record.LogSeqNo)
+    IndexDeleteEndRecord
+        (txNo, indexName, searchKey, recordBlockNo, recordSlotId, logicalStartLogSeqNo, Some record.LogSeqNo)
 
 let newIndexPageInsertRecord isDirPage txNo indexBlkId keyType slotId =
     IndexPageInsertRecord(txNo, indexBlkId, isDirPage, keyType, slotId, None)
@@ -223,9 +221,7 @@ let newIndexPageInsertRecordByLogRecord record =
     let keyType =
         [ 1 .. count ]
         |> List.map (fun _ ->
-            DbType.fromInt
-                (record.NextVal IntDbType |> DbConstant.toInt)
-                (record.NextVal IntDbType |> DbConstant.toInt))
+            DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
     let indexBlkId =
@@ -239,8 +235,8 @@ let newIndexPageInsertRecordByLogRecord record =
 
     IndexPageInsertRecord(txNo, indexBlkId, isDirPage, keyType, slotId, Some record.LogSeqNo)
 
-let newIndexPageInsertClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN =
-    IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLSN, None)
+let newIndexPageInsertClr isDirPage compTxNo indexBlkId keyType slotId undoNextLogSeqNo =
+    IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, None)
 
 let newIndexPageInsertClrByLogRecord record =
     let compTxNo =
@@ -255,9 +251,7 @@ let newIndexPageInsertClrByLogRecord record =
     let keyType =
         [ 1 .. count ]
         |> List.map (fun _ ->
-            DbType.fromInt
-                (record.NextVal IntDbType |> DbConstant.toInt)
-                (record.NextVal IntDbType |> DbConstant.toInt))
+            DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
     let indexBlkId =
@@ -269,12 +263,12 @@ let newIndexPageInsertClrByLogRecord record =
     let slotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    let undoNextLSN =
+    let undoNextLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLSN, Some record.LogSeqNo)
+    IndexPageInsertClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, Some record.LogSeqNo)
 
 let newIndexPageDeleteRecord isDirPage txNo indexBlkId keyType slotId =
     IndexPageDeleteRecord(txNo, indexBlkId, isDirPage, keyType, slotId, None)
@@ -292,9 +286,7 @@ let newIndexPageDeleteRecordByLogRecord record =
     let keyType =
         [ 1 .. count ]
         |> List.map (fun _ ->
-            DbType.fromInt
-                (record.NextVal IntDbType |> DbConstant.toInt)
-                (record.NextVal IntDbType |> DbConstant.toInt))
+            DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
     let indexBlkId =
@@ -308,8 +300,8 @@ let newIndexPageDeleteRecordByLogRecord record =
 
     IndexPageDeleteRecord(txNo, indexBlkId, isDirPage, keyType, slotId, Some record.LogSeqNo)
 
-let newIndexPageDeleteClr isDirPage compTxNo indexBlkId keyType slotId undoNextLSN =
-    IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLSN, None)
+let newIndexPageDeleteClr isDirPage compTxNo indexBlkId keyType slotId undoNextLogSeqNo =
+    IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, None)
 
 let newIndexPageDeleteClrByLogRecord record =
     let compTxNo =
@@ -324,9 +316,7 @@ let newIndexPageDeleteClrByLogRecord record =
     let keyType =
         [ 1 .. count ]
         |> List.map (fun _ ->
-            DbType.fromInt
-                (record.NextVal IntDbType |> DbConstant.toInt)
-                (record.NextVal IntDbType |> DbConstant.toInt))
+            DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
     let indexBlkId =
@@ -338,12 +328,12 @@ let newIndexPageDeleteClrByLogRecord record =
     let slotId =
         record.NextVal IntDbType |> DbConstant.toInt
 
-    let undoNextLSN =
+    let undoNextLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLSN, Some record.LogSeqNo)
+    IndexPageDeleteClr(compTxNo, indexBlkId, isDirPage, keyType, slotId, undoNextLogSeqNo, Some record.LogSeqNo)
 
 let newSetValueRecord txNo blkId offset value newValue =
     SetValueRecord(txNo, blkId, offset, DbConstant.dbType value, value, newValue, None)
@@ -362,16 +352,14 @@ let newSetValueRecordByLogRecord record =
         record.NextVal IntDbType |> DbConstant.toInt
 
     let dbType =
-        DbType.fromInt
-            (record.NextVal IntDbType |> DbConstant.toInt)
-            (record.NextVal IntDbType |> DbConstant.toInt)
+        DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt)
 
     let value = record.NextVal dbType
     let newValue = record.NextVal dbType
     SetValueRecord(txNo, blkId, offset, dbType, value, newValue, Some record.LogSeqNo)
 
-let newSetValueClr compTxNo blkId offset value newValue undoNextLSN =
-    SetValueClr(compTxNo, blkId, offset, DbConstant.dbType value, value, newValue, undoNextLSN, None)
+let newSetValueClr compTxNo blkId offset value newValue undoNextLogSeqNo =
+    SetValueClr(compTxNo, blkId, offset, DbConstant.dbType value, value, newValue, undoNextLogSeqNo, None)
 
 let newSetValueClrByLogRecord record =
     let txNo =
@@ -387,21 +375,19 @@ let newSetValueClrByLogRecord record =
         record.NextVal IntDbType |> DbConstant.toInt
 
     let dbType =
-        DbType.fromInt
-            (record.NextVal IntDbType |> DbConstant.toInt)
-            (record.NextVal IntDbType |> DbConstant.toInt)
+        DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt)
 
     let value = record.NextVal dbType
     let newValue = record.NextVal dbType
 
-    let undoNextLSN =
+    let undoNextLogSeqNo =
         newLogSeqNo
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    SetValueClr(txNo, blkId, offset, dbType, value, newValue, undoNextLSN, Some record.LogSeqNo)
+    SetValueClr(txNo, blkId, offset, dbType, value, newValue, undoNextLogSeqNo, Some record.LogSeqNo)
 
-let transactionNumber r =
+let transactionNo r =
     match r with
     | StartRecord(txNo = n) -> n
     | CommitRecord(txNo = n) -> n
@@ -420,7 +406,7 @@ let transactionNumber r =
     | SetValueRecord(txNo = n) -> n
     | SetValueClr(compTxNo = n) -> n
 
-let getLSN r =
+let getLogSeqNo r =
     match r with
     | StartRecord(lsn = n) -> n
     | CommitRecord(lsn = n) -> n
@@ -439,24 +425,24 @@ let getLSN r =
     | SetValueRecord(lsn = n) -> n
     | SetValueClr(lsn = n) -> n
 
-let op r =
+let operation r =
     match r with
-    | StartRecord (_) -> RecoveryLogOp.Start
-    | CommitRecord (_) -> RecoveryLogOp.Commit
-    | RollbackRecord (_) -> RecoveryLogOp.Rollback
-    | CheckpointRecord (_) -> RecoveryLogOp.Checkpoint
-    | LogicalStartRecord (_) -> RecoveryLogOp.LogicalStart
-    | LogicalAbortRecord (_) -> RecoveryLogOp.LogicalAbort
-    | TableFileInsertEndRecord (_) -> RecoveryLogOp.TableFileInsertEnd
-    | TableFileDeleteEndRecord (_) -> RecoveryLogOp.TableFileDeleteEnd
-    | IndexInsertEndRecord (_) -> RecoveryLogOp.IndexFileInsertEnd
-    | IndexDeleteEndRecord (_) -> RecoveryLogOp.IndexFileDeleteEnd
-    | IndexPageInsertRecord (_) -> RecoveryLogOp.IndexPageInsert
-    | IndexPageInsertClr (_) -> RecoveryLogOp.IndexPageInsertClr
-    | IndexPageDeleteRecord (_) -> RecoveryLogOp.IndexPageDelete
-    | IndexPageDeleteClr (_) -> RecoveryLogOp.IndexPageDeleteClr
-    | SetValueRecord (_) -> RecoveryLogOp.SetValue
-    | SetValueClr (_) -> RecoveryLogOp.SetValueClr
+    | StartRecord (_) -> RecoveryLogOperation.Start
+    | CommitRecord (_) -> RecoveryLogOperation.Commit
+    | RollbackRecord (_) -> RecoveryLogOperation.Rollback
+    | CheckpointRecord (_) -> RecoveryLogOperation.Checkpoint
+    | LogicalStartRecord (_) -> RecoveryLogOperation.LogicalStart
+    | LogicalAbortRecord (_) -> RecoveryLogOperation.LogicalAbort
+    | TableFileInsertEndRecord (_) -> RecoveryLogOperation.TableFileInsertEnd
+    | TableFileDeleteEndRecord (_) -> RecoveryLogOperation.TableFileDeleteEnd
+    | IndexInsertEndRecord (_) -> RecoveryLogOperation.IndexFileInsertEnd
+    | IndexDeleteEndRecord (_) -> RecoveryLogOperation.IndexFileDeleteEnd
+    | IndexPageInsertRecord (_) -> RecoveryLogOperation.IndexPageInsert
+    | IndexPageInsertClr (_) -> RecoveryLogOperation.IndexPageInsertClr
+    | IndexPageDeleteRecord (_) -> RecoveryLogOperation.IndexPageDelete
+    | IndexPageDeleteClr (_) -> RecoveryLogOperation.IndexPageDeleteClr
+    | SetValueRecord (_) -> RecoveryLogOperation.SetValue
+    | SetValueClr (_) -> RecoveryLogOperation.SetValueClr
 
 let buildRecord r =
     match r with
@@ -464,18 +450,18 @@ let buildRecord r =
         let list =
             nums |> List.map (fun n -> BigIntDbConstant(n))
 
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: IntDbConstant(List.length nums)
         :: list
     | LogicalAbortRecord (n, start, _) ->
         let (LogSeqNo (blockNo, offset)) = start
-        [ IntDbConstant(int (op r))
+        [ IntDbConstant(int (operation r))
           BigIntDbConstant(n)
           BigIntDbConstant(blockNo)
           BigIntDbConstant(offset) ]
     | TableFileInsertEndRecord (n, tn, bn, sid, start, _) ->
         let (LogSeqNo (blockNo, offset)) = start
-        [ IntDbConstant(int (op r))
+        [ IntDbConstant(int (operation r))
           BigIntDbConstant(n)
           DbConstant.newVarchar tn
           BigIntDbConstant(bn)
@@ -484,7 +470,7 @@ let buildRecord r =
           BigIntDbConstant(offset) ]
     | TableFileDeleteEndRecord (n, tn, bn, sid, start, _) ->
         let (LogSeqNo (blockNo, offset)) = start
-        [ IntDbConstant(int (op r))
+        [ IntDbConstant(int (operation r))
           BigIntDbConstant(n)
           DbConstant.newVarchar tn
           BigIntDbConstant(bn)
@@ -494,7 +480,7 @@ let buildRecord r =
     | IndexInsertEndRecord (n, inm, sk, bn, sid, start, _) ->
         let (LogSeqNo (blockNo, offset)) = start
         let (SearchKey (key)) = sk
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
         :: DbConstant.newVarchar inm
         :: BigIntDbConstant(bn)
@@ -511,7 +497,7 @@ let buildRecord r =
     | IndexDeleteEndRecord (n, inm, sk, bn, sid, start, _) ->
         let (LogSeqNo (blockNo, offset)) = start
         let (SearchKey (key)) = sk
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
         :: DbConstant.newVarchar inm
         :: BigIntDbConstant(bn)
@@ -528,7 +514,7 @@ let buildRecord r =
     | IndexPageInsertRecord (n, ibid, dir, kt, sid, _) ->
         let (BlockId (fileName, blockNo)) = ibid
         let (SearchKeyType (keyType)) = kt
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
         :: IntDbConstant(if dir then 1 else 0)
         :: DbConstant.newVarchar fileName
@@ -543,7 +529,7 @@ let buildRecord r =
         let (BlockId (fileName, blockNo)) = ibid
         let (LogSeqNo (undoBlockNo, undoOffset)) = undo
         let (SearchKeyType (keyType)) = kt
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
         :: IntDbConstant(if dir then 1 else 0)
         :: DbConstant.newVarchar fileName
@@ -559,7 +545,7 @@ let buildRecord r =
     | IndexPageDeleteRecord (n, ibid, dir, kt, sid, _) ->
         let (BlockId (fileName, blockNo)) = ibid
         let (SearchKeyType (keyType)) = kt
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
         :: IntDbConstant(if dir then 1 else 0)
         :: DbConstant.newVarchar fileName
@@ -574,7 +560,7 @@ let buildRecord r =
         let (BlockId (fileName, blockNo)) = ibid
         let (LogSeqNo (undoBlockNo, undoOffset)) = undo
         let (SearchKeyType (keyType)) = kt
-        IntDbConstant(int (op r))
+        IntDbConstant(int (operation r))
         :: BigIntDbConstant(n)
         :: IntDbConstant(if dir then 1 else 0)
         :: DbConstant.newVarchar fileName
@@ -589,7 +575,7 @@ let buildRecord r =
                   IntDbConstant(DbType.argument t) ]))
     | SetValueRecord (n, bid, off, t, v, nv, _) ->
         let (BlockId (fileName, blockNo)) = bid
-        [ IntDbConstant(int (op r))
+        [ IntDbConstant(int (operation r))
           BigIntDbConstant(n)
           DbConstant.newVarchar fileName
           BigIntDbConstant(blockNo)
@@ -601,7 +587,7 @@ let buildRecord r =
     | SetValueClr (n, bid, off, t, v, nv, undo, _) ->
         let (BlockId (fileName, blockNo)) = bid
         let (LogSeqNo (undoBlockNo, undoOffset)) = undo
-        [ IntDbConstant(int (op r))
+        [ IntDbConstant(int (operation r))
           BigIntDbConstant(n)
           DbConstant.newVarchar fileName
           BigIntDbConstant(blockNo)
@@ -613,32 +599,32 @@ let buildRecord r =
           BigIntDbConstant(undoBlockNo)
           BigIntDbConstant(undoOffset) ]
     | _ ->
-        [ IntDbConstant(int (op r))
-          BigIntDbConstant(transactionNumber r) ]
+        [ IntDbConstant(int (operation r))
+          BigIntDbConstant(transactionNo r) ]
 
 let writeToLog logMgr r = buildRecord r |> logMgr.Append
 
 let fromLogRecord record =
-    let op =
+    let operation =
         record.NextVal IntDbType
         |> DbConstant.toInt
-        |> enum<RecoveryLogOp>
+        |> enum<RecoveryLogOperation>
 
-    match op with
-    | RecoveryLogOp.Start -> newStartRecordByLogRecord record
-    | RecoveryLogOp.Commit -> newCommitRecordByLogRecord record
-    | RecoveryLogOp.Rollback -> newRollbackRecordByLogRecord record
-    | RecoveryLogOp.Checkpoint -> newCheckpointRecordByLogRecord record
-    | RecoveryLogOp.LogicalStart -> newLogicalStartRecordByLogRecord record
-    | RecoveryLogOp.LogicalAbort -> newLogicalAbortRecordByLogRecord record
-    | RecoveryLogOp.TableFileInsertEnd -> newTableFileInsertEndRecordByLogRecord record
-    | RecoveryLogOp.TableFileDeleteEnd -> newTableFileDeleteEndRecordByLogRecord record
-    | RecoveryLogOp.IndexFileInsertEnd -> newIndexInsertEndRecordByLogRecord record
-    | RecoveryLogOp.IndexFileDeleteEnd -> newIndexDeleteEndRecordByLogRecord record
-    | RecoveryLogOp.IndexPageInsert -> newIndexPageInsertRecordByLogRecord record
-    | RecoveryLogOp.IndexPageInsertClr -> newIndexPageInsertClrByLogRecord record
-    | RecoveryLogOp.IndexPageDelete -> newIndexPageDeleteRecordByLogRecord record
-    | RecoveryLogOp.IndexPageDeleteClr -> newIndexPageDeleteClrByLogRecord record
-    | RecoveryLogOp.SetValue -> newSetValueRecordByLogRecord record
-    | RecoveryLogOp.SetValueClr -> newSetValueClrByLogRecord record
-    | _ -> failwith "Not supported"
+    match operation with
+    | RecoveryLogOperation.Start -> newStartRecordByLogRecord record
+    | RecoveryLogOperation.Commit -> newCommitRecordByLogRecord record
+    | RecoveryLogOperation.Rollback -> newRollbackRecordByLogRecord record
+    | RecoveryLogOperation.Checkpoint -> newCheckpointRecordByLogRecord record
+    | RecoveryLogOperation.LogicalStart -> newLogicalStartRecordByLogRecord record
+    | RecoveryLogOperation.LogicalAbort -> newLogicalAbortRecordByLogRecord record
+    | RecoveryLogOperation.TableFileInsertEnd -> newTableFileInsertEndRecordByLogRecord record
+    | RecoveryLogOperation.TableFileDeleteEnd -> newTableFileDeleteEndRecordByLogRecord record
+    | RecoveryLogOperation.IndexFileInsertEnd -> newIndexInsertEndRecordByLogRecord record
+    | RecoveryLogOperation.IndexFileDeleteEnd -> newIndexDeleteEndRecordByLogRecord record
+    | RecoveryLogOperation.IndexPageInsert -> newIndexPageInsertRecordByLogRecord record
+    | RecoveryLogOperation.IndexPageInsertClr -> newIndexPageInsertClrByLogRecord record
+    | RecoveryLogOperation.IndexPageDelete -> newIndexPageDeleteRecordByLogRecord record
+    | RecoveryLogOperation.IndexPageDeleteClr -> newIndexPageDeleteClrByLogRecord record
+    | RecoveryLogOperation.SetValue -> newSetValueRecordByLogRecord record
+    | RecoveryLogOperation.SetValueClr -> newSetValueClrByLogRecord record
+    | _ -> failwith ("Not supported operation:" + operation.ToString())

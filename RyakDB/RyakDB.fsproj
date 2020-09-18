@@ -4,32 +4,31 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="src/Task.fs" />
     <Compile Include="src/DataType.fs" />
+    <Compile Include="src/Task.fs" />
     <Compile Include="src/Storage.fs" />
     <Compile Include="src/Table.fs" />
+    <Compile Include="src/Index.fs" />
     <Compile Include="src/Query.fs" />
     <Compile Include="src/Query.Predicate.fs" />
     <Compile Include="src/Sql.Parse.fs" />
     <Compile Include="src/Storage.File.fs" />
     <Compile Include="src/Storage.Page.fs" />
     <Compile Include="src/Storage.Log.fs" />
-    <Compile Include="src/Storage.BTree.fs" />
     <Compile Include="src/Buffer.Buffer.fs" />
     <Compile Include="src/Buffer.BufferPool.fs" />
     <Compile Include="src/Buffer.TransactionBuffer.fs" />
-    <Compile Include="src/Index.fs" />
     <Compile Include="src/Recovery.RecoveryLog.fs" />
     <Compile Include="src/Recovery.TransactionRecovery.fs" />
     <Compile Include="src/Concurrency.LockTable.fs" />
     <Compile Include="src/Concurrency.TransactionConcurrency.fs" />
-    <Compile Include="src/Transaction.fs" />
     <Compile Include="src/Table.SlottedPage.fs" />
     <Compile Include="src/Table.TableFile.fs" />
-    <Compile Include="src/Catalog.fs" />
     <Compile Include="src/Index.HashIndex.fs" />
     <Compile Include="src/Index.BTreeIndex.fs" />
+    <Compile Include="src/Transaction.fs" />
     <Compile Include="src/Index.IndexFactory.fs" />
+    <Compile Include="src/Catalog.fs" />
     <Compile Include="src/Recovery.TransactionRecoveryFinalize.fs" />
     <Compile Include="src/Recovery.SystemRecovery.fs" />
     <Compile Include="src/TransactionManager.fs" />

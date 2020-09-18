@@ -18,8 +18,7 @@ module TransactionBuffer =
 
     type TransactionBufferState =
         { PinningBuffers: Map<BlockId, PinningBuffer>
-          BuffersToFlush: Buffer list
-          TxNo: int64 }
+          BuffersToFlush: Buffer list }
 
     let private waitingTooLong (timestamp: System.DateTime) waitTime =
         (System.DateTime.Now.Ticks - timestamp.Ticks)
@@ -140,11 +139,10 @@ module TransactionBuffer =
         { state with
               PinningBuffers = Map.empty }
 
-let newTransactionBuffer bufferPool txNo =
+let newTransactionBuffer bufferPool =
     let mutable state: TransactionBuffer.TransactionBufferState =
         { PinningBuffers = Map.empty
-          BuffersToFlush = []
-          TxNo = txNo }
+          BuffersToFlush = [] }
 
     { Pin =
           fun blockId ->

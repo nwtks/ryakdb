@@ -24,7 +24,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "dept" sch)
 
         db.CatalogMgr.GetTableInfo tx "dept"
-        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. deptMax do
                 tf.Insert()
@@ -45,7 +45,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "course" sch)
 
         db.CatalogMgr.GetTableInfo tx "course"
-        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. courseMax do
                 tf.Insert()
@@ -68,7 +68,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "student" sch)
 
         db.CatalogMgr.GetTableInfo tx "student"
-        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. studentMax do
                 tf.Insert()
@@ -92,7 +92,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "section" sch)
 
         db.CatalogMgr.GetTableInfo tx "section"
-        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. sectionMax do
                 tf.Insert()
@@ -116,7 +116,7 @@ module TestInit =
             db.CatalogMgr.CreateTable tx "enroll" sch)
 
         db.CatalogMgr.GetTableInfo tx "enroll"
-        |> Option.map (newTableFile db.FileMgr tx true)
+        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             let grades = [| "A+"; "A"; "B"; "C"; "D" |]
             for i in 1 .. enrollMax do

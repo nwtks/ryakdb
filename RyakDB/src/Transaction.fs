@@ -8,7 +8,7 @@ type Transaction =
     { Recovery: TransactionRecovery
       Concurrency: TransactionConcurrency
       Buffer: TransactionBuffer
-      TransactionNumber: int64
+      TransactionNo: int64
       ReadOnly: bool
       Commit: unit -> unit
       Rollback: unit -> unit
@@ -55,29 +55,22 @@ let newTransaction txCommitListener
     let endStatementListeners =
         [ (fun _ -> txConcurrency.OnTxEndStatement()) ]
 
-    let mutable callbackTx = None
-
-    let tx =
+    let rec tx =
         { Recovery = txRecovery
           Concurrency = txConcurrency
           Buffer = txBuffer
-          TransactionNumber = txNo
+          TransactionNo = txNo
           ReadOnly = readOnly
           Commit =
               fun () ->
-                  callbackTx
-                  |> Option.get
+                  tx
                   |> Transaction.commit commitListeners
           Rollback =
               fun () ->
-                  callbackTx
-                  |> Option.get
+                  tx
                   |> Transaction.rollback rollbackListeners
           EndStatement =
               fun () ->
-                  callbackTx
-                  |> Option.get
+                  tx
                   |> Transaction.endStatement endStatementListeners }
-
-    callbackTx <- Some(tx)
     tx

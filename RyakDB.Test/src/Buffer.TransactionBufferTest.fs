@@ -23,7 +23,7 @@ let ``available buffers`` () =
 
     let bufferPool = newBufferPool fileMgr logMgr 10 1000
 
-    let buffMgr = newTransactionBuffer bufferPool 12341L
+    let buffMgr = newTransactionBuffer bufferPool
 
     let a1 = buffMgr.Available()
 
@@ -70,9 +70,9 @@ let ``concurrent buffer manager pin`` () =
 
     let bufferPool = newBufferPool fileMgr logMgr 5 3000
 
-    let buffMgr1 = newTransactionBuffer bufferPool 1234562L
+    let buffMgr1 = newTransactionBuffer bufferPool
 
-    let buffMgr2 = newTransactionBuffer bufferPool 1234563L
+    let buffMgr2 = newTransactionBuffer bufferPool
 
     let result = System.Text.StringBuilder(200)
     result.Append "start0." |> ignore

@@ -1,7 +1,7 @@
 module RyakDB.Recovery.TransactionRecoveryFinalize
 
 open RyakDB.Storage.Log
-open RyakDB.Storage.BTree
+open RyakDB.Index.BTreeIndex
 open RyakDB.Table
 open RyakDB.Table.TableFile
 open RyakDB.Index
@@ -11,7 +11,7 @@ open RyakDB.Recovery.RecoveryLog
 open RyakDB.Transaction
 open RyakDB.Catalog
 
-let undo fileMgr logMgr (catalogMgr: CatalogManager) tx recoveryLog =
+let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryLog =
     match recoveryLog with
     | LogicalStartRecord (n, l) ->
         l
@@ -21,7 +21,7 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) tx recoveryLog =
         catalogMgr.GetTableInfo tx tn
         |> Option.bind (fun ti ->
             let rf =
-                newTableFile fileMgr tx true ti
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             let rid =
                 RecordId.newBlockRecordId sid ti.FileName bn
@@ -33,7 +33,7 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) tx recoveryLog =
         catalogMgr.GetTableInfo tx tn
         |> Option.bind (fun ti ->
             let rf =
-                newTableFile fileMgr tx true ti
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             let rid =
                 RecordId.newBlockRecordId sid ti.FileName bn
@@ -99,10 +99,10 @@ let rollback fileMgr logMgr catalogMgr tx =
     let mutable inStart = false
     logMgr.Records()
     |> Seq.map fromLogRecord
-    |> Seq.filter (fun rlog -> transactionNumber rlog = tx.TransactionNumber)
+    |> Seq.filter (fun rlog -> transactionNo rlog = tx.TransactionNo)
     |> Seq.iter (fun rlog ->
         if not (inStart) then
-            match txUnDoNextLSN, getLSN rlog with
+            match txUnDoNextLSN, getLogSeqNo rlog with
             | None, _ ->
                 match rlog with
                 | StartRecord (_) -> inStart <- true
@@ -145,13 +145,13 @@ let rollback fileMgr logMgr catalogMgr tx =
 
 let onCommit logMgr tx =
     if not (tx.ReadOnly) then
-        newCommitRecord tx.TransactionNumber
+        newCommitRecord tx.TransactionNo
         |> writeToLog logMgr
         |> logMgr.Flush
 
 let onRollback fileMgr logMgr catalogMgr tx =
     if not (tx.ReadOnly) then
         rollback fileMgr logMgr catalogMgr tx
-        newRollbackRecord tx.TransactionNumber
+        newRollbackRecord tx.TransactionNo
         |> writeToLog logMgr
         |> logMgr.Flush

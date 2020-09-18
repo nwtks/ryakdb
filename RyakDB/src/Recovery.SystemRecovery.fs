@@ -1,10 +1,10 @@
 module RyakDB.Recovery.SystemRecovery
 
 open RyakDB.Storage.Log
-open RyakDB.Storage.BTree
+open RyakDB.Index.BTreeIndex
 open RyakDB.Buffer.TransactionBuffer
+open RyakDB.Recovery
 open RyakDB.Recovery.RecoveryLog
-open RyakDB.Recovery.TransactionRecoveryFinalize
 open RyakDB.Transaction
 
 module SystemRecovery =
@@ -80,15 +80,15 @@ module SystemRecovery =
 
         redoRecords |> List.iter (redo tx.Buffer)
 
-        unCompletedTxs <- unCompletedTxs.Remove tx.TransactionNumber
+        unCompletedTxs <- unCompletedTxs.Remove tx.TransactionNo
 
         let mutable txUnDoNextLSN = Map.empty
         logMgr.Records()
         |> Seq.map fromLogRecord
         |> Seq.iter (fun rlog ->
             if not (unCompletedTxs.IsEmpty) then
-                let txNo = RecoveryLog.transactionNumber rlog
-                RecoveryLog.getLSN rlog
+                let txNo = RecoveryLog.transactionNo rlog
+                RecoveryLog.getLogSeqNo rlog
                 |> Option.iter (fun lsn ->
                     if unCompletedTxs.Contains txNo
                        && txUnDoNextLSN.ContainsKey txNo
@@ -121,7 +121,7 @@ module SystemRecovery =
         recoverSystem fileMgr logMgr catalogMgr tx
         tx.Buffer.FlushAll()
         logMgr.RemoveAndCreateNewLog()
-        tx.TransactionNumber
+        tx.TransactionNo
         |> RecoveryLog.newStartRecord
         |> RecoveryLog.writeToLog logMgr
         |> ignore

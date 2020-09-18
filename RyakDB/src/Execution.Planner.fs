@@ -2,14 +2,14 @@ module RyakDB.Execution.Planner
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Transaction
-open RyakDB.Catalog
-open RyakDB.Query
+open RyakDB.Index
 open RyakDB.Query.Predicate
 open RyakDB.Sql.Parse
 open RyakDB.Execution.Plan
 open RyakDB.Execution.MergeSort
 open RyakDB.Execution.Scan
+open RyakDB.Transaction
+open RyakDB.Catalog
 
 type Planner =
     { CreateQueryPlan: Transaction -> string -> Plan

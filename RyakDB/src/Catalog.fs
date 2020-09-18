@@ -1,12 +1,11 @@
 module RyakDB.Catalog
 
 open RyakDB.DataType
-open RyakDB.Query
 open RyakDB.Sql.Parse
-open RyakDB.Transaction
-open RyakDB.Table.TableFile
 open RyakDB.Table
+open RyakDB.Table.TableFile
 open RyakDB.Index
+open RyakDB.Transaction
 
 type CatalogManager =
     { CreateTable: Transaction -> string -> Schema -> unit
@@ -56,8 +55,8 @@ module TableManager =
 
     let MaxName = 30
 
-    let formatFileHeader fileMgr tx tableName =
-        TableFile.formatFileHeader fileMgr tx (tableName + ".tbl")
+    let inline formatFileHeader fileMgr tx tableName =
+        TableFile.formatFileHeader fileMgr tx.Buffer tx.Concurrency (tableName + ".tbl")
 
     let newTcatInfo () =
         let tcatSchema = Schema.newSchema ()
@@ -86,7 +85,8 @@ module TableManager =
                 false
 
         let findTcatInfo tcatInfo =
-            let tcatfile = newTableFile fileMgr tx true tcatInfo
+            let tcatfile =
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.BeforeFirst()
             let found = findTcatfile tcatfile
@@ -112,7 +112,8 @@ module TableManager =
                 schema
 
         let createSchema fcatInfo =
-            let fcatfile = newTableFile fileMgr tx true fcatInfo
+            let fcatfile =
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             fcatfile.BeforeFirst()
             let schema = Schema.newSchema () |> addField fcatfile
@@ -129,7 +130,8 @@ module TableManager =
 
     let createTable fileMgr tx tableName schema =
         let addTcatInfo tcatInfo =
-            let tcatfile = newTableFile fileMgr tx true tcatInfo
+            let tcatfile =
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.Insert()
             DbConstant.newVarchar tableName
@@ -145,7 +147,8 @@ module TableManager =
             fcatfile.SetVal FcatTypeArg (DbType.argument fldType |> IntDbConstant)
 
         let addFcatInfo fcatInfo =
-            let fcatfile = newTableFile fileMgr tx true fcatInfo
+            let fcatfile =
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             schema.Fields()
             |> List.iter (addFieldName fcatfile)
@@ -160,7 +163,7 @@ module TableManager =
     let dropTable fileMgr (catalogMgr: CatalogManager) tx tableName =
         let removeTableInfo fileMgr =
             getTableInfo fileMgr tx tableName
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf -> rf.Delete())
 
         let rec deleteTcatfile (tcatfile: TableFile) =
@@ -173,7 +176,8 @@ module TableManager =
                 deleteTcatfile tcatfile
 
         let removeTcatInfo tcatInfo =
-            let tcatfile = newTableFile fileMgr tx true tcatInfo
+            let tcatfile =
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.BeforeFirst()
             deleteTcatfile tcatfile
@@ -189,7 +193,8 @@ module TableManager =
                 deleteFcatfile fcatfile
 
         let removeFcatInfo fcatInfo =
-            let fcatfile = newTableFile fileMgr tx true fcatInfo
+            let fcatfile =
+                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             fcatfile.BeforeFirst()
             deleteFcatfile fcatfile
@@ -230,7 +235,7 @@ module IndexManager =
     let createIndex fileMgr tblMgr tx indexName indexType tableName fields =
         let createIcat tblMgr =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf ->
                 rf.Insert()
                 rf.SetVal IcatIdxName (DbConstant.newVarchar indexName)
@@ -240,7 +245,7 @@ module IndexManager =
 
         let createKcat tblMgr =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf ->
                 fields
                 |> List.iter (fun field ->
@@ -261,7 +266,7 @@ module IndexManager =
 
         let dropIcat tblMgr =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf ->
                 rf.BeforeFirst()
                 loopIcat rf (DbConstant.newVarchar indexName)
@@ -275,7 +280,7 @@ module IndexManager =
 
         let dropKcat tblMgr =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf ->
                 rf.BeforeFirst()
                 loopVcat rf (DbConstant.newVarchar indexName)
@@ -305,7 +310,7 @@ module IndexManager =
 
         let findIcat tblMgr indexName =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
 
@@ -330,7 +335,7 @@ module IndexManager =
 
         let findKcat tblMgr indexName =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
@@ -367,7 +372,7 @@ module IndexManager =
 
         let fineIcat tblMgr tableName =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
@@ -392,7 +397,7 @@ module IndexManager =
 
         let findKcat fileMgr tblMgr idxName idxType tblInfo =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
 
@@ -424,7 +429,7 @@ module IndexManager =
 
         let findIcat tblMgr tableName =
             tblMgr.GetTableInfo tx Icat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
@@ -449,7 +454,7 @@ module IndexManager =
 
         let findKcat tblMgr indexName =
             tblMgr.GetTableInfo tx Kcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
 
@@ -500,7 +505,7 @@ module ViewManager =
     let createView fileMgr tblMgr tx viewName viewDef =
         let createVcat tblMgr =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf ->
                 rf.Insert()
                 rf.SetVal VcatVname (DbConstant.newVarchar viewName)
@@ -518,7 +523,7 @@ module ViewManager =
 
         let dropVcat tblMgr =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.iter (fun rf ->
                 rf.BeforeFirst()
                 loopVcat rf (DbConstant.newVarchar viewName)
@@ -539,7 +544,7 @@ module ViewManager =
 
         let findVcat tblMgr viewName =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.bind (fun rf ->
                 rf.BeforeFirst()
 
@@ -572,7 +577,7 @@ module ViewManager =
 
         let findVcat tblMgr tableName =
             tblMgr.GetTableInfo tx Vcat
-            |> Option.map (fun ti -> newTableFile fileMgr tx true ti)
+            |> Option.map (fun ti -> newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti)
             |> Option.map (fun rf ->
                 rf.BeforeFirst()
                 let viewNames = loopVcat rf tableName []
@@ -596,39 +601,28 @@ let newViewManager fileMgr tblMgr =
       InitViewManager = ViewManager.initViewManager tblMgr }
 
 let newCatalogManager fileMgr =
-    let mutable tblMgr = None
-    let mutable idxMgr = None
-    let mutable viewMgr = None
-
-    let catalogManager =
-        { CreateTable = fun tx tableName schema -> (tblMgr |> Option.get).CreateTable tx tableName schema
-          DropTable = fun tx tableName -> (tblMgr |> Option.get).DropTable tx tableName
-          GetTableInfo = fun tx tableName -> (tblMgr |> Option.get).GetTableInfo tx tableName
+    let rec catalogManager =
+        { CreateTable = fun tx tableName schema -> tableManager.CreateTable tx tableName schema
+          DropTable = fun tx tableName -> tableManager.DropTable tx tableName
+          GetTableInfo = fun tx tableName -> tableManager.GetTableInfo tx tableName
           CreateIndex =
               fun tx indexName indexType tableName fieldNames ->
-                  (idxMgr |> Option.get).CreateIndex tx indexName indexType tableName fieldNames
-          DropIndex = fun tx indexName -> (idxMgr |> Option.get).DropIndex tx indexName
-          GetIndexInfoByName = fun tx indexName -> (idxMgr |> Option.get).GetIndexInfoByName tx indexName
-          GetIndexInfoByField =
-              fun tx indexName fieldName -> (idxMgr |> Option.get).GetIndexInfoByField tx indexName fieldName
-          GetIndexedFields = fun tx indexName -> (idxMgr |> Option.get).GetIndexedFields tx indexName
-          CreateView = fun tx viewName query -> (viewMgr |> Option.get).CreateView tx viewName query
-          DropView = fun tx viewName -> (viewMgr |> Option.get).DropView tx viewName
-          GetViewDef = fun tx viewName -> (viewMgr |> Option.get).GetViewDef tx viewName
-          GetViewNamesByTable = fun tx tableName -> (viewMgr |> Option.get).GetViewNamesByTable tx tableName
+                  indexManager.CreateIndex tx indexName indexType tableName fieldNames
+          DropIndex = fun tx indexName -> indexManager.DropIndex tx indexName
+          GetIndexInfoByName = fun tx indexName -> indexManager.GetIndexInfoByName tx indexName
+          GetIndexInfoByField = fun tx indexName fieldName -> indexManager.GetIndexInfoByField tx indexName fieldName
+          GetIndexedFields = fun tx indexName -> indexManager.GetIndexedFields tx indexName
+          CreateView = fun tx viewName query -> viewManager.CreateView tx viewName query
+          DropView = fun tx viewName -> viewManager.DropView tx viewName
+          GetViewDef = fun tx viewName -> viewManager.GetViewDef tx viewName
+          GetViewNamesByTable = fun tx tableName -> viewManager.GetViewNamesByTable tx tableName
           InitCatalogManager =
               fun tx ->
-                  (tblMgr |> Option.get).InitTableManager tx
-                  (idxMgr |> Option.get).InitIndexManager tx
-                  (viewMgr |> Option.get).InitViewManager tx }
+                  tableManager.InitTableManager tx
+                  indexManager.InitIndexManager tx
+                  viewManager.InitViewManager tx }
 
-    let tableManager = newTableManager fileMgr catalogManager
-
-    let indexManager = newIndexManager fileMgr tableManager
-
-    let viewManager = newViewManager fileMgr tableManager
-
-    tblMgr <- Some tableManager
-    idxMgr <- Some indexManager
-    viewMgr <- Some viewManager
+    and tableManager = newTableManager fileMgr catalogManager
+    and indexManager = newIndexManager fileMgr tableManager
+    and viewManager = newViewManager fileMgr tableManager
     catalogManager

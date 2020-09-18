@@ -58,12 +58,12 @@ module BufferPool =
             let result =
                 if System.Threading.Monitor.TryEnter buffer then
                     try
-                        if not (buffer.IsPinned()) then
+                        if buffer.IsPinned() then
+                            None
+                        else
                             System.Threading.Interlocked.Exchange(&state.LastReplacedBuff, currBlk)
                             |> ignore
                             Some(pin buffer)
-                        else
-                            None
                     finally
                         System.Threading.Monitor.Exit buffer
                 else

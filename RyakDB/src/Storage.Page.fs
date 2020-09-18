@@ -47,7 +47,11 @@ module Page =
                 if offset
                    + ValSizeSize
                    + bytes.Length > fileMgr.BlockSize then
-                    failwith "Page buffer overflow"
+                    failwith
+                        ("Page buffer overflow:offset="
+                         + offset.ToString()
+                         + ",size="
+                         + bytes.Length.ToString())
 
                 let sizebytes =
                     bytes.Length |> System.BitConverter.GetBytes

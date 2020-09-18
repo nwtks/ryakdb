@@ -6,7 +6,9 @@ open RyakDB.Table
 open RyakDB.Storage.File
 open RyakDB.Storage.Page
 open RyakDB.Buffer.Buffer
-open RyakDB.Transaction
+open RyakDB.Buffer.TransactionBuffer
+open RyakDB.Concurrency.TransactionConcurrency
+open RyakDB.Recovery.TransactionRecovery
 
 type SlottedPage =
     { Close: unit -> unit
@@ -14,7 +16,7 @@ type SlottedPage =
       GetVal: string -> DbConstant
       SetVal: string -> DbConstant -> unit
       Delete: RecordId -> unit
-      InsertIntoTheCurrentSlot: unit -> bool
+      InsertIntoCurrentSlot: unit -> bool
       InsertIntoNextEmptySlot: unit -> bool
       InsertIntoDeletedSlot: unit -> RecordId
       MoveToSlotNo: int32 -> unit
@@ -24,16 +26,6 @@ type SlottedPage =
       SetDeletedRecordId: RecordId -> unit }
 
 module SlottedPage =
-    type SlottedPageState =
-        { Tx: Transaction
-          TableInfo: TableInfo
-          BlockId: BlockId
-          CurrentBuffer: Buffer
-          CurrentSlotNo: int32
-          SlotSize: int32
-          OffsetMap: Map<string, int32>
-          DoLog: bool }
-
     let DeletedSlotSize =
         BlockId.BlockNoSize + RecordId.SlotNoSize
 
@@ -42,220 +34,324 @@ module SlottedPage =
     let EmptyConst = IntDbConstant(0)
     let InUseConst = IntDbConstant(1)
 
-    let inline currentPosition state = state.CurrentSlotNo * state.SlotSize
-
-    let inline fieldPosition fieldName state =
-        (state |> currentPosition)
-        + FlagSize
-        + state.OffsetMap.[fieldName]
-
-    let getValue offset dbType state =
-        let (BlockId (fileName, _)) = state.BlockId
-        if not (FileManager.isTempFile fileName) then
-            RecordId.newRecordId state.CurrentSlotNo state.BlockId
-            |> state.Tx.Concurrency.ReadRecord
-        state.CurrentBuffer.GetVal offset dbType
-
-    let setValue offset value state =
-        let (BlockId (fileName, _)) = state.BlockId
-        if not (FileManager.isTempFile fileName) then
-            if state.Tx.ReadOnly then failwith "Transaction read only"
-            state.Tx.Concurrency.ModifyFile fileName
-        if state.DoLog
-        then state.Tx.Recovery.LogSetVal state.CurrentBuffer offset value
-        else None
-        |> state.CurrentBuffer.SetVal offset value
-
-    let searchFor flag state =
-        let inline isValidSlot state =
-            (state |> currentPosition)
-            + state.SlotSize
-            <= state.CurrentBuffer.BufferSize
-
-        let rec loopSearchFor state =
-            let newstate: SlottedPageState =
-                { state with
-                      CurrentSlotNo = state.CurrentSlotNo + 1 }
-
-            if isValidSlot newstate then
-                if newstate
-                   |> getValue (newstate |> currentPosition) IntDbType = flag then
-                    newstate, true
-                else
-                    loopSearchFor newstate
-            else
-                newstate, false
-
-        loopSearchFor state
-
-    let inline getVal fieldName state =
-        state
-        |> getValue (state |> fieldPosition fieldName) (state.TableInfo.Schema.DbType fieldName)
-
-    let inline setVal fieldName value state =
-        state
-        |> setValue (state |> fieldPosition fieldName) value
-
-    let inline getDeletedRecordId state =
-        let position = (state |> currentPosition) + FlagSize
-        let (BlockId (fileName, _)) = state.BlockId
-        RecordId.newBlockRecordId
-            (state
-             |> getValue (position + BlockId.BlockNoSize) IntDbType
-             |> DbConstant.toInt)
-            fileName
-            (state
-             |> getValue position BigIntDbType
-             |> DbConstant.toLong)
-
-    let setDeletedRecordId (RecordId (slotNo, BlockId (_, blockNo))) state =
-        let position = (state |> currentPosition) + FlagSize
-        state
-        |> setValue position (BigIntDbConstant blockNo)
-        state
-        |> setValue (position + BlockId.BlockNoSize) (IntDbConstant slotNo)
-
-    let inline next state = state |> searchFor InUseConst
-
-    let inline moveToSlotNo slotNo state: SlottedPageState = { state with CurrentSlotNo = slotNo }
-
-    let insertIntoNextEmptySlot state =
-        let newstate, found = state |> searchFor EmptyConst
-        if found then
-            newstate
-            |> setValue (newstate |> currentPosition) InUseConst
-        newstate, found
-
-    let insertIntoTheCurrentSlot state =
-        let isEmpty =
-            state
-            |> getValue (state |> currentPosition) IntDbType = EmptyConst
-
-        if isEmpty then
-            state
-            |> setValue (state |> currentPosition) InUseConst
-        isEmpty
-
-    let insertIntoDeletedSlot state =
-        let nextDeletedSlot = state |> getDeletedRecordId
-        state
-        |> setDeletedRecordId (RecordId.newBlockRecordId 0 "" 0L)
-        state
-        |> setValue (state |> currentPosition) InUseConst
-        nextDeletedSlot
-
-    let delete nextDeletedSlot state =
-        state
-        |> setValue (state |> currentPosition) EmptyConst
-        state |> setDeletedRecordId nextDeletedSlot
-
-    let inline close state =
-        state.CurrentBuffer |> state.Tx.Buffer.Unpin
-
-    let offsetMap tableInfo =
+    let offsetMap schema =
         let offsetMap, _ =
-            tableInfo.Schema.Fields()
+            schema.Fields()
             |> List.fold (fun (map: Map<string, int32>, pos) field ->
-                map.Add(field, pos),
-                pos
-                + (tableInfo.Schema.DbType field |> Page.maxSize)) (Map.empty, 0)
+                map.Add(field, pos), pos + (schema.DbType field |> Page.maxSize)) (Map.empty, 0)
 
         offsetMap
 
-    let slotSize tableInfo =
+    let slotSize schema =
         let pos =
-            tableInfo.Schema.Fields()
-            |> List.fold (fun pos field ->
-                pos
-                + (tableInfo.Schema.DbType field |> Page.maxSize)) 0
+            schema.Fields()
+            |> List.fold (fun pos field -> pos + (schema.DbType field |> Page.maxSize)) 0
 
         FlagSize
         + if pos < DeletedSlotSize then DeletedSlotSize else pos
 
-let newSlottedPage tx blockId tableInfo doLog =
-    let mutable state: SlottedPage.SlottedPageState option =
-        Some
-            ({ Tx = tx
-               TableInfo = tableInfo
-               BlockId = blockId
-               CurrentBuffer = tx.Buffer.Pin blockId
-               CurrentSlotNo = -1
-               SlotSize = SlottedPage.slotSize tableInfo
-               OffsetMap = SlottedPage.offsetMap tableInfo
-               DoLog = doLog })
+    let inline currentPosition slotSize currentSlotNo = currentSlotNo * slotSize
 
+    let inline fieldPosition (offsetMap: Map<string, int32>) slotSize currentSlotNo fieldName =
+        (currentPosition slotSize currentSlotNo)
+        + FlagSize
+        + offsetMap.[fieldName]
+
+    let getValue txConcurrency (currentBuffer: Buffer) blockId currentSlotNo offset dbType =
+        let (BlockId (fileName, _)) = blockId
+        if not (FileManager.isTempFile fileName) then
+            RecordId.newRecordId currentSlotNo blockId
+            |> txConcurrency.ReadRecord
+        currentBuffer.GetVal offset dbType
+
+    let setValue txConcurrency txRecovery doLog currentBuffer blockId offset value =
+        let (BlockId (fileName, _)) = blockId
+        if not (FileManager.isTempFile fileName) then txConcurrency.ModifyFile fileName
+        if doLog
+        then txRecovery.LogSetVal currentBuffer offset value
+        else None
+        |> currentBuffer.SetVal offset value
+
+    let searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo flag =
+        let inline isValidSlot slotNo =
+            (currentPosition slotSize slotNo)
+            + slotSize
+            <= currentBuffer.BufferSize
+
+        let rec loopSearchFor blockId slotNo =
+            let newSlotNo = slotNo + 1
+            if isValidSlot newSlotNo then
+                if getValue txConcurrency currentBuffer blockId newSlotNo (currentPosition slotSize newSlotNo) IntDbType =
+                    flag then
+                    newSlotNo, true
+                else
+                    loopSearchFor blockId newSlotNo
+            else
+                newSlotNo, false
+
+        loopSearchFor blockId currentSlotNo
+
+    let inline getVal txConcurrency schema currentBuffer blockId offsetMap slotSize currentSlotNo fieldName =
+        getValue
+            txConcurrency
+            currentBuffer
+            blockId
+            currentSlotNo
+            (fieldPosition offsetMap slotSize currentSlotNo fieldName)
+            (schema.DbType fieldName)
+
+    let inline setVal txConcurrency
+                      txRecovery
+                      doLog
+                      currentBuffer
+                      blockId
+                      offsetMap
+                      slotSize
+                      currentSlotNo
+                      fieldName
+                      value
+                      =
+        setValue
+            txConcurrency
+            txRecovery
+            doLog
+            currentBuffer
+            blockId
+            (fieldPosition offsetMap slotSize currentSlotNo fieldName)
+            value
+
+    let inline getDeletedRecordId txConcurrency currentBuffer blockId slotSize currentSlotNo =
+        let position =
+            (currentPosition slotSize currentSlotNo)
+            + FlagSize
+
+        let (BlockId (fileName, _)) = blockId
+        RecordId.newBlockRecordId
+            (getValue txConcurrency currentBuffer blockId currentSlotNo (position + BlockId.BlockNoSize) IntDbType
+             |> DbConstant.toInt)
+            fileName
+            (getValue txConcurrency currentBuffer blockId currentSlotNo position BigIntDbType
+             |> DbConstant.toLong)
+
+    let setDeletedRecordId txConcurrency
+                           txRecovery
+                           doLog
+                           currentBuffer
+                           blockId
+                           slotSize
+                           currentSlotNo
+                           (RecordId (slotNo, BlockId (_, blockNo)))
+                           =
+        let position =
+            (currentPosition slotSize currentSlotNo)
+            + FlagSize
+
+        setValue txConcurrency txRecovery doLog currentBuffer blockId position (BigIntDbConstant blockNo)
+        setValue
+            txConcurrency
+            txRecovery
+            doLog
+            currentBuffer
+            blockId
+            (position + BlockId.BlockNoSize)
+            (IntDbConstant slotNo)
+
+    let inline next txConcurrency currentBuffer blockId slotSize currentSlotNo =
+        searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo InUseConst
+
+    let insertIntoNextEmptySlot txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo =
+        let newSlotNo, found =
+            searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo EmptyConst
+
+        if found
+        then setValue
+                 txConcurrency
+                 txRecovery
+                 doLog
+                 currentBuffer
+                 blockId
+                 (currentPosition slotSize newSlotNo)
+                 InUseConst
+        newSlotNo, found
+
+    let insertIntoCurrentSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo =
+        let isEmpty =
+            getValue
+                txConcurrency
+                currentBuffer
+                blockId
+                currentSlotNo
+                (currentPosition slotSize currentSlotNo)
+                IntDbType = EmptyConst
+
+        if isEmpty then
+            setValue
+                txConcurrency
+                txRecovery
+                doLog
+                currentBuffer
+                blockId
+                (currentPosition slotSize currentSlotNo)
+                InUseConst
+        isEmpty
+
+    let insertIntoDeletedSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo =
+        let nextDeletedSlot =
+            getDeletedRecordId txConcurrency currentBuffer blockId slotSize currentSlotNo
+
+        setDeletedRecordId
+            txConcurrency
+            txRecovery
+            doLog
+            currentBuffer
+            blockId
+            slotSize
+            currentSlotNo
+            (RecordId.newBlockRecordId 0 "" 0L)
+        setValue
+            txConcurrency
+            txRecovery
+            doLog
+            currentBuffer
+            blockId
+            (currentPosition slotSize currentSlotNo)
+            InUseConst
+        nextDeletedSlot
+
+    let delete txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo nextDeletedSlot =
+        setValue
+            txConcurrency
+            txRecovery
+            doLog
+            currentBuffer
+            blockId
+            (currentPosition slotSize currentSlotNo)
+            EmptyConst
+        setDeletedRecordId txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo nextDeletedSlot
+
+    let inline close txBuffer currentBuffer = currentBuffer |> txBuffer.Unpin
+
+let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
+    let slotSize = SlottedPage.slotSize tableInfo.Schema
+    let offsetMap = SlottedPage.offsetMap tableInfo.Schema
+    let currentBuffer = txBuffer.Pin blockId
+
+    let mutable currentSlotNo = Some(-1)
     { Close =
           fun () ->
-              match state with
-              | Some (st) -> SlottedPage.close st
+              match currentSlotNo with
+              | Some (_) -> SlottedPage.close txBuffer currentBuffer
               | _ -> ()
-              state <- None
+              currentSlotNo <- None
       Next =
           fun () ->
-              match state with
-              | Some (st) ->
-                  let newstate, result = SlottedPage.next st
-                  state <- Some(newstate)
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  let newSlotNo, result =
+                      SlottedPage.next txConcurrency currentBuffer blockId slotSize slotNo
+
+                  currentSlotNo <- Some(newSlotNo)
                   result
-              | _ -> failwith "closed page"
+              | _ -> failwith "Closed page"
       GetVal =
           fun fieldName ->
-              match state with
-              | Some (st) -> SlottedPage.getVal fieldName st
-              | _ -> failwith "closed page"
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  SlottedPage.getVal
+                      txConcurrency
+                      tableInfo.Schema
+                      currentBuffer
+                      blockId
+                      offsetMap
+                      slotSize
+                      slotNo
+                      fieldName
+              | _ -> failwith "Closed page"
       SetVal =
           fun fieldName value ->
-              match state with
-              | Some (st) -> SlottedPage.setVal fieldName value st
-              | _ -> failwith "closed page"
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  SlottedPage.setVal
+                      txConcurrency
+                      txRecovery
+                      doLog
+                      currentBuffer
+                      blockId
+                      offsetMap
+                      slotSize
+                      slotNo
+                      fieldName
+                      value
+              | _ -> failwith "Closed page"
       Delete =
           fun nextDeletedSlot ->
-              match state with
-              | Some (st) -> SlottedPage.delete nextDeletedSlot st
-              | _ -> failwith "closed page"
-      InsertIntoTheCurrentSlot =
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  SlottedPage.delete
+                      txConcurrency
+                      txRecovery
+                      doLog
+                      currentBuffer
+                      blockId
+                      slotSize
+                      slotNo
+                      nextDeletedSlot
+              | _ -> failwith "Closed page"
+      InsertIntoCurrentSlot =
           fun () ->
-              match state with
-              | Some (st) -> SlottedPage.insertIntoTheCurrentSlot st
-              | _ -> failwith "closed page"
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  SlottedPage.insertIntoCurrentSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
+              | _ -> failwith "Closed page"
       InsertIntoNextEmptySlot =
           fun () ->
-              match state with
-              | Some (st) ->
-                  let newstate, result = SlottedPage.insertIntoNextEmptySlot st
-                  state <- Some(newstate)
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  let newSlotNo, result =
+                      SlottedPage.insertIntoNextEmptySlot
+                          txConcurrency
+                          txRecovery
+                          doLog
+                          currentBuffer
+                          blockId
+                          slotSize
+                          slotNo
+
+                  currentSlotNo <- Some(newSlotNo)
                   result
-              | _ -> failwith "closed page"
+              | _ -> failwith "Closed page"
       InsertIntoDeletedSlot =
           fun () ->
-              match state with
-              | Some (st) -> SlottedPage.insertIntoDeletedSlot st
-              | _ -> failwith "closed page"
-      MoveToSlotNo =
-          fun slotId ->
-              match state with
-              | Some (st) -> state <- Some(SlottedPage.moveToSlotNo slotId st)
-              | _ -> failwith "closed page"
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  SlottedPage.insertIntoDeletedSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
+              | _ -> failwith "Closed page"
+      MoveToSlotNo = fun slotNo -> currentSlotNo <- Some(slotNo)
       CurrentSlotNo =
           fun () ->
-              match state with
-              | Some (st) -> st.CurrentSlotNo
-              | _ -> failwith "closed page"
-      BlockId =
-          fun () ->
-              match state with
-              | Some (st) -> st.BlockId
-              | _ -> failwith "closed page"
+              match currentSlotNo with
+              | Some (slotNo) -> slotNo
+              | _ -> failwith "Closed page"
+      BlockId = fun () -> blockId
       GetDeletedRecordId =
           fun () ->
-              match state with
-              | Some (st) -> SlottedPage.getDeletedRecordId st
-              | _ -> failwith "closed page"
+              match currentSlotNo with
+              | Some (slotNo) -> SlottedPage.getDeletedRecordId txConcurrency currentBuffer blockId slotSize slotNo
+              | _ -> failwith "Closed page"
       SetDeletedRecordId =
           fun recordId ->
-              match state with
-              | Some (st) -> SlottedPage.setDeletedRecordId recordId st
-              | _ -> failwith "closed page" }
+              match currentSlotNo with
+              | Some (slotNo) ->
+                  SlottedPage.setDeletedRecordId
+                      txConcurrency
+                      txRecovery
+                      doLog
+                      currentBuffer
+                      blockId
+                      slotSize
+                      slotNo
+                      recordId
+              | _ -> failwith "Closed page" }
 
 module SlottedPageFormatter =
     let makeDefaultSlottedPage tableInfo (offsetMap: Map<string, int32>) buffer position =
@@ -267,8 +363,8 @@ module SlottedPageFormatter =
                  |> DbConstant.defaultConstant))
 
 let newSlottedPageFormatter tableInfo =
-    let offsetMap = SlottedPage.offsetMap tableInfo
-    let slotSize = SlottedPage.slotSize tableInfo
+    let offsetMap = SlottedPage.offsetMap tableInfo.Schema
+    let slotSize = SlottedPage.slotSize tableInfo.Schema
     fun buffer ->
         for pos in 0 .. slotSize .. (buffer.BufferSize - slotSize) do
             buffer.SetValue pos SlottedPage.EmptyConst
