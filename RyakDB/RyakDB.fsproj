@@ -25,10 +25,16 @@
     <Compile Include="src/Table.SlottedPage.fs" />
     <Compile Include="src/Table.TableFile.fs" />
     <Compile Include="src/Index.HashIndex.fs" />
+    <Compile Include="src/Index.BTreePage.fs" />
+    <Compile Include="src/Index.BTreeBranch.fs" />
+    <Compile Include="src/Index.BTreeLeaf.fs" />
     <Compile Include="src/Index.BTreeIndex.fs" />
     <Compile Include="src/Transaction.fs" />
     <Compile Include="src/Index.IndexFactory.fs" />
-    <Compile Include="src/Catalog.fs" />
+    <Compile Include="src/Catalog.TableManager.fs" />
+    <Compile Include="src/Catalog.IndexManager.fs" />
+    <Compile Include="src/Catalog.ViewManager.fs" />
+    <Compile Include="src/Catalog.CatalogManager.fs" />
     <Compile Include="src/Recovery.TransactionRecoveryFinalize.fs" />
     <Compile Include="src/Recovery.SystemRecovery.fs" />
     <Compile Include="src/TransactionManager.fs" />

@@ -40,7 +40,7 @@ module Scan =
           MoveToRecordId = tableFile.MoveToRecordId }
 
     let newSelectScan scan predicate =
-        let inline next () =
+        let next () =
             let rec loopNext () =
                 if scan.Next() then
                     if Predicate.isSatisfied scan.GetVal predicate
@@ -65,18 +65,18 @@ module Scan =
     let newProductScan scan1 scan2 =
         let mutable isScan1Empty = false
 
-        let inline getVal field =
+        let getVal field =
             if scan1.HasField field then scan1.GetVal field else scan2.GetVal field
 
-        let inline hasField field =
+        let hasField field =
             scan1.HasField field || scan2.HasField field
 
-        let inline beforeFirst () =
+        let beforeFirst () =
             scan1.BeforeFirst()
             isScan1Empty <- not (scan1.Next())
             scan2.BeforeFirst()
 
-        let inline next () =
+        let next () =
             if isScan1Empty then
                 false
             elif scan2.Next() then
@@ -89,7 +89,7 @@ module Scan =
                 else
                     false
 
-        let inline close () =
+        let close () =
             scan1.Close()
             scan2.Close()
 
@@ -105,12 +105,12 @@ module Scan =
           MoveToRecordId = fun _ -> () }
 
     let newProjectScan scan fields =
-        let inline getVal field =
+        let getVal field =
             if fields |> List.contains field
             then scan.GetVal field
             else failwith ("field " + field + " not found.")
 
-        let inline hasField field = fields |> List.contains field
+        let hasField field = fields |> List.contains field
 
         { GetVal = getVal
           BeforeFirst = fun () -> scan.BeforeFirst()
@@ -165,7 +165,7 @@ module Scan =
             else
                 false
 
-        let inline close () =
+        let close () =
             scan1.Close()
             scan2 |> Option.iter (fun s -> s.Close())
 

@@ -82,7 +82,7 @@ module TransactionBuffer =
             state
 
     let rec pin (bufferPool: BufferPool) state blockId =
-        let inline pinExistBuffer state pinnedBuff =
+        let pinExistBuffer state pinnedBuff =
             let nextPinnedBuff =
                 { pinnedBuff with
                       PinCount = pinnedBuff.PinCount + 1 }
@@ -93,9 +93,9 @@ module TransactionBuffer =
 
             nextstate, nextPinnedBuff.Buffer
 
-        let inline pinBufferPool () = bufferPool.Pin blockId
+        let pinBufferPool () = bufferPool.Pin blockId
 
-        let inline pinNext state =
+        let pinNext state =
             pin bufferPool (repin bufferPool state) blockId
 
         if state.PinningBuffers.ContainsKey blockId
@@ -119,20 +119,20 @@ module TransactionBuffer =
             st1) newstate
 
     let rec pinNew (bufferPool: BufferPool) state fileName formatter =
-        let inline pinBufferPool () = bufferPool.PinNew fileName formatter
+        let pinBufferPool () = bufferPool.PinNew fileName formatter
 
-        let inline pinNext state =
+        let pinNext state =
             pinNew bufferPool (repin bufferPool state) fileName formatter
 
         pinNewBuffer bufferPool state pinBufferPool pinNext
 
-    let inline flushAll (bufferPool: BufferPool) = bufferPool.FlushAll()
+    let flushAll (bufferPool: BufferPool) = bufferPool.FlushAll()
 
-    let inline flushBuffers state =
+    let flushBuffers state =
         state.BuffersToFlush
         |> List.iter (fun b -> b.Flush())
 
-    let inline unpinAll (bufferPool: BufferPool) state =
+    let unpinAll (bufferPool: BufferPool) state =
         state.PinningBuffers
         |> Map.iter (fun _ v -> bufferPool.Unpin v.Buffer)
         lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))

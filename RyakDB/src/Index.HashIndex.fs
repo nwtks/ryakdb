@@ -15,6 +15,10 @@ module HashIndex =
         { SearchKey: SearchKey
           TableFile: TableFile }
 
+    let FieldBlockNo = "block_no"
+    let FieldSlotNo = "slot_no"
+    let KeyPrefix = "key"
+
     let BucketsCount = 100
 
     let fileSize (fileMgr: FileManager) txConcurrency fileName =
@@ -23,16 +27,16 @@ module HashIndex =
 
     let keyTypeToSchema (SearchKeyType types) =
         let sch = Schema.newSchema ()
-        sch.AddField "blockNo" BigIntDbType
-        sch.AddField "slotNo" IntDbType
+        sch.AddField FieldBlockNo BigIntDbType
+        sch.AddField FieldSlotNo IntDbType
         types
-        |> List.iteri (fun i t -> sch.AddField ("key" + i.ToString()) t)
+        |> List.iteri (fun i t -> sch.AddField (KeyPrefix + i.ToString()) t)
         sch
 
     let getKey (tableFile: TableFile) (SearchKeyType types) =
         types
         |> List.mapi (fun i _ ->
-            tableFile.GetVal("key" + i.ToString())
+            tableFile.GetVal(KeyPrefix + i.ToString())
             |> Option.get)
         |> SearchKey.newSearchKey
 
@@ -82,12 +86,12 @@ module HashIndex =
         match state with
         | Some ({ TableFile = tf }) ->
             let blockNo =
-                tf.GetVal "blockNo"
+                tf.GetVal FieldBlockNo
                 |> Option.get
                 |> DbConstant.toLong
 
             let slotNo =
-                tf.GetVal "slotNo"
+                tf.GetVal FieldSlotNo
                 |> Option.get
                 |> DbConstant.toInt
 
@@ -103,11 +107,11 @@ module HashIndex =
                =
         if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
         tableFile.Insert()
-        tableFile.SetVal "blockNo" (BigIntDbConstant blockNo)
-        tableFile.SetVal "slotNo" (IntDbConstant slotNo)
+        tableFile.SetVal FieldBlockNo (BigIntDbConstant blockNo)
+        tableFile.SetVal FieldSlotNo (IntDbConstant slotNo)
         let (SearchKey keys) = key
         keys
-        |> List.iteri (fun i t -> tableFile.SetVal ("key" + i.ToString()) t)
+        |> List.iteri (fun i t -> tableFile.SetVal (KeyPrefix + i.ToString()) t)
         if doLogicalLogging then
             txRecovery.LogIndexInsertionEnd indexInfo.IndexName key blockNo slotNo
             |> ignore
@@ -116,12 +120,12 @@ module HashIndex =
         let rec loopDelete (tableFile: TableFile) blockNo slotNo =
             if tableFile.Next() then
                 let tfBlockNo =
-                    tableFile.GetVal "blockNo"
+                    tableFile.GetVal FieldBlockNo
                     |> Option.get
                     |> DbConstant.toLong
 
                 let tfSlotNo =
-                    tableFile.GetVal "slotNo"
+                    tableFile.GetVal FieldSlotNo
                     |> Option.get
                     |> DbConstant.toInt
 
@@ -136,7 +140,7 @@ module HashIndex =
             txRecovery.LogIndexDeletionEnd indexInfo.IndexName key blockNo slotNo
             |> ignore
 
-    let inline close state =
+    let close state =
         state
         |> Option.iter (fun s -> s.TableFile.Close())
 

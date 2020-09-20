@@ -33,13 +33,13 @@ module Buffer =
 
     let DataStartOffset = LogSeqNo.Size
 
-    let inline setValue (page: Page) bufferSize offset value =
+    let setValue (page: Page) bufferSize offset value =
         if 0 > offset || offset >= bufferSize
         then failwith ("Out of bounds:" + offset.ToString())
 
         page.SetVal (DataStartOffset + offset) value
 
-    let inline getVal (page: Page) bufferSize offset dbType =
+    let getVal (page: Page) bufferSize offset dbType =
         if 0 > offset || offset >= bufferSize
         then failwith ("Out of bounds:" + offset.ToString())
 
@@ -62,13 +62,13 @@ module Buffer =
         page.SetVal (DataStartOffset + offset) value
         newstate
 
-    let inline pin state = { state with Pins = state.Pins + 1 }
+    let pin state = { state with Pins = state.Pins + 1 }
 
-    let inline unpin state = { state with Pins = state.Pins - 1 }
+    let unpin state = { state with Pins = state.Pins - 1 }
 
-    let inline isPinned state = state.Pins > 0
+    let isPinned state = state.Pins > 0
 
-    let inline flush (logMgr: LogManager) page state =
+    let flush (logMgr: LogManager) page state =
         lock state (fun () ->
             if state.IsNew || state.IsModified then
                 logMgr.Flush state.LastLogSeqNo
@@ -79,7 +79,7 @@ module Buffer =
             else
                 state)
 
-    let inline assignToBlock logMgr page blockId state =
+    let assignToBlock logMgr page blockId state =
         let newstate = flush logMgr page state
         page.Read blockId
         { newstate with
@@ -87,7 +87,7 @@ module Buffer =
               Pins = 0
               LastLogSeqNo = LogSeqNo.readFromPage 0 page }
 
-    let inline assignToNew logMgr page buffer fileName formatter state =
+    let assignToNew logMgr page buffer fileName formatter state =
         let newstate = flush logMgr page state
         formatter buffer
         { newstate with
@@ -121,7 +121,7 @@ let newBuffer fileMgr logMgr =
           Unpin = fun () -> lock internalLock (fun () -> state <- Buffer.unpin state)
           IsPinned = fun () -> Buffer.isPinned state
           Flush = fun () -> lock internalLock (fun () -> state <- Buffer.flush logMgr page state)
-          LockFlushing = fun fn -> lock state fn
+          LockFlushing = lock state
           AssignToBlock =
               fun blockId -> lock internalLock (fun () -> state <- Buffer.assignToBlock logMgr page blockId state)
           AssignToNew =

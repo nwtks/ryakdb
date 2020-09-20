@@ -57,7 +57,7 @@ module LockTable =
         if h < 0 then h + anchors.Length else h
         |> anchors.GetValue
 
-    let inline prepareLockers (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) key =
+    let prepareLockers (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) key =
         lockerMap.GetOrAdd
             (key,
              (fun _ ->
@@ -68,9 +68,9 @@ module LockTable =
                    IXLockers = Set.empty
                    RequestSet = Set.empty }))
 
-    let inline getLockSet (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
-                          txNo
-                          =
+    let getLockSet (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
+                   txNo
+                   =
         lockByTxMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
 
     let inline isSLocked lockers = not (lockers.SLockers.IsEmpty)
@@ -203,23 +203,23 @@ module LockTable =
                     |> ignore)
             state.TxWaitMap.TryRemove txNo |> ignore
 
-    let inline sLock state =
+    let sLock state =
         createLock state SLock isSLockable hasSLock (fun txNo lockers ->
             { lockers with
                   SLockers = lockers.SLockers.Add txNo })
 
-    let inline xLock state =
+    let xLock state =
         createLock state XLock isXLockable hasXLock (fun txNo lockers -> { lockers with XLocker = txNo })
 
-    let inline sixLock state =
+    let sixLock state =
         createLock state SIXLock isSIXLockable hasSIXLock (fun txNo lockers -> { lockers with SIXLocker = txNo })
 
-    let inline isLock state =
+    let isLock state =
         createLock state ISLock isISLockable hasISLock (fun txNo lockers ->
             { lockers with
                   ISLockers = lockers.ISLockers.Add txNo })
 
-    let inline ixLock state =
+    let ixLock state =
         createLock state IXLock isIXLockable hasIXLock (fun txNo lockers ->
             { lockers with
                   IXLockers = lockers.IXLockers.Add txNo })
@@ -302,15 +302,15 @@ module LockTable =
                     state.LockerMap.TryUpdate(key, newLockers, lockers)
                     |> ignore)
 
-    let inline releaseSLock state = release state SLock
+    let releaseSLock state = release state SLock
 
-    let inline releaseXLock state = release state XLock
+    let releaseXLock state = release state XLock
 
-    let inline releaseSIXLock state = release state SIXLock
+    let releaseSIXLock state = release state SIXLock
 
-    let inline releaseISLock state = release state ISLock
+    let releaseISLock state = release state ISLock
 
-    let inline releaseIXLock state = release state IXLock
+    let releaseIXLock state = release state IXLock
 
     let releaseAll state txNo sLockOnly =
         getLockSet state.LockByTxMap txNo

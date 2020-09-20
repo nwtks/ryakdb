@@ -18,11 +18,11 @@ module TransactionManager =
         { ActiveTxs: Set<int64>
           NextTxNo: int64 }
 
-    let inline onTxCommit state tx =
+    let onTxCommit state tx =
         { state with
               ActiveTxs = state.ActiveTxs.Remove tx.TransactionNo }
 
-    let inline onTxRollback state tx =
+    let onTxRollback state tx =
         { state with
               ActiveTxs = state.ActiveTxs.Remove tx.TransactionNo }
 

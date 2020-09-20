@@ -37,29 +37,30 @@ type Index =
       PreLoadToMemory: unit -> unit }
 
 module SearchKey =
-    let newSearchKey constants = SearchKey constants
+    let inline newSearchKey constants = SearchKey constants
 
 module SearchKeyType =
-    let getMin (SearchKeyType types) =
+    let inline getMin (SearchKeyType types) =
         types
         |> List.map DbType.minValue
         |> SearchKey.newSearchKey
 
-    let getMax (SearchKeyType types) =
+    let inline getMax (SearchKeyType types) =
         types
         |> List.map DbType.maxValue
         |> SearchKey.newSearchKey
 
-    let newSearchKeyTypeByTypes types = SearchKeyType types
+    let inline newSearchKeyTypeByTypes types = SearchKeyType types
 
-    let newSearchKeyType schema indexedFields =
+    let inline newSearchKeyType schema indexedFields =
         indexedFields
         |> List.map schema.DbType
         |> SearchKeyType
 
 module SearchRange =
-    let newSearchRangeBySearchKey searchKey =
+    let inline newSearchRangeBySearchKey searchKey =
         let (SearchKey searchKeyConstants) = searchKey
+
         { Size = fun () -> List.length searchKeyConstants
           IsValid = fun () -> true
           GetMin = fun () -> searchKey

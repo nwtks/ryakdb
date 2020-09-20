@@ -37,7 +37,7 @@ module Schema =
 
     let inline dbType (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.[fieldName]
 
-    let newSchema () =
+    let inline newSchema () =
         let mutable fieldTypes = Map.empty
 
         { AddField = fun fieldName dbType -> fieldTypes <- addField fieldTypes fieldName dbType

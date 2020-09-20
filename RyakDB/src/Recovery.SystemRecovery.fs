@@ -1,51 +1,57 @@
 module RyakDB.Recovery.SystemRecovery
 
 open RyakDB.Storage.Log
-open RyakDB.Index.BTreeIndex
 open RyakDB.Buffer.TransactionBuffer
-open RyakDB.Recovery
 open RyakDB.Recovery.RecoveryLog
 open RyakDB.Transaction
 
 module SystemRecovery =
-    let redo txBuffer recoveryLog =
+    let redo tx recoveryLog =
         match recoveryLog with
         | IndexPageInsertRecord (n, ibid, branch, kt, sid, optlsn) ->
-            let buffer = txBuffer.Pin ibid
+            let buffer = tx.Buffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if branch then BTreeBranch.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+                if branch
+                then TransactionRecoveryFinalize.insertBTreeBranchSlot tx kt ibid sid
+                else TransactionRecoveryFinalize.insertBTreeLeafSlot tx kt ibid sid
             | _ -> ()
-            txBuffer.Unpin buffer
+            tx.Buffer.Unpin buffer
         | IndexPageInsertClr (n, ibid, branch, kt, sid, _, optlsn) ->
-            let buffer = txBuffer.Pin ibid
+            let buffer = tx.Buffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if branch then BTreeBranch.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+                if branch
+                then TransactionRecoveryFinalize.insertBTreeBranchSlot tx kt ibid sid
+                else TransactionRecoveryFinalize.insertBTreeLeafSlot tx kt ibid sid
             | _ -> ()
-            txBuffer.Unpin buffer
+            tx.Buffer.Unpin buffer
         | IndexPageDeleteRecord (n, ibid, branch, kt, sid, optlsn) ->
-            let buffer = txBuffer.Pin ibid
+            let buffer = tx.Buffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if branch then BTreeBranch.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+                if branch
+                then TransactionRecoveryFinalize.deleteBTreeBranchSlot tx kt ibid sid
+                else TransactionRecoveryFinalize.deleteBTreeLeafSlot tx kt ibid sid
             | _ -> ()
-            txBuffer.Unpin buffer
+            tx.Buffer.Unpin buffer
         | IndexPageDeleteClr (n, ibid, branch, kt, sid, _, optlsn) ->
-            let buffer = txBuffer.Pin ibid
+            let buffer = tx.Buffer.Pin ibid
             match optlsn with
             | Some l when l > buffer.LastLogSeqNo() ->
-                if branch then BTreeBranch.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+                if branch
+                then TransactionRecoveryFinalize.deleteBTreeBranchSlot tx kt ibid sid
+                else TransactionRecoveryFinalize.deleteBTreeLeafSlot tx kt ibid sid
             | _ -> ()
-            txBuffer.Unpin buffer
+            tx.Buffer.Unpin buffer
         | SetValueRecord (_, bid, off, _, _, nv, _) ->
-            let buffer = txBuffer.Pin bid
+            let buffer = tx.Buffer.Pin bid
             buffer.SetVal off nv None
-            txBuffer.Unpin buffer
+            tx.Buffer.Unpin buffer
         | SetValueClr (_, bid, off, _, _, nv, _, _) ->
-            let buffer = txBuffer.Pin bid
+            let buffer = tx.Buffer.Pin bid
             buffer.SetVal off nv None
-            txBuffer.Unpin buffer
+            tx.Buffer.Unpin buffer
         | _ -> ()
 
     let recoverSystem fileMgr logMgr catalogMgr tx =
@@ -78,7 +84,7 @@ module SystemRecovery =
                     redoRecords <- rlog :: redoRecords
                 | _ -> redoRecords <- rlog :: redoRecords)
 
-        redoRecords |> List.iter (redo tx.Buffer)
+        redoRecords |> List.iter (redo tx)
 
         unCompletedTxs <- unCompletedTxs.Remove tx.TransactionNo
 

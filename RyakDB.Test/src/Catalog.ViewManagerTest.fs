@@ -3,7 +3,7 @@ module RyakDB.Test.Catalog.ViewManagerTest
 open Xunit
 open FsUnit.Xunit
 open RyakDB.Transaction
-open RyakDB.Catalog
+open RyakDB.Catalog.CatalogManager
 open RyakDB.Database
 
 [<Fact>]

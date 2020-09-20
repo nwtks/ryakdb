@@ -45,64 +45,64 @@ module FileHeaderPage =
 
     let OffsetTailSlotNo = OffsetTailBlockId + BlockId.BlockNoSize
 
-    let inline getVal offset dbType state =
+    let getVal offset dbType state =
         if not (FileManager.isTempFile state.FileName)
         then state.TxConcurrency.ReadBlock state.BlockId
         state.CurrentBuffer.GetVal offset dbType
 
-    let inline setVal offset value state =
+    let setVal offset value state =
         if not (FileManager.isTempFile state.FileName)
         then state.TxConcurrency.ModifyBlock state.BlockId
         state.TxRecovery.LogSetVal state.CurrentBuffer offset value
         |> state.CurrentBuffer.SetVal offset value
 
-    let inline getOffsetLastDeletedBlockId state =
+    let getOffsetLastDeletedBlockId state =
         state
         |> getVal OffsetLastDeletedBlockId BigIntDbType
         |> DbConstant.toLong
 
-    let inline getOffsetLastDeletedSlotNo state =
+    let getOffsetLastDeletedSlotNo state =
         state
         |> getVal OffsetLastDeletedSlotNo IntDbType
         |> DbConstant.toInt
 
-    let inline getOffsetTailBlockId state =
+    let getOffsetTailBlockId state =
         state
         |> getVal OffsetTailBlockId BigIntDbType
         |> DbConstant.toLong
 
-    let inline getOffsetTailSlotNo state =
+    let getOffsetTailSlotNo state =
         state
         |> getVal OffsetTailSlotNo IntDbType
         |> DbConstant.toInt
 
-    let inline hasDataRecords state = state |> getOffsetTailBlockId <> -1L
+    let hasDataRecords state = state |> getOffsetTailBlockId <> -1L
 
-    let inline hasDeletedSlots state =
+    let hasDeletedSlots state =
         state |> getOffsetLastDeletedBlockId <> -1L
 
-    let inline getLastDeletedRecordId state =
+    let getLastDeletedRecordId state =
         RecordId.newBlockRecordId
             (state |> getOffsetLastDeletedSlotNo)
             state.FileName
             (state |> getOffsetLastDeletedBlockId)
 
-    let inline setLastDeletedRecordId (RecordId (slotNo, BlockId (_, blockNo))) state =
+    let setLastDeletedRecordId (RecordId (slotNo, BlockId (_, blockNo))) state =
         state
         |> setVal OffsetLastDeletedBlockId (BigIntDbConstant blockNo)
         state
         |> setVal OffsetLastDeletedSlotNo (IntDbConstant slotNo)
 
-    let inline getTailRecordId state =
+    let getTailRecordId state =
         RecordId.newBlockRecordId (state |> getOffsetTailSlotNo) state.FileName (state |> getOffsetTailBlockId)
 
-    let inline setTailRecordId (RecordId (slotNo, BlockId (_, blockNo))) state =
+    let setTailRecordId (RecordId (slotNo, BlockId (_, blockNo))) state =
         state
         |> setVal OffsetTailBlockId (BigIntDbConstant blockNo)
         state
         |> setVal OffsetTailSlotNo (IntDbConstant slotNo)
 
-let inline newFileHeaderPage txBuffer txConcurrency txRecovery fileName =
+let newFileHeaderPage txBuffer txConcurrency txRecovery fileName =
     let blockId = BlockId.newBlockId fileName 0L
     { TxBuffer = txBuffer
       TxConcurrency = txConcurrency
@@ -138,13 +138,13 @@ module TableFile =
           DoLog: bool
           FileMgr: FileManager }
 
-    let inline formatFileHeader fileMgr txBuffer txConcurrency fileName =
+    let formatFileHeader fileMgr txBuffer txConcurrency fileName =
         txConcurrency.ModifyFile fileName
         if (fileMgr.Size fileName) = 0L then
             txBuffer.PinNew fileName FileHeaderFormatter.format
             |> txBuffer.Unpin
 
-    let inline fileSize state =
+    let fileSize state =
         if not (FileManager.isTempFile state.FileName)
         then state.TxConcurrency.ReadFile state.FileName
         state.FileMgr.Size state.FileName
@@ -168,28 +168,28 @@ module TableFile =
                                state.DoLog) },
             true
 
-    let inline openHeaderForModification state =
+    let openHeaderForModification state =
         if not (FileManager.isTempFile state.FileName)
         then state.TxConcurrency.LockTableFileHeader state.HeaderBlockId
         newFileHeaderPage state.TxBuffer state.TxConcurrency state.TxRecovery state.FileName
 
-    let inline closeHeader state =
+    let closeHeader state =
         if Option.isSome state.FileHeaderPage then
             state.TxConcurrency.LockTableFileHeader state.HeaderBlockId
             { state with FileHeaderPage = None }
         else
             state
 
-    let inline close state =
+    let close state =
         state.SlottedPage
         |> Option.iter (fun sp -> sp.Close())
         closeHeader state
 
-    let inline getVal state fieldName =
+    let getVal state fieldName =
         state.SlottedPage
         |> Option.map (fun sp -> sp.GetVal fieldName)
 
-    let inline setVal state fieldName value =
+    let setVal state fieldName value =
         if state.TxReadOnly
            && not (FileManager.isTempFile state.FileName) then
             failwith "Transaction read only"
@@ -201,11 +201,11 @@ module TableFile =
         state.SlottedPage
         |> Option.iter (fun sp -> sp.SetVal fieldName v)
 
-    let inline currentRecordId state =
+    let currentRecordId state =
         state.SlottedPage
         |> Option.map (fun sp -> RecordId.newBlockRecordId (sp.CurrentSlotNo()) state.FileName state.CurrentBlockNo)
 
-    let inline beforeFirst state =
+    let beforeFirst state =
         { (close state) with
               CurrentBlockNo = 0L
               IsBeforeFirsted = true }
@@ -227,13 +227,13 @@ module TableFile =
         else
             loopNext state
 
-    let inline moveToRecordId state (RecordId (slotId, BlockId (_, blockNo))) =
+    let moveToRecordId state (RecordId (slotId, BlockId (_, blockNo))) =
         let newstate, _ = moveTo state blockNo
         newstate.SlottedPage
         |> Option.iter (fun sp -> sp.MoveToSlotNo slotId)
         newstate
 
-    let inline initHeaderForModification state =
+    let initHeaderForModification state =
         let newstate =
             if Option.isNone state.FileHeaderPage then
                 { state with
@@ -244,7 +244,7 @@ module TableFile =
         newstate, newstate.FileHeaderPage |> Option.get
 
     let insert state =
-        let inline atLastBlock state =
+        let atLastBlock state =
             (fileSize state - 1L) = state.CurrentBlockNo
 
         let appendBlock state =
@@ -408,9 +408,9 @@ module TableFile =
         |> Option.iter (fun sp -> delete newstate fhp sp)
         closeHeader newstate
 
-    let inline deleteByRecordId state recordId = moveToRecordId state recordId |> delete
+    let deleteByRecordId state recordId = moveToRecordId state recordId |> delete
 
-    let inline remove state =
+    let remove state =
         let newstate = close state
         newstate.FileMgr.Delete newstate.FileName
         newstate

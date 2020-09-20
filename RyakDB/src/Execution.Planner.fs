@@ -9,7 +9,7 @@ open RyakDB.Execution.Plan
 open RyakDB.Execution.MergeSort
 open RyakDB.Execution.Scan
 open RyakDB.Transaction
-open RyakDB.Catalog
+open RyakDB.Catalog.CatalogManager
 
 type Planner =
     { CreateQueryPlan: Transaction -> string -> Plan
@@ -30,11 +30,11 @@ type UpdatePlanner =
       ExecuteDropView: Transaction -> string -> int }
 
 module Planner =
-    let inline createQueryPlan queryPlanner tx cmd =
+    let createQueryPlan queryPlanner tx cmd =
         Parser.queryCommand cmd
         |> queryPlanner.CreatePlan tx
 
-    let inline executeUpdate updatePlanner tx cmd =
+    let executeUpdate updatePlanner tx cmd =
         if tx.ReadOnly then failwith "Read only transaction"
         match Parser.updateCommand cmd with
         | InsertData (tableName, fields, values) -> updatePlanner.ExecuteInsert tx tableName fields values
@@ -54,7 +54,7 @@ let newPlanner queryPlanner updatePlanner =
 
 module QueryPlanner =
     let rec createPlan fileMgr
-                       (catalogMgr: CatalogManager)
+                       catalogMgr
                        tx
                        (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
                        =
@@ -79,7 +79,7 @@ let newQueryPlanner fileMgr catalogMgr =
     { CreatePlan = QueryPlanner.createPlan fileMgr catalogMgr }
 
 module UpdatePlanner =
-    let executeInsert fileMgr (catalogMgr: CatalogManager) tx tableName fieldNames values =
+    let executeInsert fileMgr catalogMgr tx tableName fieldNames values =
         let scan =
             catalogMgr.GetTableInfo tx tableName
             |> Option.get
@@ -92,7 +92,7 @@ module UpdatePlanner =
         scan.Close()
         1
 
-    let executeDelete fileMgr (catalogMgr: CatalogManager) tx tableName predicate =
+    let executeDelete fileMgr catalogMgr tx tableName predicate =
         let scan =
             catalogMgr.GetTableInfo tx tableName
             |> Option.get
@@ -112,7 +112,7 @@ module UpdatePlanner =
         scan.Close()
         count
 
-    let executeModify fileMgr (catalogMgr: CatalogManager) tx tableName predicate fieldValues =
+    let executeModify fileMgr catalogMgr tx tableName predicate fieldValues =
         let scan =
             catalogMgr.GetTableInfo tx tableName
             |> Option.get
@@ -133,27 +133,27 @@ module UpdatePlanner =
         scan.Close()
         count
 
-    let inline executeCreateTable (catalogMgr: CatalogManager) tx tableName schema =
+    let executeCreateTable catalogMgr tx tableName schema =
         catalogMgr.CreateTable tx tableName schema
         0
 
-    let inline executeDropTable (catalogMgr: CatalogManager) tx tableName =
+    let executeDropTable catalogMgr tx tableName =
         catalogMgr.DropTable tx tableName
         0
 
-    let inline executeCreateIndex (catalogMgr: CatalogManager) tx indexName indexType tableName fieldNames =
+    let executeCreateIndex catalogMgr tx indexName indexType tableName fieldNames =
         catalogMgr.CreateIndex tx indexName indexType tableName fieldNames
         0
 
-    let inline executeDropIndex (catalogMgr: CatalogManager) tx indexName =
+    let executeDropIndex catalogMgr tx indexName =
         catalogMgr.DropIndex tx indexName
         0
 
-    let inline executeCreateView (catalogMgr: CatalogManager) tx viewName viewDef =
+    let executeCreateView catalogMgr tx viewName viewDef =
         catalogMgr.CreateView tx viewName viewDef
         0
 
-    let inline executeDropView (catalogMgr: CatalogManager) tx viewName =
+    let executeDropView catalogMgr tx viewName =
         catalogMgr.DropView tx viewName
         0
 

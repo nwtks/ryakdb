@@ -5,7 +5,7 @@ open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Transaction
-open RyakDB.Catalog
+open RyakDB.Catalog.CatalogManager
 open RyakDB.Database
 
 [<Fact>]

@@ -16,12 +16,12 @@
     <Compile Include="src/Concurrency.TransactionConcurrencyTest.fs" />
     <Compile Include="src/Concurrency.LockTableTest.fs" />
     <Compile Include="src/Recovery.TransactionRecoveryTest.fs" />
-    <Compile Include="src/TransactionTest.fs" />
     <Compile Include="src/Table.SlottedPageTest.fs" />
     <Compile Include="src/Table.TableFileTest.fs" />
     <Compile Include="src/Index.HashIndexTest.fs" />
     <Compile Include="src/Index.BTreePageTest.fs" />
     <Compile Include="src/Index.BTreeIndexTest.fs" />
+    <Compile Include="src/TransactionTest.fs" />
     <Compile Include="src/Catalog.TableManagerTest.fs" />
     <Compile Include="src/Catalog.IndexManagerTest.fs" />
     <Compile Include="src/Catalog.ViewManagerTest.fs" />

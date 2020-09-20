@@ -1,17 +1,54 @@
 module RyakDB.Recovery.TransactionRecoveryFinalize
 
 open RyakDB.Storage.Log
-open RyakDB.Index.BTreeIndex
 open RyakDB.Table
 open RyakDB.Table.TableFile
 open RyakDB.Index
 open RyakDB.Index.IndexFactory
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
+open RyakDB.Index.BTreeBranch
+open RyakDB.Index.BTreeLeaf
 open RyakDB.Transaction
-open RyakDB.Catalog
+open RyakDB.Catalog.CatalogManager
 
-let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryLog =
+let insertBTreeBranchSlot tx keyType blockId slot =
+    let schema = BTreeBranch.keyTypeToSchema keyType
+
+    let page =
+        BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+
+    page.Insert slot
+    page.Close()
+
+let deleteBTreeBranchSlot tx keyType blockId slot =
+    let schema = BTreeBranch.keyTypeToSchema keyType
+
+    let page =
+        BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+
+    page.Delete slot
+    page.Close()
+
+let insertBTreeLeafSlot tx keyType blockId slot =
+    let schema = BTreeLeaf.keyTypeToSchema keyType
+
+    let page =
+        BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+
+    page.Insert slot
+    page.Close()
+
+let deleteBTreeLeafSlot tx keyType blockId slot =
+    let schema = BTreeLeaf.keyTypeToSchema keyType
+
+    let page =
+        BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+
+    page.Delete slot
+    page.Close()
+
+let undo fileMgr logMgr catalogMgr tx recoveryLog =
     match recoveryLog with
     | LogicalStartRecord (n, l) ->
         l
@@ -20,36 +57,29 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryL
     | TableFileInsertEndRecord (n, tn, bn, sid, start, _) ->
         catalogMgr.GetTableInfo tx tn
         |> Option.bind (fun ti ->
-            let rf =
+            let tf =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            let rid =
-                RecordId.newBlockRecordId sid ti.FileName bn
-
-            rf.DeleteByRecordId rid
+            RecordId.newBlockRecordId sid ti.FileName bn
+            |> tf.DeleteByRecordId
             tx.Recovery.LogLogicalAbort n start)
         |> Option.iter logMgr.Flush
     | TableFileDeleteEndRecord (n, tn, bn, sid, start, _) ->
         catalogMgr.GetTableInfo tx tn
         |> Option.bind (fun ti ->
-            let rf =
+            let tf =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            let rid =
-                RecordId.newBlockRecordId sid ti.FileName bn
-
-            rf.InsertByRecordId rid
+            RecordId.newBlockRecordId sid ti.FileName bn
+            |> tf.InsertByRecordId
             tx.Recovery.LogLogicalAbort n start)
         |> Option.iter logMgr.Flush
     | IndexInsertEndRecord (n, inm, sk, bn, sid, start, _) ->
         catalogMgr.GetIndexInfoByName tx inm
         |> Option.bind (fun ii ->
             let idx = IndexFactory.newIndex fileMgr tx ii
-
-            let rid =
-                RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
-
-            idx.Delete false sk rid
+            RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
+            |> idx.Delete false sk
             idx.Close()
             tx.Recovery.LogLogicalAbort n start)
         |> Option.iter logMgr.Flush
@@ -57,11 +87,8 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryL
         catalogMgr.GetIndexInfoByName tx inm
         |> Option.bind (fun ii ->
             let idx = newIndex fileMgr tx ii
-
-            let rid =
-                RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
-
-            idx.Insert false sk rid
+            RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
+            |> idx.Insert false sk
             idx.Close()
             tx.Recovery.LogLogicalAbort n start)
         |> Option.iter logMgr.Flush
@@ -69,7 +96,7 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryL
         let buffer = tx.Buffer.Pin ibid
         match optlsn with
         | Some lsn when lsn < buffer.LastLogSeqNo() ->
-            if branch then BTreeBranch.deleteASlot ibid kt sid else BTreeLeaf.deleteASlot ibid kt sid
+            if branch then deleteBTreeBranchSlot tx kt ibid sid else deleteBTreeLeafSlot tx kt ibid sid
             tx.Recovery.LogIndexPageDeletionClr branch n ibid kt sid lsn
             |> Option.iter logMgr.Flush
         | _ -> ()
@@ -78,7 +105,7 @@ let undo fileMgr logMgr (catalogMgr: CatalogManager) (tx: Transaction) recoveryL
         let buffer = tx.Buffer.Pin ibid
         match optlsn with
         | Some lsn when lsn < buffer.LastLogSeqNo() ->
-            if branch then BTreeBranch.insertASlot ibid kt sid else BTreeLeaf.insertASlot ibid kt sid
+            if branch then insertBTreeBranchSlot tx kt ibid sid else insertBTreeLeafSlot tx kt ibid sid
             tx.Recovery.LogIndexPageInsertionClr branch n ibid kt sid lsn
             |> Option.iter logMgr.Flush
         | _ -> ()
@@ -97,6 +124,7 @@ let rollback fileMgr logMgr catalogMgr tx =
 
     let mutable txUnDoNextLSN = None
     let mutable inStart = false
+
     logMgr.Records()
     |> Seq.map fromLogRecord
     |> Seq.filter (fun rlog -> transactionNo rlog = tx.TransactionNo)

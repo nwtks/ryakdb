@@ -25,21 +25,21 @@ module LogSeqNo =
 
     let DefaltValue = LogSeqNo(-1L, -1L)
 
-    let inline readFromPage position page =
+    let readFromPage position page =
         LogSeqNo
             (page.GetVal position BigIntDbType
              |> DbConstant.toLong,
              page.GetVal (position + BlockNoSize) BigIntDbType
              |> DbConstant.toLong)
 
-    let inline writeToPage position page (LogSeqNo (blockNo, offset)) =
+    let writeToPage position page (LogSeqNo (blockNo, offset)) =
         BigIntDbConstant blockNo |> page.SetVal position
         BigIntDbConstant offset
         |> page.SetVal(position + BlockNoSize)
 
 let inline newLogSeqNo blockNo offset = LogSeqNo(blockNo, offset)
 
-let newLogRecord blockNo offset page =
+let inline newLogRecord blockNo offset page =
     let mutable position = offset
 
     { LogSeqNo = newLogSeqNo blockNo (int64 offset)
@@ -58,29 +58,29 @@ module LogManager =
     let LastRecordPositionOffset = 0
     let PointerSize = 4
 
-    let inline getLastRecordPosition page =
+    let getLastRecordPosition page =
         page.GetVal LastRecordPositionOffset IntDbType
         |> DbConstant.toInt
 
-    let inline setLastRecordPosition page position =
+    let setLastRecordPosition page position =
         IntDbConstant position
         |> page.SetVal LastRecordPositionOffset
 
-    let inline appendNewBlock logFileName (page: Page) =
+    let appendNewBlock logFileName (page: Page) =
         setLastRecordPosition page 0
         page.Append logFileName
 
-    let inline flushLog page state =
+    let flushLog page state =
         page.Write state.CurrentBlockId
         { state with
               LastFlushedLogSeqNo = state.LastLogSeqNo }
 
     let records fileMgr logPage state =
-        let inline readLastRecordPosition page blockId =
+        let readLastRecordPosition page blockId =
             page.Read blockId
             getLastRecordPosition page
 
-        let inline prevBlockRecordPosition page (BlockId (fileName, blockNo)) =
+        let prevBlockRecordPosition page (BlockId (fileName, blockNo)) =
             let prevBlockId =
                 BlockId.newBlockId fileName (blockNo - 1L)
 
@@ -112,11 +112,11 @@ module LogManager =
         }
 
     let append fileMgr logFileName logPage constants state =
-        let inline appendVal page position value =
+        let appendVal page position value =
             page.SetVal position value
             position + (Page.size value)
 
-        let inline finalizeRecord page prevLastRecordPosition nextLastRecordPosition =
+        let finalizeRecord page prevLastRecordPosition nextLastRecordPosition =
             IntDbConstant prevLastRecordPosition
             |> page.SetVal nextLastRecordPosition
             setLastRecordPosition page nextLastRecordPosition
@@ -145,10 +145,10 @@ module LogManager =
         { nextstate with
               LastLogSeqNo = newLogSeqNo blockNo (int64 (position + PointerSize)) }
 
-    let inline flush logPage lsn state =
+    let flush logPage lsn state =
         if lsn >= state.LastFlushedLogSeqNo then flushLog logPage state else state
 
-    let inline createNewLog logFileName logPage =
+    let createNewLog logFileName logPage =
         { CurrentBlockId = appendNewBlock logFileName logPage
           LastLogSeqNo = LogSeqNo.DefaltValue
           LastFlushedLogSeqNo = LogSeqNo.DefaltValue }

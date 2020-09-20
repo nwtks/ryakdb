@@ -9,7 +9,7 @@ open RyakDB.TransactionManager
 open RyakDB.Recovery
 open RyakDB.Recovery.CheckpointTask
 open RyakDB.Recovery.SystemRecovery
-open RyakDB.Catalog
+open RyakDB.Catalog.CatalogManager
 open RyakDB.Execution.Planner
 open RyakDB.Task
 
@@ -40,7 +40,7 @@ module Database =
           CheckpointPeriod = 300000
           CheckpointTxCount = 1000 }
 
-    let inline createPlanner fileMgr catalogMgr =
+    let createPlanner fileMgr catalogMgr =
         let queryPlanner = newQueryPlanner fileMgr catalogMgr
         let updatePlanner = newUpdatePlanner fileMgr catalogMgr
         newPlanner queryPlanner updatePlanner

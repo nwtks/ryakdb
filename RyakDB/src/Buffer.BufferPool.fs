@@ -25,7 +25,7 @@ module BufferPool =
         if h < 0 then h + anchors.Length else h
         |> anchors.GetValue
 
-    let inline findExistingBuffer state blockId =
+    let findExistingBuffer state blockId =
         let mutable buffer = Unchecked.defaultof<Buffer>
         if state.BlockMap.TryGetValue(blockId, &buffer) then
             Some buffer
@@ -33,7 +33,7 @@ module BufferPool =
         else
             None
 
-    let inline flushAll state =
+    let flushAll state =
         state.BufferPool
         |> Array.iter (fun b -> b.Flush())
 
@@ -91,7 +91,7 @@ module BufferPool =
             ((state.LastReplacedBuff + 1) % state.BufferPool.Length)
 
     let rec pin state blockId =
-        let inline pinExistBuffer (buffer: Buffer) =
+        let pinExistBuffer (buffer: Buffer) =
             if blockId = buffer.BlockId() then
                 pinBuffer state buffer
                 Some buffer

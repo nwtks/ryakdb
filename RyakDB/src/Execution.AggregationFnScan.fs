@@ -17,9 +17,9 @@ module AggregationFnScan =
         let mutable count = 1
         let mutable sum = DoubleDbConstant(nan)
 
-        let inline processFirst record = sum <- record fieldName
+        let processFirst record = sum <- record fieldName
 
-        let inline processNext record =
+        let processNext record =
             sum <- record fieldName |> DbConstant.add sum
             count <- count + 1
 
@@ -45,9 +45,9 @@ module AggregationFnScan =
     let newMaxFn fieldName aggFnFieldName =
         let mutable value = DoubleDbConstant(nan)
 
-        let inline processFirst record = value <- record fieldName
+        let processFirst record = value <- record fieldName
 
-        let inline processNext record =
+        let processNext record =
             let v = record fieldName
             value <- if DbConstant.compare v value > 0 then v else value
 
@@ -62,9 +62,9 @@ module AggregationFnScan =
     let newMinFn fieldName aggFnFieldName =
         let mutable value = DoubleDbConstant(nan)
 
-        let inline processFirst record = value <- record fieldName
+        let processFirst record = value <- record fieldName
 
-        let inline processNext record =
+        let processNext record =
             let v = record fieldName
             value <- if DbConstant.compare v value < 0 then v else value
 
@@ -79,9 +79,9 @@ module AggregationFnScan =
     let newSumFn fieldName aggFnFieldName =
         let mutable sum = DoubleDbConstant(nan)
 
-        let inline processFirst record = sum <- record fieldName
+        let processFirst record = sum <- record fieldName
 
-        let inline processNext record =
+        let processNext record =
             sum <- record fieldName |> DbConstant.add sum
 
         { FieldName = aggFnFieldName

@@ -31,11 +31,11 @@ type TempTable = { OpenScan: unit -> Scan }
 module TempTable =
     let mutable nextTableNo = 0L
 
-    let inline nextTableName () =
+    let nextTableName () =
         FileManager.TmpFilePrefix
         + System.Threading.Interlocked.Increment(&nextTableNo).ToString()
 
-    let inline openScan fileMgr tx tableInfo = Scan.newTableScan fileMgr tx tableInfo
+    let openScan fileMgr tx tableInfo = Scan.newTableScan fileMgr tx tableInfo
 
 let newTempTable fileMgr tx schema =
     let ti =
@@ -70,12 +70,12 @@ module TempSlottedPage =
         else
             false
 
-    let compareRecords sortFields id1 id2 tsp =
+    let compareRecords sortFields slotNo1 slotNo2 tsp =
         sortFields
         |> List.tryPick (fun (SortField (sortFld, sortDir)) ->
-            tsp.SlottedPage.MoveToSlotNo id1
+            tsp.SlottedPage.MoveToSlotNo slotNo1
             let val1 = tsp.SlottedPage.GetVal sortFld
-            tsp.SlottedPage.MoveToSlotNo id2
+            tsp.SlottedPage.MoveToSlotNo slotNo2
             let val2 = tsp.SlottedPage.GetVal sortFld
             if val1 < val2
             then if sortDir = SortDesc then Some 1 else Some -1
@@ -84,31 +84,31 @@ module TempSlottedPage =
             else None)
         |> Option.defaultValue 0
 
-    let findSmallestFrom sortFields startId tsp =
-        let rec findMin minId =
+    let findSmallestFrom sortFields startSlotNo tsp =
+        let rec findMin minSlotNo =
             if tsp.SlottedPage.Next() then
                 tsp.SlottedPage.CurrentSlotNo()
-                |> fun id ->
-                    if minId < 0
-                       || compareRecords sortFields minId id tsp > 0 then
-                        id
+                |> fun slotNo ->
+                    if minSlotNo < 0
+                       || compareRecords sortFields minSlotNo slotNo tsp > 0 then
+                        slotNo
                     else
-                        minId
+                        minSlotNo
                     |> findMin
             else
-                minId
+                minSlotNo
 
-        findMin startId
+        findMin startSlotNo
 
-    let swapRecords id1 id2 tsp =
+    let swapRecords slotNo1 slotNo2 tsp =
         tsp.Schema.Fields()
         |> List.iter (fun fn ->
-            tsp.SlottedPage.MoveToSlotNo id1
+            tsp.SlottedPage.MoveToSlotNo slotNo1
             let val1 = tsp.SlottedPage.GetVal fn
-            tsp.SlottedPage.MoveToSlotNo id2
+            tsp.SlottedPage.MoveToSlotNo slotNo2
             let val2 = tsp.SlottedPage.GetVal fn
             tsp.SlottedPage.SetVal fn val1
-            tsp.SlottedPage.MoveToSlotNo id1
+            tsp.SlottedPage.MoveToSlotNo slotNo1
             tsp.SlottedPage.SetVal fn val2)
 
     let sortBySelection sortFields tsp =
@@ -124,9 +124,9 @@ module TempSlottedPage =
 
     let close tsp = tsp.SlottedPage.Close()
 
-    let newTempSlottedPage tx blk ti =
-        { SlottedPage = newSlottedPage tx.Buffer tx.Concurrency tx.Recovery blk ti false
-          Schema = ti.Schema }
+    let newTempSlottedPage tx blockId tableInfo =
+        { SlottedPage = newSlottedPage tx.Buffer tx.Concurrency tx.Recovery blockId tableInfo false
+          Schema = tableInfo.Schema }
 
 module MergeSort =
     let newTempSlottedPage tx schema tblcount =

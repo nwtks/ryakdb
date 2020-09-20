@@ -18,7 +18,7 @@ type AggregationFn =
     | SumFn of fieldName: string
 
 module AggregationFn =
-    let fieldName aggregationFn =
+    let inline fieldName aggregationFn =
         match aggregationFn with
         | AvgFn fn -> "avg_of_" + fn
         | CountFn fn -> "count_of_" + fn

@@ -20,13 +20,13 @@ type IsolationLevel =
     | ReadCommitted
 
 module Transaction =
-    let inline commit commitListeners tx =
+    let commit commitListeners tx =
         commitListeners |> List.iter (fun f -> f (tx))
 
-    let inline rollback rollbackListeners tx =
+    let rollback rollbackListeners tx =
         rollbackListeners |> List.iter (fun f -> f (tx))
 
-    let inline endStatement endStatementListeners tx =
+    let endStatement endStatementListeners tx =
         endStatementListeners
         |> List.iter (fun f -> f (tx))
 
@@ -61,16 +61,11 @@ let newTransaction txCommitListener
           Buffer = txBuffer
           TransactionNo = txNo
           ReadOnly = readOnly
-          Commit =
-              fun () ->
-                  tx
-                  |> Transaction.commit commitListeners
-          Rollback =
-              fun () ->
-                  tx
-                  |> Transaction.rollback rollbackListeners
+          Commit = fun () -> tx |> Transaction.commit commitListeners
+          Rollback = fun () -> tx |> Transaction.rollback rollbackListeners
           EndStatement =
               fun () ->
                   tx
                   |> Transaction.endStatement endStatementListeners }
+
     tx

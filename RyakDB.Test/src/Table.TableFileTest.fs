@@ -34,14 +34,16 @@ let ``record file`` () =
     |> tx.Buffer.PinNew ti.FileName
     |> tx.Buffer.Unpin
 
-    let rf1 = newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    let rf1 =
+        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     rf1.BeforeFirst()
     while rf1.Next() do
         rf1.Delete()
     rf1.Close()
 
-    let rf2 = newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    let rf2 =
+        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     for i in 0 .. 300 do
         rf2.Insert()
@@ -50,7 +52,8 @@ let ``record file`` () =
         rf2.SetVal "deptid" (BigIntDbConstant(int64 (i % 3 + 1) * 1000L))
     rf2.Close()
 
-    let rf3 = newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    let rf3 =
+        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     rf3.BeforeFirst()
     let mutable readId = 0
@@ -70,7 +73,8 @@ let ``record file`` () =
     rf3.Close()
     Assert.Equal(301, readId)
 
-    let rf4 = newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    let rf4 =
+        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     rf4.BeforeFirst()
     let mutable numdeleted = 0
