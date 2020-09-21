@@ -5,9 +5,8 @@ open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
-open RyakDB.Transaction
 open RyakDB.Index
-open RyakDB.Index.IndexFactory
+open RyakDB.Transaction
 open RyakDB.Database
 
 let createTable db =
@@ -39,7 +38,9 @@ let createMultiKeyIndex db =
 [<Fact>]
 let ``single key`` () =
     let db =
-        newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createSingleKeyIndex db
@@ -50,7 +51,7 @@ let ``single key`` () =
     let index =
         db.CatalogMgr.GetIndexInfoByName tx "HITable_SI1"
         |> Option.get
-        |> newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.FileMgr tx
 
     let blk = BlockId.newBlockId "HITable.tbl" 0L
 
@@ -74,30 +75,34 @@ let ``single key`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    Assert.Equal(10, cnt)
+    cnt |> should equal 10
 
     SearchRange.newSearchRangeBySearchKey key7
     |> index.BeforeFirst
-    Assert.True(index.Next())
-    Assert.Equal(rid2, index.GetDataRecordId())
-    Assert.False(index.Next())
+    index.Next() |> should be True
+    index.GetDataRecordId() |> should equal rid2
+    index.Next() |> should be False
 
     rids
     |> Array.iter (fun id -> index.Delete false key5 id)
     SearchRange.newSearchRangeBySearchKey key5
     |> index.BeforeFirst
-    Assert.False(index.Next())
+    index.Next() |> should be False
 
     SearchRange.newSearchRangeBySearchKey key7
     |> index.BeforeFirst
-    Assert.True(index.Next())
+    index.Next() |> should be True
 
     index.Close()
+    db.CatalogMgr.DropTable tx "HITable"
+    tx.Commit()
 
 [<Fact>]
 let ``multi key`` () =
     let db =
-        newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createMultiKeyIndex db
@@ -147,34 +152,36 @@ let ``multi key`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    Assert.Equal(10, cnt)
+    cnt |> should equal 10
 
     SearchRange.newSearchRangeBySearchKey key21
     |> index.BeforeFirst
-    Assert.True(index.Next())
-    Assert.Equal(rid2, index.GetDataRecordId())
-    Assert.False(index.Next())
+    index.Next() |> should be True
+    index.GetDataRecordId() |> should equal rid2
+    index.Next() |> should be False
 
     SearchRange.newSearchRangeBySearchKey key12
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    Assert.Equal(17, cnt)
+    cnt |> should equal 17
 
     rids1
     |> Array.iter (fun id -> index.Delete false key11 id)
     SearchRange.newSearchRangeBySearchKey key11
     |> index.BeforeFirst
-    Assert.False(index.Next())
+    index.Next() |> should be False
 
     SearchRange.newSearchRangeBySearchKey key21
     |> index.BeforeFirst
-    Assert.True(index.Next())
+    index.Next() |> should be True
 
     SearchRange.newSearchRangeBySearchKey key12
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    Assert.Equal(24, cnt)
+    cnt |> should equal 24
 
     index.Close()
+    db.CatalogMgr.DropTable tx "HITable"
+    tx.Commit()

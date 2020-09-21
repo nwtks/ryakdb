@@ -30,12 +30,12 @@ let newCatalogManager fileMgr =
     { CreateTable = tableManager.CreateTable
       DropTable =
           fun tx tableName ->
-              tableManager.DropTable tx tableName
               indexManager.GetIndexedFields tx tableName
               |> List.collect (indexManager.GetIndexInfoByField tx tableName)
               |> List.iter (fun ii -> indexManager.DropIndex tx ii.IndexName)
               viewManager.GetViewNamesByTable tx tableName
               |> List.iter (viewManager.DropView tx)
+              tableManager.DropTable tx tableName
       GetTableInfo = tableManager.GetTableInfo
       CreateIndex = indexManager.CreateIndex
       DropIndex = indexManager.DropIndex

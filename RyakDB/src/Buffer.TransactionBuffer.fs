@@ -10,7 +10,6 @@ type TransactionBuffer =
       Unpin: Buffer -> unit
       UnpinAll: unit -> unit
       FlushAll: unit -> unit
-      FlushBuffers: unit -> unit
       Available: unit -> int32 }
 
 module TransactionBuffer =
@@ -128,10 +127,6 @@ module TransactionBuffer =
 
     let flushAll (bufferPool: BufferPool) = bufferPool.FlushAll()
 
-    let flushBuffers state =
-        state.BuffersToFlush
-        |> List.iter (fun b -> b.Flush())
-
     let unpinAll (bufferPool: BufferPool) state =
         state.PinningBuffers
         |> Map.iter (fun _ v -> bufferPool.Unpin v.Buffer)
@@ -161,5 +156,4 @@ let newTransactionBuffer bufferPool =
       Unpin = fun buffer -> state <- TransactionBuffer.unpin bufferPool state buffer
       UnpinAll = fun () -> state <- TransactionBuffer.unpinAll bufferPool state
       FlushAll = fun () -> TransactionBuffer.flushAll bufferPool
-      FlushBuffers = fun () -> TransactionBuffer.flushBuffers state
       Available = fun () -> bufferPool.Available() }

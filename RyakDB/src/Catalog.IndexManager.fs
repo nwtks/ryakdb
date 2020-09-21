@@ -2,8 +2,8 @@ module RyakDB.Catalog.IndexManager
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.TableFile
 open RyakDB.Index
+open RyakDB.Table.TableFile
 open RyakDB.Transaction
 open RyakDB.Catalog.TableManager
 

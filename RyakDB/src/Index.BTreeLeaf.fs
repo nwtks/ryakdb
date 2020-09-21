@@ -12,6 +12,7 @@ open RyakDB.Index.BTreeBranch
 type BTreeLeaf =
     { Next: unit -> bool
       GetDataRecordId: unit -> RecordId
+      GetCountOfRecords: unit -> int32
       Insert: RecordId -> BTreeBranchEntry option
       Delete: RecordId -> unit
       Close: unit -> unit }
@@ -166,9 +167,6 @@ module BTreeLeaf =
                       IsOverflowing = isOverflowing
                       OverflowFrom = overflowFrom
                       MoveFrom = moveFrom }
-            else if getKey currentPage slot keyType
-                    |> searchRange.BetweenMinAndMax then
-                loopNext currentPage slot isOverflowing overflowFrom moveFrom
             else
                 false,
                 { CurrentPage = currentPage
@@ -186,10 +184,11 @@ module BTreeLeaf =
         insertSlot txRecovery keyType state.CurrentPage searchKey recordId slot
 
         let overflow = getOverflowFlag state.CurrentPage
-        let splitKey = getKey state.CurrentPage 1 keyType
         if slot = 0
            && overflow <> -1L
-           && splitKey <> searchKey then
+           && getKey state.CurrentPage 1 keyType <> searchKey then
+            let splitKey = getKey state.CurrentPage 1 keyType
+
             let newBlockNo =
                 state.CurrentPage.Split
                     1
@@ -287,11 +286,11 @@ module BTreeLeaf =
                 let overflowPage =
                     initBTreePage txBuffer txConcurrency txRecovery schema blockId
 
-                let firstKey = getKey state.CurrentPage 0 keyType
                 if state.CurrentPage.GetCountOfRecords() = 0
                    || (overflowPage.GetCountOfRecords()
                        <> 0
-                       && firstKey <> getKey overflowPage 0 keyType) then
+                       && getKey state.CurrentPage 0 keyType
+                          <> getKey overflowPage 0 keyType) then
                     overflowPage.TransferRecords (overflowPage.GetCountOfRecords() - 1) state.CurrentPage 0 1
                     if overflowPage.GetCountOfRecords() = 0 then
                         let overflow = getOverflowFlag overflowPage
@@ -320,6 +319,7 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
               state <- newstate
               result
       GetDataRecordId = fun () -> BTreeLeaf.getDataRecordId dataFileName page state.CurrentSlot
+      GetCountOfRecords = fun () -> state.CurrentPage.GetCountOfRecords()
       Insert =
           fun recordId ->
               let result, nextSlot =

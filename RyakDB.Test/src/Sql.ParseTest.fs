@@ -21,34 +21,41 @@ let ``parse select`` () =
 
     match Parser.queryCommand sql with
     | QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields) ->
-        Assert.Equal
-            ([ "student_name"
-               "student_grade"
-               "count_of_sname"
-               "avg_of_score"
-               "sum_of_sid"
-               "max_of_grade"
-               "min_of_level" ],
-             projectionFields |> List.toSeq)
-        Assert.Equal([ "student"; "dept" ], tables |> List.toSeq)
-        Assert.Equal
-            (Predicate
-                ([ Term(EqualOperator, FieldNameExpression "name", ConstantExpression(DbConstant.newVarchar "Scott"))
-                   Term(EqualOperator, FieldNameExpression "sdid", FieldNameExpression "did") ]),
-             predicate)
-        Assert.Equal([ "student_grade"; "student_name" ], groupFields |> List.toSeq)
-        Assert.Equal
-            ([ CountFn("sname")
-               AvgFn("score")
-               SumFn("sid")
-               MaxFn("grade")
-               MinFn("level") ],
-             aggregationFns |> List.toSeq)
-        Assert.Equal
-            ([ SortField("sid", SortDesc)
-               SortField("dsid", SortAsc)
-               SortField("avg_of_score", SortAsc) ],
-             sortFields |> List.toSeq)
+        projectionFields
+        |> should
+            equal
+               [ "student_name"
+                 "student_grade"
+                 "count_of_sname"
+                 "avg_of_score"
+                 "sum_of_sid"
+                 "max_of_grade"
+                 "min_of_level" ]
+        tables |> should equal [ "student"; "dept" ]
+        predicate
+        |> should
+            equal
+               (Predicate [ Term
+                                (EqualOperator,
+                                 FieldNameExpression "name",
+                                 ConstantExpression(DbConstant.newVarchar "Scott"))
+                            Term(EqualOperator, FieldNameExpression "sdid", FieldNameExpression "did") ])
+        groupFields
+        |> should equal [ "student_grade"; "student_name" ]
+        aggregationFns
+        |> should
+            equal
+               [ CountFn("sname")
+                 AvgFn("score")
+                 SumFn("sid")
+                 MaxFn("grade")
+                 MinFn("level") ]
+        sortFields
+        |> should
+            equal
+               [ SortField("sid", SortDesc)
+                 SortField("dsid", SortAsc)
+                 SortField("avg_of_score", SortAsc) ]
 
 [<Fact>]
 let ``parse insert`` () =
@@ -61,15 +68,17 @@ let ``parse insert`` () =
 
     match Parser.updateCommand sql with
     | InsertData (tableName, fields, values) ->
-        Assert.Equal("test_lab", tableName)
-        Assert.Equal([ "id"; "name"; "l_budget"; "l_serial" ], fields |> List.toSeq)
-        Assert.Equal
-            ([ DoubleDbConstant(11.0)
-               DbConstant.newVarchar "net DB"
-               DoubleDbConstant(700.26)
-               DoubleDbConstant(-1234567891025.0) ],
-             values |> List.toSeq)
-    | _ -> Assert.True(false)
+        tableName |> should equal "test_lab"
+        fields
+        |> should equal [ "id"; "name"; "l_budget"; "l_serial" ]
+        values
+        |> should
+            equal
+               [ DoubleDbConstant(11.0)
+                 DbConstant.newVarchar "net DB"
+                 DoubleDbConstant(700.26)
+                 DoubleDbConstant(-1234567891025.0) ]
+    | _ -> failwith "cant parse insert"
 
 [<Fact>]
 let ``parse update`` () =
@@ -81,36 +90,40 @@ let ``parse update`` () =
 
     match Parser.updateCommand sql with
     | ModifyData (tableName, predicate, fields) ->
-        Assert.Equal("class_room", tableName)
-        Assert.Equal
-            ([ "days"
-               "level"
-               "rate"
-               "summary"
-               "use" ],
-             fields |> Map.toSeq |> Seq.map (fun (k, _) -> k))
-        Assert.Equal
-            (BinaryArithmeticExpression
-                (AddOperator, FieldNameExpression "days", ConstantExpression(DoubleDbConstant 2.0)),
-             fields.["days"])
-        Assert.Equal
-            (BinaryArithmeticExpression
-                (MulOperator, ConstantExpression(DoubleDbConstant 0.2), FieldNameExpression "rate"),
-             fields.["rate"])
-        Assert.Equal(ConstantExpression(DbConstant.newVarchar "yes"), fields.["use"])
-        Assert.Equal
-            (BinaryArithmeticExpression
-                (SubOperator, FieldNameExpression "level", ConstantExpression(DoubleDbConstant 1.0)),
-             fields.["level"])
-        Assert.Equal
-            (BinaryArithmeticExpression(DivOperator, FieldNameExpression "total", FieldNameExpression "cnt"),
-             fields.["summary"])
-        Assert.Equal
-            (Predicate
-                ([ Term(GraterThanEqualOperator, FieldNameExpression "cid", ConstantExpression(DoubleDbConstant 2165.0))
-                   Term(LessThanEqualOperator, FieldNameExpression "sid", ConstantExpression(DoubleDbConstant 25000.0)) ]),
-             predicate)
-    | _ -> Assert.True(false)
+        tableName |> should equal "class_room"
+        fields.["days"]
+        |> should
+            equal
+               (BinaryArithmeticExpression
+                   (AddOperator, FieldNameExpression "days", ConstantExpression(DoubleDbConstant 2.0)))
+        fields.["rate"]
+        |> should
+            equal
+               (BinaryArithmeticExpression
+                   (MulOperator, ConstantExpression(DoubleDbConstant 0.2), FieldNameExpression "rate"))
+        fields.["use"]
+        |> should equal (ConstantExpression(DbConstant.newVarchar "yes"))
+        fields.["level"]
+        |> should
+            equal
+               (BinaryArithmeticExpression
+                   (SubOperator, FieldNameExpression "level", ConstantExpression(DoubleDbConstant 1.0)))
+        fields.["summary"]
+        |> should
+            equal
+               (BinaryArithmeticExpression(DivOperator, FieldNameExpression "total", FieldNameExpression "cnt"))
+        predicate
+        |> should
+            equal
+               (Predicate [ Term
+                                (GraterThanEqualOperator,
+                                 FieldNameExpression "cid",
+                                 ConstantExpression(DoubleDbConstant 2165.0))
+                            Term
+                                (LessThanEqualOperator,
+                                 FieldNameExpression "sid",
+                                 ConstantExpression(DoubleDbConstant 25000.0)) ])
+    | _ -> failwith "cant parse update"
 
 [<Fact>]
 let ``parse delete`` () =
@@ -121,13 +134,17 @@ let ``parse delete`` () =
 
     match Parser.updateCommand sql with
     | DeleteData (tableName, predicate) ->
-        Assert.Equal("student", tableName)
-        Assert.Equal
-            (Predicate
-                ([ Term(LessThanOperator, FieldNameExpression "sid", ConstantExpression(DoubleDbConstant 555.0))
-                   Term(GraterThanOperator, FieldNameExpression "sdid", ConstantExpression(DoubleDbConstant 3021.0)) ]),
-             predicate)
-    | _ -> Assert.True(false)
+        tableName |> should equal "student"
+        predicate
+        |> should
+            equal
+               (Predicate [ Term
+                                (LessThanOperator, FieldNameExpression "sid", ConstantExpression(DoubleDbConstant 555.0))
+                            Term
+                                (GraterThanOperator,
+                                 FieldNameExpression "sdid",
+                                 ConstantExpression(DoubleDbConstant 3021.0)) ])
+    | _ -> failwith "cant parse delete"
 
 [<Fact>]
 let ``parse create table`` () =
@@ -141,12 +158,15 @@ let ``parse create table`` () =
 
     match Parser.updateCommand sql with
     | CreateTableData (tableName, schema) ->
-        Assert.Equal("enro11", tableName)
-        Assert.Equal(IntDbType, schema.DbType "eid")
-        Assert.Equal(BigIntDbType, schema.DbType "student_id")
-        Assert.Equal(BigIntDbType, schema.DbType "student_id")
-        Assert.Equal(DoubleDbType, schema.DbType "section_id")
-    | _ -> Assert.True(false)
+        tableName |> should equal "enro11"
+        schema.DbType "eid" |> should equal IntDbType
+        schema.DbType "student_id"
+        |> should equal BigIntDbType
+        schema.DbType "student_id"
+        |> should equal BigIntDbType
+        schema.DbType "section_id"
+        |> should equal DoubleDbType
+    | _ -> failwith "cant parse create table"
 
 [<Fact>]
 let ``parse create index`` () =
@@ -158,8 +178,38 @@ let ``parse create index`` () =
 
     match Parser.updateCommand sql with
     | CreateIndexData (indexName, indexType, tableName, fields) ->
-        Assert.Equal("idx1", indexName)
-        Assert.Equal(IndexType.BTree, indexType)
-        Assert.Equal("tbl1", tableName)
-        Assert.Equal([ "col5"; "col12"; "col8" ], fields |> List.toSeq)
-    | _ -> Assert.True(false)
+        indexName |> should equal "idx1"
+        indexType |> should equal IndexType.BTree
+        tableName |> should equal "tbl1"
+        fields |> should equal [ "col5"; "col12"; "col8" ]
+    | _ -> failwith "cant parse create index"
+
+[<Fact>]
+let ``parse drop table`` () =
+    let sql = """
+        Drop table Tbl
+        """
+
+    match Parser.updateCommand sql with
+    | DropTableData (tableName) -> tableName |> should equal "tbl"
+    | _ -> failwith "cant parse drop table"
+
+[<Fact>]
+let ``parse drop index`` () =
+    let sql = """
+        DROP INDEX IDX1
+        """
+
+    match Parser.updateCommand sql with
+    | DropIndexData (indexName) -> indexName |> should equal "idx1"
+    | _ -> failwith "cant parse drop index"
+
+[<Fact>]
+let ``parse drop view`` () =
+    let sql = """
+        drop view v
+        """
+
+    match Parser.updateCommand sql with
+    | DropViewData (viewName) -> viewName |> should equal "v"
+    | _ -> failwith "cant parse drop view"

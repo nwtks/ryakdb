@@ -2,10 +2,10 @@ module RyakDB.Test.Index.BTreePageTest
 
 open Xunit
 open FsUnit.Xunit
-open RyakDB.Index.BTreePage
 open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
+open RyakDB.Index.BTreePage
 open RyakDB.Transaction
 open RyakDB.Database
 

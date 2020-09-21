@@ -1,5 +1,6 @@
 module RyakDB.Database
 
+open RyakDB.Task
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
 open RyakDB.Buffer.BufferPool
@@ -7,11 +8,10 @@ open RyakDB.Concurrency.LockTable
 open RyakDB.Transaction
 open RyakDB.TransactionManager
 open RyakDB.Recovery
-open RyakDB.Recovery.CheckpointTask
 open RyakDB.Recovery.SystemRecovery
+open RyakDB.Recovery.CheckpointTask
 open RyakDB.Catalog.CatalogManager
 open RyakDB.Execution.Planner
-open RyakDB.Task
 
 type Database =
     { FileMgr: FileManager

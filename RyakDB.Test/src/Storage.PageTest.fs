@@ -22,16 +22,20 @@ let ``write read append`` () =
 
     let p2 = newPage fileMgr
     p2.Read blk1
-    Assert.Equal(IntDbConstant 1234, p2.GetVal 0 IntDbType)
-    Assert.Equal(BigIntDbConstant 567890L, p2.GetVal 4 BigIntDbType)
-    Assert.Equal(1L, fileMgr.Size filename)
+    p2.GetVal 0 IntDbType
+    |> should equal (IntDbConstant 1234)
+    p2.GetVal 4 BigIntDbType
+    |> should equal (BigIntDbConstant 567890L)
+    fileMgr.Size filename |> should equal 1L
 
     let blk2 = p1.Append filename
     let p3 = newPage fileMgr
     p3.Read blk2
-    Assert.Equal(IntDbConstant 1234, p3.GetVal 0 IntDbType)
-    Assert.Equal(BigIntDbConstant 567890L, p3.GetVal 4 BigIntDbType)
-    Assert.Equal(2L, fileMgr.Size filename)
+    p3.GetVal 0 IntDbType
+    |> should equal (IntDbConstant 1234)
+    p3.GetVal 4 BigIntDbType
+    |> should equal (BigIntDbConstant 567890L)
+    fileMgr.Size filename |> should equal 2L
 
 [<Fact>]
 let ``extend file`` () =
@@ -42,9 +46,9 @@ let ``extend file`` () =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 false
 
     let blk1 = BlockId.newBlockId filename 14L
-    let p1 = Page.newPage fileMgr
+    let p1 = newPage fileMgr
     p1.Write blk1
-    Assert.Equal(15L, fileMgr.Size filename)
+    fileMgr.Size filename |> should equal 15L
 
 [<Fact>]
 let ``concurrent set`` () =
@@ -56,13 +60,14 @@ let ``concurrent set`` () =
     [ for i in 0 .. 10 ->
         async {
             for _ in 0 .. 100 do
-                pg.SetVal (i * 8) (BigIntDbConstant(int64 i))
+                pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
         } ]
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
     for i in 0 .. 10 do
-        Assert.Equal(BigIntDbConstant(int64 i), pg.GetVal (i * 8) BigIntDbType)
+        pg.GetVal (i * 8) BigIntDbType
+        |> should equal (int64 i |> BigIntDbConstant)
 
 [<Fact>]
 let ``concurrent get set`` () =
@@ -72,16 +77,17 @@ let ``concurrent get set`` () =
     let pg = newPage fileMgr
 
     for i in 0 .. 10 do
-        pg.SetVal (i * 8) (BigIntDbConstant(int64 i))
+        pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
 
     [ for i in 0 .. 10 ->
         [ async {
             for _ in 0 .. 100 do
-                pg.SetVal (i * 8) (BigIntDbConstant(int64 i))
+                pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
           }
           async {
               for _ in 0 .. 100 do
-                  Assert.Equal(BigIntDbConstant(int64 i), pg.GetVal (i * 8) BigIntDbType)
+                  pg.GetVal (i * 8) BigIntDbType
+                  |> should equal (int64 i |> BigIntDbConstant)
           } ] ]
     |> List.collect id
     |> Async.Parallel

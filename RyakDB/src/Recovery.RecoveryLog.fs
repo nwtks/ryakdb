@@ -2,8 +2,8 @@ module RyakDB.Recovery.RecoveryLog
 
 open RyakDB.DataType
 open RyakDB.Storage
-open RyakDB.Storage.Log
 open RyakDB.Index
+open RyakDB.Storage.Log
 
 type RecoveryLogOperation =
     | Start = -42

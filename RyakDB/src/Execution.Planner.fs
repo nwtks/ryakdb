@@ -5,11 +5,11 @@ open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Query.Predicate
 open RyakDB.Sql.Parse
-open RyakDB.Execution.Plan
-open RyakDB.Execution.MergeSort
-open RyakDB.Execution.Scan
 open RyakDB.Transaction
 open RyakDB.Catalog.CatalogManager
+open RyakDB.Execution.Scan
+open RyakDB.Execution.Plan
+open RyakDB.Execution.MergeSort
 
 type Planner =
     { CreateQueryPlan: Transaction -> string -> Plan

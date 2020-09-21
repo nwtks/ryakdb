@@ -18,10 +18,10 @@
     <Compile Include="src/Buffer.Buffer.fs" />
     <Compile Include="src/Buffer.BufferPool.fs" />
     <Compile Include="src/Buffer.TransactionBuffer.fs" />
-    <Compile Include="src/Recovery.RecoveryLog.fs" />
-    <Compile Include="src/Recovery.TransactionRecovery.fs" />
     <Compile Include="src/Concurrency.LockTable.fs" />
     <Compile Include="src/Concurrency.TransactionConcurrency.fs" />
+    <Compile Include="src/Recovery.RecoveryLog.fs" />
+    <Compile Include="src/Recovery.TransactionRecovery.fs" />
     <Compile Include="src/Table.SlottedPage.fs" />
     <Compile Include="src/Table.TableFile.fs" />
     <Compile Include="src/Index.HashIndex.fs" />

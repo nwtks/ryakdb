@@ -1,12 +1,12 @@
 module RyakDB.Execution.MergeSort
 
 open RyakDB.DataType
-open RyakDB.Storage.File
 open RyakDB.Table
+open RyakDB.Query
+open RyakDB.Storage.File
 open RyakDB.Table.SlottedPage
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
-open RyakDB.Query
 open RyakDB.Execution.Scan
 
 module BufferNeeds =

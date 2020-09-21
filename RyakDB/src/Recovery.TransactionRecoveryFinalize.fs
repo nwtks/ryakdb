@@ -2,10 +2,10 @@ module RyakDB.Recovery.TransactionRecoveryFinalize
 
 open RyakDB.Storage.Log
 open RyakDB.Table
-open RyakDB.Table.TableFile
 open RyakDB.Index
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
+open RyakDB.Table.TableFile
 open RyakDB.Index.BTreeBranch
 open RyakDB.Index.BTreeLeaf
 open RyakDB.Transaction

@@ -3,8 +3,8 @@ module RyakDB.Recovery.SystemRecovery
 open RyakDB.Storage.Log
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
-open RyakDB.Recovery.TransactionRecoveryFinalize
 open RyakDB.Transaction
+open RyakDB.Recovery.TransactionRecoveryFinalize
 
 module SystemRecovery =
     let redo tx recoveryLog =

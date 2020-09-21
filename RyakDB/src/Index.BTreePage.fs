@@ -2,13 +2,13 @@ module RyakDB.Index.BTreePage
 
 open RyakDB.DataType
 open RyakDB.Storage
-open RyakDB.Storage.Page
 open RyakDB.Table
-open RyakDB.Table.SlottedPage
+open RyakDB.Storage.Page
 open RyakDB.Buffer.Buffer
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Table.SlottedPage
 
 module BTreePageFormatter =
     let makeDefaultRecord schema (offsetMap: Map<string, int32>) buffer position =

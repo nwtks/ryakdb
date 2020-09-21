@@ -2,11 +2,11 @@ module RyakDB.Recovery.TransactionRecovery
 
 open RyakDB.DataType
 open RyakDB.Storage
+open RyakDB.Index
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
 open RyakDB.Buffer.Buffer
 open RyakDB.Recovery.RecoveryLog
-open RyakDB.Index
 
 type TransactionRecovery =
     { Checkpoint: int64 list -> LogSeqNo

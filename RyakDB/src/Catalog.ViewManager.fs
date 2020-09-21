@@ -1,8 +1,8 @@
 module RyakDB.Catalog.ViewManager
 
 open RyakDB.DataType
-open RyakDB.Sql.Parse
 open RyakDB.Table
+open RyakDB.Sql.Parse
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
 open RyakDB.Catalog.TableManager

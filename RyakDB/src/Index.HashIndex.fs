@@ -2,13 +2,13 @@ module RyakDB.Index.HashIndex
 
 open RyakDB.DataType
 open RyakDB.Storage
-open RyakDB.Storage.File
 open RyakDB.Table
-open RyakDB.Table.TableFile
 open RyakDB.Index
+open RyakDB.Storage.File
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Table.TableFile
 
 module HashIndex =
     type HashIndexState =

@@ -2,10 +2,10 @@ module RyakDB.Execution.Scan
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.TableFile
-open RyakDB.Transaction
 open RyakDB.Query
 open RyakDB.Query.Predicate
+open RyakDB.Table.TableFile
+open RyakDB.Transaction
 open RyakDB.Execution.AggregationFnScan
 
 [<ReferenceEquality>]

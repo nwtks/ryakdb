@@ -13,7 +13,6 @@ type SearchRange =
       GetMin: unit -> SearchKey
       GetMax: unit -> SearchKey
       MatchsKey: SearchKey -> bool
-      BetweenMinAndMax: SearchKey -> bool
       IsSingleValue: unit -> bool
       ToSearchKey: unit -> SearchKey }
 
@@ -58,17 +57,47 @@ module SearchKeyType =
         |> SearchKeyType
 
 module SearchRange =
-    let inline newSearchRangeBySearchKey searchKey =
-        let (SearchKey searchKeyConstants) = searchKey
+    let isValid (ranges: DbConstantRange list) =
+        ranges |> List.forall (fun r -> r.IsValid())
 
-        { Size = fun () -> List.length searchKeyConstants
-          IsValid = fun () -> true
-          GetMin = fun () -> searchKey
-          GetMax = fun () -> searchKey
-          MatchsKey = fun key -> key = searchKey
-          BetweenMinAndMax = fun key -> key = searchKey
-          IsSingleValue = fun () -> true
-          ToSearchKey = fun () -> searchKey }
+    let getMin ranges =
+        ranges
+        |> List.map (fun r -> r.Low())
+        |> SearchKey.newSearchKey
+
+    let getMax ranges =
+        ranges
+        |> List.map (fun r -> r.High())
+        |> SearchKey.newSearchKey
+
+    let matchsKey ranges key =
+        let (SearchKey keyConstants) = key
+        List.length ranges = List.length keyConstants
+        && List.zip ranges keyConstants
+           |> List.forall (fun (r, c) -> r.Contains c)
+
+    let isSingleValue ranges =
+        ranges |> List.forall (fun r -> r.IsConstant())
+
+    let toSearchKey ranges =
+        ranges
+        |> List.map (fun r -> r.ToConstant())
+        |> SearchKey.newSearchKey
+
+    let newSearchRangeByRanges (ranges: DbConstantRange list) =
+        { Size = fun () -> List.length ranges
+          IsValid = fun () -> isValid ranges
+          GetMin = fun () -> getMin ranges
+          GetMax = fun () -> getMax ranges
+          MatchsKey = matchsKey ranges
+          IsSingleValue = fun () -> isSingleValue ranges
+          ToSearchKey = fun () -> toSearchKey ranges }
+
+    let newSearchRangeBySearchKey searchKey =
+        let (SearchKey searchKeyConstants) = searchKey
+        searchKeyConstants
+        |> List.map (fun c -> DbConstantRange.newConstantRange (DbConstant.dbType c) (Some c) true (Some c) true)
+        |> newSearchRangeByRanges
 
 module IndexInfo =
     let inline newIndexInfo indexName indexType tableInfo fieldNames =

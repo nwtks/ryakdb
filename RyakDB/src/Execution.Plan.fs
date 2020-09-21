@@ -1,9 +1,9 @@
 module RyakDB.Execution.Plan
 
 open RyakDB.Table
-open RyakDB.Transaction
 open RyakDB.Query
 open RyakDB.Query.Predicate
+open RyakDB.Transaction
 open RyakDB.Execution.Scan
 open RyakDB.Execution.AggregationFnScan
 

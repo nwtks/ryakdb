@@ -3,13 +3,13 @@ module RyakDB.Table.TableFile
 open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
-open RyakDB.Table.SlottedPage
 open RyakDB.Storage.File
 open RyakDB.Storage.Page
 open RyakDB.Buffer.Buffer
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Table.SlottedPage
 
 type TableFile =
     { GetVal: string -> DbConstant option

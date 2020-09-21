@@ -16,23 +16,9 @@ type DbConstantRange =
     { Low: unit -> DbConstant
       High: unit -> DbConstant
       IsValid: unit -> bool
-      HasLowerBound: unit -> bool
-      HasUpperBound: unit -> bool
-      IsLowInclusive: unit -> bool
-      IsHighInclusive: unit -> bool
-      Size: unit -> int32
-      ApplyLow: bool -> DbConstant -> DbConstantRange
-      ApplyHigh: bool -> DbConstant -> DbConstantRange
-      ApplyConstant: DbConstant -> DbConstantRange
       IsConstant: unit -> bool
       ToConstant: unit -> DbConstant
-      Contains: DbConstant -> bool
-      LessThan: DbConstant -> bool
-      GraterThan: DbConstant -> bool
-      IsOverlappingRange: DbConstantRange -> bool
-      ContainsRange: DbConstantRange -> bool
-      Intersect: DbConstantRange -> DbConstantRange
-      Union: DbConstantRange -> DbConstantRange }
+      Contains: DbConstant -> bool }
 
 module DbType =
     let inline argument t =
@@ -284,3 +270,66 @@ module DbConstant =
                  + lhs.ToString()
                  + " "
                  + rhs.ToString())
+
+module DbConstantRange =
+    let getLow dbType low includesLow =
+        match low with
+        | Some (l) when includesLow -> l
+        | _ -> DbType.minValue dbType
+
+    let getHigh dbType high includesHigh =
+        match high with
+        | Some (h) when includesHigh -> h
+        | _ -> DbType.maxValue dbType
+
+    let isValid low includesLow high includesHigh =
+        match low, high with
+        | Some (l), Some (h) ->
+            if includesLow && includesHigh then (DbConstant.compare l h) <= 0 else (DbConstant.compare l h) < 0
+        | _ -> true
+
+    let isConstant low includesLow high includesHigh =
+        match low, high with
+        | Some (l), Some (h) ->
+            includesLow
+            && includesHigh
+            && (DbConstant.compare l h) = 0
+        | _ -> false
+
+    let toConstant low includesLow high includesHigh =
+        if isConstant low includesLow high includesHigh
+        then Option.get low
+        else failwith "Not constant"
+
+    let contains low includesLow high includesHigh value =
+        if isValid low includesLow high includesHigh then
+            match low, high with
+            | Some (l), Some (h) ->
+                if includesLow && includesHigh then
+                    (DbConstant.compare l value)
+                    <= 0
+                    && (DbConstant.compare value h) <= 0
+                else if includesLow then
+                    (DbConstant.compare l value)
+                    <= 0
+                    && (DbConstant.compare value h) < 0
+                else if includesHigh then
+                    (DbConstant.compare l value) < 0
+                    && (DbConstant.compare value h) <= 0
+                else
+                    (DbConstant.compare l value) < 0
+                    && (DbConstant.compare value h) < 0
+            | Some (l), _ -> if includesLow then (DbConstant.compare l value) <= 0 else (DbConstant.compare l value) < 0
+            | _, Some (h) ->
+                if includesHigh then (DbConstant.compare value h) <= 0 else (DbConstant.compare value h) < 0
+            | _ -> true
+        else
+            false
+
+    let newConstantRange dbType low includesLow high includesHigh =
+        { Low = fun () -> getLow dbType low includesLow
+          High = fun () -> getHigh dbType high includesHigh
+          IsValid = fun () -> isValid low includesLow high includesHigh
+          IsConstant = fun () -> isConstant low includesLow high includesHigh
+          ToConstant = fun () -> toConstant low includesLow high includesHigh
+          Contains = fun value -> contains low includesLow high includesHigh value }
