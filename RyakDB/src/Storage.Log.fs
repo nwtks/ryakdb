@@ -39,7 +39,7 @@ module LogSeqNo =
 
 let inline newLogSeqNo blockNo offset = LogSeqNo(blockNo, offset)
 
-let inline newLogRecord blockNo offset page =
+let newLogRecord blockNo offset page =
     let mutable position = offset
 
     { LogSeqNo = newLogSeqNo blockNo (int64 offset)
@@ -111,7 +111,7 @@ module LogManager =
                 yield newLogRecord blockNo (position + PointerSize) readPage
         }
 
-    let append fileMgr logFileName logPage constants state =
+    let append fileMgr logFileName logPage state constants =
         let appendVal page position value =
             page.SetVal position value
             position + (Page.size value)
@@ -145,7 +145,7 @@ module LogManager =
         { nextstate with
               LastLogSeqNo = newLogSeqNo blockNo (int64 (position + PointerSize)) }
 
-    let flush logPage lsn state =
+    let flush logPage state lsn =
         if lsn >= state.LastFlushedLogSeqNo then flushLog logPage state else state
 
     let createNewLog logFileName logPage =
@@ -181,11 +181,11 @@ let newLogManager fileMgr logFileName =
           fun constants ->
               lock logPage (fun () ->
                   let nextstate =
-                      LogManager.append fileMgr logFileName logPage constants state
+                      LogManager.append fileMgr logFileName logPage state constants
 
                   state <- nextstate
                   state.LastLogSeqNo)
-      Flush = fun lsn -> lock logPage (fun () -> state <- LogManager.flush logPage lsn state)
+      Flush = fun lsn -> lock logPage (fun () -> state <- LogManager.flush logPage state lsn)
       RemoveAndCreateNewLog =
           fun () ->
               lock logPage (fun () ->

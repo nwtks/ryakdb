@@ -71,7 +71,7 @@ module SearchRange =
           ToSearchKey = fun () -> searchKey }
 
 module IndexInfo =
-    let newIndexInfo indexName indexType tableInfo fieldNames =
+    let inline newIndexInfo indexName indexType tableInfo fieldNames =
         { IndexName = indexName
           IndexType = indexType
           TableInfo = tableInfo

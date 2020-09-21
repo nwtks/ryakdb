@@ -61,17 +61,11 @@ module Page =
 
         contents |> FileBuffer.put off bytes
 
-    let inline read (fileMgr: FileManager) contents blockId = fileMgr.Read contents blockId
-
-    let inline write (fileMgr: FileManager) contents blockId = fileMgr.Write contents blockId
-
-    let inline append (fileMgr: FileManager) contents fileName = fileMgr.Append contents fileName
-
 let newPage fileMgr =
     let contents = newFileBuffer fileMgr.BlockSize
 
     { GetVal = fun offset dbType -> lock contents (fun () -> Page.getVal contents offset dbType)
       SetVal = fun offset value -> lock contents (fun () -> Page.setVal fileMgr contents offset value)
-      Read = fun blockId -> lock contents (fun () -> Page.read fileMgr contents blockId)
-      Write = fun blockId -> lock contents (fun () -> Page.write fileMgr contents blockId)
-      Append = fun fileName -> lock contents (fun () -> Page.append fileMgr contents fileName) }
+      Read = fun blockId -> lock contents (fun () -> fileMgr.Read contents blockId)
+      Write = fun blockId -> lock contents (fun () -> fileMgr.Write contents blockId)
+      Append = fun fileName -> lock contents (fun () -> fileMgr.Append contents fileName) }

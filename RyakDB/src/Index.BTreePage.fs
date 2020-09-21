@@ -177,22 +177,20 @@ module BTreePage =
 
     let transferRecords txRecovery schema buffer headerSize slotSize offsetMap start destPage destStart count =
         let countOfRecords = getCountOfRecords buffer
+        let destCountOfRecords = destPage.GetCountOfRecords()
 
         let minCount =
             System.Math.Min(count, countOfRecords - start)
 
-        let destCountOfRecords = destPage.GetCountOfRecords()
-        for i in 0 .. destCountOfRecords - 1 do
-            destPage.CopyRecord (destStart + i) (destStart + minCount + i)
+        for i in destCountOfRecords - 1 .. -1 .. destStart do
+            destPage.CopyRecord i (i + minCount)
         for i in 0 .. minCount - 1 do
             schema.Fields()
             |> List.iter (fun field ->
                 getVal schema buffer headerSize slotSize offsetMap (start + i) field
                 |> destPage.SetValueUnchecked (destStart + i) field)
-        for i in 0 .. destCountOfRecords - 2 do
-            if (start + minCount + i) < countOfRecords
-            then copyRecord txRecovery schema buffer headerSize slotSize offsetMap (start + minCount + i) (start + i)
-
+        for i in start + minCount .. countOfRecords - 1 do
+            copyRecord txRecovery schema buffer headerSize slotSize offsetMap i (i - minCount)
         setCountOfRecords txRecovery buffer (countOfRecords - minCount)
         destPage.SetCountOfRecords(destCountOfRecords + minCount)
 

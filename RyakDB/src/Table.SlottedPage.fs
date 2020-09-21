@@ -21,7 +21,7 @@ type SlottedPage =
       InsertIntoDeletedSlot: unit -> RecordId
       MoveToSlotNo: int32 -> unit
       CurrentSlotNo: unit -> int32
-      BlockId: unit -> BlockId
+      BlockId: BlockId
       GetDeletedRecordId: unit -> RecordId
       SetDeletedRecordId: RecordId -> unit }
 
@@ -332,7 +332,7 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
               match currentSlotNo with
               | Some (slotNo) -> slotNo
               | _ -> failwith "Closed page"
-      BlockId = fun () -> blockId
+      BlockId = blockId
       GetDeletedRecordId =
           fun () ->
               match currentSlotNo with

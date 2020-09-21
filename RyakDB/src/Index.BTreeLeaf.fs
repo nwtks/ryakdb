@@ -179,7 +179,7 @@ module BTreeLeaf =
 
         loopNext state.CurrentPage state.CurrentSlot state.IsOverflowing state.OverflowFrom state.MoveFrom
 
-    let insert txRecovery keyType searchRange recordId state =
+    let insert txRecovery keyType searchRange state recordId =
         if not (searchRange.IsSingleValue()) then failwith "Not supported"
         let searchKey = searchRange.ToSearchKey()
         let slot = state.CurrentSlot + 1
@@ -250,7 +250,7 @@ module BTreeLeaf =
         else
             None, slot
 
-    let delete txBuffer txConcurrency txRecovery dataFileName schema keyType searchRange recordId state =
+    let delete txBuffer txConcurrency txRecovery dataFileName schema keyType searchRange state recordId =
         let rec loopDelete state =
             let result, newstate =
                 next txBuffer txConcurrency txRecovery schema keyType searchRange state
@@ -323,7 +323,7 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
       Insert =
           fun recordId ->
               let result, nextSlot =
-                  BTreeLeaf.insert txRecovery keyType searchRange recordId state
+                  BTreeLeaf.insert txRecovery keyType searchRange state recordId
 
               state <- { state with CurrentSlot = nextSlot }
               result
@@ -338,6 +338,6 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
                       schema
                       keyType
                       searchRange
-                      recordId
                       state
+                      recordId
       Close = fun () -> state.CurrentPage.Close() }

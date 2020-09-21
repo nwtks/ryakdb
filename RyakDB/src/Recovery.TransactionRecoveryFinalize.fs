@@ -4,7 +4,6 @@ open RyakDB.Storage.Log
 open RyakDB.Table
 open RyakDB.Table.TableFile
 open RyakDB.Index
-open RyakDB.Index.IndexFactory
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
 open RyakDB.Index.BTreeBranch
@@ -86,7 +85,7 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
     | IndexDeleteEndRecord (n, inm, sk, bn, sid, start, _) ->
         catalogMgr.GetIndexInfoByName tx inm
         |> Option.bind (fun ii ->
-            let idx = newIndex fileMgr tx ii
+            let idx = IndexFactory.newIndex fileMgr tx ii
             RecordId.newBlockRecordId sid ii.TableInfo.FileName bn
             |> idx.Insert false sk
             idx.Close()
@@ -97,7 +96,7 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
         match optlsn with
         | Some lsn when lsn < buffer.LastLogSeqNo() ->
             if branch then deleteBTreeBranchSlot tx kt ibid sid else deleteBTreeLeafSlot tx kt ibid sid
-            tx.Recovery.LogIndexPageDeletionClr branch n ibid kt sid lsn
+            tx.Recovery.LogIndexPageDeletionClear branch n ibid kt sid lsn
             |> Option.iter logMgr.Flush
         | _ -> ()
         tx.Buffer.Unpin buffer
@@ -106,14 +105,14 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
         match optlsn with
         | Some lsn when lsn < buffer.LastLogSeqNo() ->
             if branch then insertBTreeBranchSlot tx kt ibid sid else insertBTreeLeafSlot tx kt ibid sid
-            tx.Recovery.LogIndexPageInsertionClr branch n ibid kt sid lsn
+            tx.Recovery.LogIndexPageInsertionClear branch n ibid kt sid lsn
             |> Option.iter logMgr.Flush
         | _ -> ()
         tx.Buffer.Unpin buffer
     | SetValueRecord (n, bid, off, _, v, _, optlsn) ->
         let buffer = tx.Buffer.Pin bid
         optlsn
-        |> Option.bind (tx.Recovery.LogSetValClr n buffer off v)
+        |> Option.bind (tx.Recovery.LogSetValClear n buffer off v)
         |> Option.iter logMgr.Flush
         buffer.SetVal off v None
         tx.Buffer.Unpin buffer
@@ -122,7 +121,7 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
 let rollback fileMgr logMgr catalogMgr tx =
     let undoLogRecord = undo fileMgr logMgr catalogMgr tx
 
-    let mutable txUnDoNextLSN = None
+    let mutable txUndoNextLogSeqNo = None
     let mutable inStart = false
 
     logMgr.Records()
@@ -130,44 +129,44 @@ let rollback fileMgr logMgr catalogMgr tx =
     |> Seq.filter (fun rlog -> transactionNo rlog = tx.TransactionNo)
     |> Seq.iter (fun rlog ->
         if not (inStart) then
-            match txUnDoNextLSN, getLogSeqNo rlog with
+            match txUndoNextLogSeqNo, getLogSeqNo rlog with
             | None, _ ->
                 match rlog with
                 | StartRecord (_) -> inStart <- true
-                | LogicalAbortRecord(logicalStartLSN = lsn) ->
+                | LogicalAbortRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | TableFileInsertEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | TableFileInsertEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | TableFileDeleteEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | TableFileDeleteEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | IndexInsertEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | IndexInsertEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | IndexDeleteEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
+                    txUndoNextLogSeqNo <- Some lsn
                 | _ -> undoLogRecord rlog
             | Some (lsn1), Some (lsn2) when lsn1 > lsn2 ->
                 match rlog with
                 | StartRecord (_) -> inStart <- true
-                | LogicalAbortRecord(logicalStartLSN = lsn) ->
+                | LogicalAbortRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | TableFileInsertEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | TableFileInsertEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | TableFileDeleteEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | TableFileDeleteEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | IndexInsertEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | IndexInsertEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
-                | IndexDeleteEndRecord(logicalStartLSN = lsn) ->
+                    txUndoNextLogSeqNo <- Some lsn
+                | IndexDeleteEndRecord(logicalStartLogSeqNo = lsn) ->
                     undoLogRecord rlog
-                    txUnDoNextLSN <- Some lsn
+                    txUndoNextLogSeqNo <- Some lsn
                 | _ -> undoLogRecord rlog
             | _, _ -> ())
 

@@ -10,7 +10,6 @@ open RyakDB.Index
 
 type TransactionRecovery =
     { Checkpoint: int64 list -> LogSeqNo
-      LogSetVal: Buffer -> int32 -> DbConstant -> LogSeqNo option
       LogLogicalStart: unit -> LogSeqNo option
       LogLogicalAbort: int64 -> LogSeqNo -> LogSeqNo option
       LogTableFileInsertionEnd: string -> int64 -> int32 -> LogSeqNo option
@@ -18,24 +17,15 @@ type TransactionRecovery =
       LogIndexInsertionEnd: string -> SearchKey -> int64 -> int32 -> LogSeqNo option
       LogIndexDeletionEnd: string -> SearchKey -> int64 -> int32 -> LogSeqNo option
       LogIndexPageInsertion: bool -> BlockId -> SearchKeyType -> int32 -> LogSeqNo option
+      LogIndexPageInsertionClear: bool -> int64 -> BlockId -> SearchKeyType -> int32 -> LogSeqNo -> LogSeqNo option
       LogIndexPageDeletion: bool -> BlockId -> SearchKeyType -> int32 -> LogSeqNo option
-      LogIndexPageInsertionClr: bool -> int64 -> BlockId -> SearchKeyType -> int32 -> LogSeqNo -> LogSeqNo option
-      LogIndexPageDeletionClr: bool -> int64 -> BlockId -> SearchKeyType -> int32 -> LogSeqNo -> LogSeqNo option
-      LogSetValClr: int64 -> Buffer -> int32 -> DbConstant -> LogSeqNo -> LogSeqNo option }
+      LogIndexPageDeletionClear: bool -> int64 -> BlockId -> SearchKeyType -> int32 -> LogSeqNo -> LogSeqNo option
+      LogSetVal: Buffer -> int32 -> DbConstant -> LogSeqNo option
+      LogSetValClear: int64 -> Buffer -> int32 -> DbConstant -> LogSeqNo -> LogSeqNo option }
 
 module TransactionRecovery =
     let checkpoint logMgr txNos =
         newCheckpointRecord txNos |> writeToLog logMgr
-
-    let logSetVal logMgr txNo buffer offset newVal =
-        let blockId = buffer.BlockId()
-        let (BlockId (fileName, _)) = blockId
-        if FileManager.isTempFile fileName then
-            None
-        else
-            newSetValueRecord txNo blockId offset (buffer.GetVal offset (DbConstant.dbType newVal)) newVal
-            |> writeToLog logMgr
-            |> Some
 
     let logLogicalStart logMgr txNo =
         newLogicalStartRecord txNo
@@ -84,28 +74,38 @@ module TransactionRecovery =
         |> writeToLog logMgr
         |> Some
 
+    let logIndexPageInsertionClear logMgr isBranch compTxNo indexBlkId keyType slotId undoNextLSN =
+        newIndexPageInsertClear isBranch compTxNo indexBlkId keyType slotId undoNextLSN
+        |> writeToLog logMgr
+        |> Some
+
     let logIndexPageDeletion logMgr txNo isBranch indexBlkId keyType slotId =
         newIndexPageDeleteRecord isBranch txNo indexBlkId keyType slotId
         |> writeToLog logMgr
         |> Some
 
-    let logIndexPageInsertionClr logMgr isBranch compTxNo indexBlkId keyType slotId undoNextLSN =
-        newIndexPageInsertClr isBranch compTxNo indexBlkId keyType slotId undoNextLSN
+    let logIndexPageDeletionClear logMgr isBranch compTxNo indexBlkId keyType slotId undoNextLSN =
+        newIndexPageDeleteClear isBranch compTxNo indexBlkId keyType slotId undoNextLSN
         |> writeToLog logMgr
         |> Some
 
-    let logIndexPageDeletionClr logMgr isBranch compTxNo indexBlkId keyType slotId undoNextLSN =
-        newIndexPageDeleteClr isBranch compTxNo indexBlkId keyType slotId undoNextLSN
-        |> writeToLog logMgr
-        |> Some
+    let logSetVal logMgr txNo buffer offset newVal =
+        let blockId = buffer.BlockId()
+        let (BlockId (fileName, _)) = blockId
+        if FileManager.isTempFile fileName then
+            None
+        else
+            newSetValueRecord txNo blockId offset (buffer.GetVal offset (DbConstant.dbType newVal)) newVal
+            |> writeToLog logMgr
+            |> Some
 
-    let logSetValClr logMgr compTxNo buffer offset newVal undoNextLSN =
+    let logSetValClear logMgr compTxNo buffer offset newVal undoNextLSN =
         let blk = buffer.BlockId()
         let (BlockId (fileName, _)) = blk
         if FileManager.isTempFile fileName then
             None
         else
-            newSetValueClr compTxNo blk offset (buffer.GetVal offset (DbConstant.dbType newVal)) newVal undoNextLSN
+            newSetValueClear compTxNo blk offset (buffer.GetVal offset (DbConstant.dbType newVal)) newVal undoNextLSN
             |> writeToLog logMgr
             |> Some
 
@@ -115,7 +115,6 @@ let newTransactionRecovery logMgr txNo isReadOnly =
 
     let mutable logicalStartLogSeqNo = None
     { Checkpoint = TransactionRecovery.checkpoint logMgr
-      LogSetVal = TransactionRecovery.logSetVal logMgr txNo
       LogLogicalStart =
           fun () ->
               let lsn =
@@ -167,7 +166,8 @@ let newTransactionRecovery logMgr txNo isReadOnly =
               logicalStartLogSeqNo <- None
               lsn
       LogIndexPageInsertion = TransactionRecovery.logIndexPageInsertion logMgr txNo
+      LogIndexPageInsertionClear = TransactionRecovery.logIndexPageInsertionClear logMgr
       LogIndexPageDeletion = TransactionRecovery.logIndexPageDeletion logMgr txNo
-      LogIndexPageInsertionClr = TransactionRecovery.logIndexPageInsertionClr logMgr
-      LogIndexPageDeletionClr = TransactionRecovery.logIndexPageDeletionClr logMgr
-      LogSetValClr = TransactionRecovery.logSetValClr logMgr }
+      LogIndexPageDeletionClear = TransactionRecovery.logIndexPageDeletionClear logMgr
+      LogSetVal = TransactionRecovery.logSetVal logMgr txNo
+      LogSetValClear = TransactionRecovery.logSetValClear logMgr }

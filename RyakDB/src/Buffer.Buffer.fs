@@ -45,7 +45,7 @@ module Buffer =
 
         page.GetVal (DataStartOffset + offset) dbType
 
-    let setVal page bufferSize offset value lsn state =
+    let setVal page bufferSize state offset value lsn =
         if 0 > offset || offset >= bufferSize
         then failwith ("Out of bounds:" + offset.ToString())
 
@@ -79,7 +79,7 @@ module Buffer =
             else
                 state)
 
-    let assignToBlock logMgr page blockId state =
+    let assignToBlock logMgr page state blockId =
         let newstate = flush logMgr page state
         page.Read blockId
         { newstate with
@@ -87,7 +87,7 @@ module Buffer =
               Pins = 0
               LastLogSeqNo = LogSeqNo.readFromPage 0 page }
 
-    let assignToNew logMgr page buffer fileName formatter state =
+    let assignToNew logMgr page buffer state fileName formatter =
         let newstate = flush logMgr page state
         formatter buffer
         { newstate with
@@ -113,7 +113,7 @@ let newBuffer fileMgr logMgr =
           GetVal = Buffer.getVal page bufferSize
           SetVal =
               fun offset value lsn ->
-                  lock internalLock (fun () -> state <- Buffer.setVal page bufferSize offset value lsn state)
+                  lock internalLock (fun () -> state <- Buffer.setVal page bufferSize state offset value lsn)
           LastLogSeqNo = fun () -> state.LastLogSeqNo
           BlockId = fun () -> state.BlockId
           SetValue = fun offset value -> lock internalLock (fun () -> Buffer.setValue page bufferSize offset value)
@@ -123,9 +123,9 @@ let newBuffer fileMgr logMgr =
           Flush = fun () -> lock internalLock (fun () -> state <- Buffer.flush logMgr page state)
           LockFlushing = lock state
           AssignToBlock =
-              fun blockId -> lock internalLock (fun () -> state <- Buffer.assignToBlock logMgr page blockId state)
+              fun blockId -> lock internalLock (fun () -> state <- Buffer.assignToBlock logMgr page state blockId)
           AssignToNew =
               fun fileName formatter ->
-                  lock internalLock (fun () -> state <- Buffer.assignToNew logMgr page buffer fileName formatter state) }
+                  lock internalLock (fun () -> state <- Buffer.assignToNew logMgr page buffer state fileName formatter) }
 
     buffer
