@@ -59,7 +59,7 @@ let ``concurrent set`` () =
 
     [ for i in 0 .. 10 ->
         async {
-            for _ in 0 .. 100 do
+            for _ in 0 .. 99 do
                 pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
         } ]
     |> Async.Parallel
@@ -81,11 +81,11 @@ let ``concurrent get set`` () =
 
     [ for i in 0 .. 10 ->
         [ async {
-            for _ in 0 .. 100 do
+            for _ in 0 .. 99 do
                 pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
           }
           async {
-              for _ in 0 .. 100 do
+              for _ in 0 .. 99 do
                   pg.GetVal (i * 8) BigIntDbType
                   |> should equal (int64 i |> BigIntDbConstant)
           } ] ]

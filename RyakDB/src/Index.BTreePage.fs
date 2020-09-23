@@ -27,7 +27,7 @@ let newBTreePageFormatter schema flags =
             buffer.SetValue position (BigIntDbConstant f)
             position <- position + 8)
         let slotSize = SlottedPage.slotSize schema
-        for pos in position .. slotSize .. (buffer.BufferSize - slotSize) do
+        for pos in position .. slotSize .. buffer.BufferSize - slotSize - 1 do
             BTreePageFormatter.makeDefaultRecord schema offsetMap buffer pos
 
 type BTreePage =
@@ -244,14 +244,13 @@ module BTreePage =
         currentBuffer |> Option.iter txBuffer.Unpin
 
 let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFlags =
+    let headerSize = 4 + countOfFlags * 8
     let buffer = txBuffer.Pin blockId
     let offsetMap = SlottedPage.offsetMap schema
     let slotSize = BTreePage.slotSize schema buffer
 
     let countOfSlots =
-        (buffer.BufferSize - countOfFlags * 8) / slotSize
-
-    let headerSize = 4 + countOfFlags * 8
+        (buffer.BufferSize - headerSize) / slotSize
 
     let mutable currentBuffer = Some(buffer)
     { GetCountOfRecords =

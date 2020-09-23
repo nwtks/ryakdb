@@ -151,7 +151,7 @@ let ``concurrent buffer pin`` () =
 
     [ for _ in 0 .. 10 ->
         async {
-            for __ in 0 .. 1000 do
+            for __ in 0 .. 999 do
                 buff.Pin()
                 buff.Unpin()
         } ]

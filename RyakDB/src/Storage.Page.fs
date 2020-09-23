@@ -14,10 +14,10 @@ type Page =
 module Page =
     let ValSizeSize = 4
 
-    let inline maxSize dbType =
+    let maxSize dbType =
         if dbType |> DbType.isFixedSize then dbType |> DbType.maxSize else ValSizeSize + (dbType |> DbType.maxSize)
 
-    let inline size constant =
+    let size constant =
         let dbType = constant |> DbConstant.dbType
         if dbType |> DbType.isFixedSize
         then dbType |> DbType.maxSize

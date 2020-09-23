@@ -92,14 +92,14 @@ module DbConstant =
         | DoubleDbConstant _ -> DoubleDbType
         | VarcharDbConstant (_, t) -> t
 
-    let inline toBytes c: byte [] =
+    let toBytes c: byte [] =
         match c with
         | IntDbConstant v -> System.BitConverter.GetBytes(v)
         | BigIntDbConstant v -> System.BitConverter.GetBytes(v)
         | DoubleDbConstant v -> System.BitConverter.GetBytes(v)
         | VarcharDbConstant (v, _) -> System.Text.UTF8Encoding().GetBytes(v)
 
-    let inline fromBytes dbType (bytes: byte []) =
+    let fromBytes dbType (bytes: byte []) =
         match dbType with
         | IntDbType ->
             System.BitConverter.ToInt32(System.ReadOnlySpan(bytes))
@@ -116,42 +116,42 @@ module DbConstant =
 
     let inline size c = (toBytes c).Length
 
-    let inline defaultConstant dbType =
+    let defaultConstant dbType =
         match dbType with
         | IntDbType -> DefaultInt
         | BigIntDbType -> DefaultBigInt
         | DoubleDbType -> DefaultDouble
         | VarcharDbType _ -> DefaultVarchar
 
-    let inline toInt value =
+    let toInt value =
         match value with
         | IntDbConstant v -> v
         | BigIntDbConstant v -> int32 v
         | DoubleDbConstant v -> int32 v
         | _ -> failwith ("Can't cast " + value.ToString() + " to int")
 
-    let inline toLong value =
+    let toLong value =
         match value with
         | IntDbConstant v -> int64 v
         | BigIntDbConstant v -> v
         | DoubleDbConstant v -> int64 v
         | _ -> failwith ("Can't cast " + value.ToString() + " to long")
 
-    let inline toDouble value =
+    let toDouble value =
         match value with
         | IntDbConstant v -> double v
         | BigIntDbConstant v -> double v
         | DoubleDbConstant v -> v
         | _ -> failwith ("Can't cast " + value.ToString() + " to double")
 
-    let inline toString value =
+    let toString value =
         match value with
         | IntDbConstant v -> v.ToString()
         | BigIntDbConstant v -> v.ToString()
         | DoubleDbConstant v -> v.ToString()
         | VarcharDbConstant (v, _) -> v
 
-    let inline castTo dbType value =
+    let castTo dbType value =
         match value, dbType with
         | IntDbConstant _, IntDbType -> value
         | IntDbConstant v, BigIntDbType -> int64 v |> BigIntDbConstant
@@ -173,7 +173,7 @@ module DbConstant =
                  + " to "
                  + dbType.ToString())
 
-    let inline compare lhs rhs =
+    let compare lhs rhs =
         let compareValue v1 v2 =
             if v1 < v2 then -1
             elif v1 > v2 then 1
@@ -197,7 +197,7 @@ module DbConstant =
                  + " "
                  + rhs.ToString())
 
-    let inline add lhs rhs =
+    let add lhs rhs =
         match lhs, rhs with
         | IntDbConstant lv, IntDbConstant rv -> lv + rv |> IntDbConstant
         | BigIntDbConstant lv, BigIntDbConstant rv -> lv + rv |> BigIntDbConstant
@@ -217,7 +217,7 @@ module DbConstant =
                  + " "
                  + rhs.ToString())
 
-    let inline sub lhs rhs =
+    let sub lhs rhs =
         match lhs, rhs with
         | IntDbConstant lv, IntDbConstant rv -> lv - rv |> IntDbConstant
         | BigIntDbConstant lv, BigIntDbConstant rv -> lv - rv |> BigIntDbConstant
@@ -235,7 +235,7 @@ module DbConstant =
                  + " "
                  + rhs.ToString())
 
-    let inline mul lhs rhs =
+    let mul lhs rhs =
         match lhs, rhs with
         | IntDbConstant lv, IntDbConstant rv -> lv * rv |> IntDbConstant
         | BigIntDbConstant lv, BigIntDbConstant rv -> lv * rv |> BigIntDbConstant
@@ -253,7 +253,7 @@ module DbConstant =
                  + " "
                  + rhs.ToString())
 
-    let inline div lhs rhs =
+    let div lhs rhs =
         match lhs, rhs with
         | IntDbConstant lv, IntDbConstant rv -> lv / rv |> IntDbConstant
         | BigIntDbConstant lv, BigIntDbConstant rv -> lv / rv |> BigIntDbConstant
@@ -304,24 +304,16 @@ module DbConstantRange =
     let contains low includesLow high includesHigh value =
         if isValid low includesLow high includesHigh then
             match low, high with
-            | Some (l), Some (h) ->
-                if includesLow && includesHigh then
-                    (DbConstant.compare l value)
-                    <= 0
-                    && (DbConstant.compare value h) <= 0
-                else if includesLow then
-                    (DbConstant.compare l value)
-                    <= 0
-                    && (DbConstant.compare value h) < 0
-                else if includesHigh then
-                    (DbConstant.compare l value) < 0
-                    && (DbConstant.compare value h) <= 0
-                else
-                    (DbConstant.compare l value) < 0
-                    && (DbConstant.compare value h) < 0
-            | Some (l), _ -> if includesLow then (DbConstant.compare l value) <= 0 else (DbConstant.compare l value) < 0
-            | _, Some (h) ->
-                if includesHigh then (DbConstant.compare value h) <= 0 else (DbConstant.compare value h) < 0
+            | Some (l), _ when includesLow
+                               && (DbConstant.compare l value) > 0
+                               || not (includesLow)
+                                  && (DbConstant.compare l value)
+                                  >= 0 -> false
+            | _, Some (h) when includesHigh
+                               && (DbConstant.compare value h) > 0
+                               || not (includesHigh)
+                                  && (DbConstant.compare value h)
+                                  >= 0 -> false
             | _ -> true
         else
             false

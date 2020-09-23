@@ -19,25 +19,25 @@ type TableInfo =
 type RecordId = RecordId of slotNo: int32 * blockId: BlockId
 
 module Schema =
-    let inline addField (fieldTypes: Map<string, DbType>) fieldName dbType = fieldTypes.Add(fieldName, dbType)
+    let addField (fieldTypes: Map<string, DbType>) fieldName dbType = fieldTypes.Add(fieldName, dbType)
 
-    let inline add (fieldTypes: Map<string, DbType>) fieldName schema =
+    let add (fieldTypes: Map<string, DbType>) fieldName schema =
         fieldTypes.Add(fieldName, schema.DbType fieldName)
 
-    let inline addAll fieldTypes schema =
+    let addAll fieldTypes schema =
         schema.Fields()
         |> List.fold (fun st f -> add st f schema) fieldTypes
 
-    let inline fields fieldTypes =
+    let fields fieldTypes =
         fieldTypes
         |> Map.toList
         |> List.map (fun (k, _) -> k)
 
-    let inline hasField (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.ContainsKey fieldName
+    let hasField (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.ContainsKey fieldName
 
-    let inline dbType (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.[fieldName]
+    let dbType (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.[fieldName]
 
-    let inline newSchema () =
+    let newSchema () =
         let mutable fieldTypes = Map.empty
 
         { AddField = fun fieldName dbType -> fieldTypes <- addField fieldTypes fieldName dbType

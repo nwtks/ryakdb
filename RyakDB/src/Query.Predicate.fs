@@ -26,7 +26,7 @@ type Term = Term of op: TermOperator * lhs: Expression * rhs: Expression
 type Predicate = Predicate of terms: Term list
 
 module BinaryArithmeticOperator =
-    let inline operate lhs rhs op =
+    let operate lhs rhs op =
         match op with
         | AddOperator -> DbConstant.add lhs rhs
         | SubOperator -> DbConstant.sub lhs rhs
@@ -50,7 +50,7 @@ module Expression =
             |> isApplicableTo schema
             && rhs |> isApplicableTo schema
 
-    let inline fieldName exp =
+    let fieldName exp =
         match exp with
         | FieldNameExpression fn -> Some fn
         | _ -> None
@@ -65,7 +65,7 @@ module Expression =
         | _ -> None
 
 module TermOperator =
-    let inline isSatisfied record lhs rhs op =
+    let isSatisfied record lhs rhs op =
         match op with
         | EqualOperator ->
             DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record) = 0
@@ -80,7 +80,7 @@ module TermOperator =
             DbConstant.compare (lhs |> Expression.evaluate record) (rhs |> Expression.evaluate record)
             <= 0
 
-    let inline complement op =
+    let complement op =
         match op with
         | EqualOperator -> EqualOperator
         | GraterThanOperator -> LessThanOperator
@@ -89,27 +89,27 @@ module TermOperator =
         | LessThanEqualOperator -> GraterThanEqualOperator
 
 module Term =
-    let inline isSatisfied record (Term (op, lhs, rhs)) =
+    let isSatisfied record (Term (op, lhs, rhs)) =
         TermOperator.isSatisfied record lhs rhs op
 
-    let inline isApplicableTo schema (Term (_, lhs, rhs)) =
+    let isApplicableTo schema (Term (_, lhs, rhs)) =
         lhs
         |> Expression.isApplicableTo schema
         && rhs |> Expression.isApplicableTo schema
 
-    let inline operator fieldName (Term (op, lhs, rhs)) =
+    let operator fieldName (Term (op, lhs, rhs)) =
         match lhs |> Expression.fieldName, rhs |> Expression.fieldName with
         | Some lfn, _ when fieldName = lfn -> Some op
         | _, Some rfn when fieldName = rfn -> TermOperator.complement op |> Some
         | _ -> None
 
-    let inline oppositeField fieldName (Term (_, lhs, rhs)) =
+    let oppositeField fieldName (Term (_, lhs, rhs)) =
         match lhs |> Expression.fieldName, rhs |> Expression.fieldName with
         | Some lfn, Some rfh when fieldName = lfn -> Some rfh
         | Some lfn, Some rfn when fieldName = rfn -> Some lfn
         | _ -> None
 
-    let inline oppositeConstant fieldName (Term (_, lhs, rhs)) =
+    let oppositeConstant fieldName (Term (_, lhs, rhs)) =
         match lhs |> Expression.fieldName,
               rhs |> Expression.fieldName,
               lhs |> Expression.constant,
@@ -119,12 +119,12 @@ module Term =
         | _ -> None
 
 module Predicate =
-    let inline isSatisfied record (Predicate terms) =
+    let isSatisfied record (Predicate terms) =
         terms |> List.forall (Term.isSatisfied record)
 
-    let inline selectPredicate schema (Predicate terms) =
+    let selectPredicate schema (Predicate terms) =
         terms
         |> List.filter (Term.isApplicableTo schema)
         |> Predicate
 
-    let inline conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate
+    let conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate

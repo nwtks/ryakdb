@@ -50,9 +50,9 @@ module SlottedPage =
         FlagSize
         + if pos < DeletedSlotSize then DeletedSlotSize else pos
 
-    let inline currentPosition slotSize currentSlotNo = currentSlotNo * slotSize
+    let currentPosition slotSize currentSlotNo = currentSlotNo * slotSize
 
-    let inline fieldPosition (offsetMap: Map<string, int32>) slotSize currentSlotNo fieldName =
+    let fieldPosition (offsetMap: Map<string, int32>) slotSize currentSlotNo fieldName =
         (currentPosition slotSize currentSlotNo)
         + FlagSize
         + offsetMap.[fieldName]
@@ -73,7 +73,7 @@ module SlottedPage =
         |> currentBuffer.SetVal offset value
 
     let searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo flag =
-        let inline isValidSlot slotNo =
+        let isValidSlot slotNo =
             (currentPosition slotSize slotNo)
             + slotSize
             <= currentBuffer.BufferSize
@@ -91,7 +91,7 @@ module SlottedPage =
 
         loopSearchFor blockId currentSlotNo
 
-    let inline getVal txConcurrency schema currentBuffer blockId offsetMap slotSize currentSlotNo fieldName =
+    let getVal txConcurrency schema currentBuffer blockId offsetMap slotSize currentSlotNo fieldName =
         getValue
             txConcurrency
             currentBuffer
@@ -100,17 +100,7 @@ module SlottedPage =
             (fieldPosition offsetMap slotSize currentSlotNo fieldName)
             (schema.DbType fieldName)
 
-    let inline setVal txConcurrency
-                      txRecovery
-                      doLog
-                      currentBuffer
-                      blockId
-                      offsetMap
-                      slotSize
-                      currentSlotNo
-                      fieldName
-                      value
-                      =
+    let setVal txConcurrency txRecovery doLog currentBuffer blockId offsetMap slotSize currentSlotNo fieldName value =
         setValue
             txConcurrency
             txRecovery
@@ -120,7 +110,7 @@ module SlottedPage =
             (fieldPosition offsetMap slotSize currentSlotNo fieldName)
             value
 
-    let inline getDeletedRecordId txConcurrency currentBuffer blockId slotSize currentSlotNo =
+    let getDeletedRecordId txConcurrency currentBuffer blockId slotSize currentSlotNo =
         let position =
             (currentPosition slotSize currentSlotNo)
             + FlagSize
@@ -156,7 +146,7 @@ module SlottedPage =
             (position + BlockId.BlockNoSize)
             (IntDbConstant slotNo)
 
-    let inline next txConcurrency currentBuffer blockId slotSize currentSlotNo =
+    let next txConcurrency currentBuffer blockId slotSize currentSlotNo =
         searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo InUseConst
 
     let insertIntoNextEmptySlot txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo =
@@ -229,7 +219,7 @@ module SlottedPage =
             EmptyConst
         setDeletedRecordId txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo nextDeletedSlot
 
-    let inline close txBuffer currentBuffer = currentBuffer |> txBuffer.Unpin
+    let close txBuffer currentBuffer = currentBuffer |> txBuffer.Unpin
 
 let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
     let slotSize = SlottedPage.slotSize tableInfo.Schema
@@ -366,6 +356,6 @@ let newSlottedPageFormatter tableInfo =
     let offsetMap = SlottedPage.offsetMap tableInfo.Schema
     let slotSize = SlottedPage.slotSize tableInfo.Schema
     fun buffer ->
-        for pos in 0 .. slotSize .. (buffer.BufferSize - slotSize) do
+        for pos in 0 .. slotSize .. buffer.BufferSize - slotSize - 1 do
             buffer.SetValue pos SlottedPage.EmptyConst
             SlottedPageFormatter.makeDefaultSlottedPage tableInfo offsetMap buffer pos

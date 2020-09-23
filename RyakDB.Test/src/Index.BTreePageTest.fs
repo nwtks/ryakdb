@@ -161,23 +161,23 @@ let split () =
     page1.GetCountOfRecords() |> should equal 21
 
     let blockId2 =
-        page1.Split 10 [ 100L ]
+        page1.Split 8 [ 100L ]
         |> BlockId.newBlockId filename
 
     let page2 =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId2 1
 
-    page1.GetCountOfRecords() |> should equal 10
-    for i in 0 .. 9 do
+    page1.GetCountOfRecords() |> should equal 8
+    for i in 0 .. 7 do
         page1.GetVal i "id"
         |> DbConstant.toInt
         |> should equal i
 
-    page2.GetCountOfRecords() |> should equal 11
+    page2.GetCountOfRecords() |> should equal 13
     page2.GetFlag 0 |> should equal 100L
-    for i in 0 .. 10 do
+    for i in 0 .. 12 do
         page2.GetVal i "id"
         |> DbConstant.toInt
-        |> should equal (i + 10)
+        |> should equal (i + 8)
 
     tx.Commit()

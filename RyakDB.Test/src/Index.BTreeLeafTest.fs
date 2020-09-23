@@ -130,7 +130,7 @@ let split () =
         (buffer.BufferSize - 8)
         / (BTreePage.slotSize (BTreeLeaf.keyTypeToSchema keyType) buffer)
 
-    let count = maxCount * 3 / 2
+    let count = maxCount * 2
 
     let mutable newEntry = None
     for i in 0 .. count do
@@ -191,7 +191,7 @@ let overflow () =
         (buffer.BufferSize - 8)
         / (BTreePage.slotSize (BTreeLeaf.keyTypeToSchema keyType) buffer)
 
-    let count = maxCount * 3 / 2
+    let count = maxCount * 2
 
     let insertRange =
         SearchKey.newSearchKey [ IntDbConstant 0 ]

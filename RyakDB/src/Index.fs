@@ -36,15 +36,27 @@ type Index =
       PreLoadToMemory: unit -> unit }
 
 module SearchKey =
+    let compare (SearchKey (key1)) (SearchKey (key2)) =
+        let rec loopCompare key1 key2 =
+            match key1, key2 with
+            | [], [] -> 0
+            | _, [] -> 1
+            | [], _ -> -1
+            | (h1 :: t1), (h2 :: t2) ->
+                let comp = DbConstant.compare h1 h2
+                if comp = 0 then loopCompare t1 t2 else comp
+
+        loopCompare key1 key2
+
     let inline newSearchKey constants = SearchKey constants
 
 module SearchKeyType =
-    let inline getMin (SearchKeyType types) =
+    let getMin (SearchKeyType types) =
         types
         |> List.map DbType.minValue
         |> SearchKey.newSearchKey
 
-    let inline getMax (SearchKeyType types) =
+    let getMax (SearchKeyType types) =
         types
         |> List.map DbType.maxValue
         |> SearchKey.newSearchKey

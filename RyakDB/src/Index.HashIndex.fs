@@ -73,8 +73,9 @@ module HashIndex =
     let next keyType state =
         let rec loopNext keyType (tableFile: TableFile) searchKey =
             if tableFile.Next() then
-                let key = getKey tableFile keyType
-                if searchKey = key then true else loopNext keyType tableFile searchKey
+                if SearchKey.compare searchKey (getKey tableFile keyType) = 0
+                then true
+                else loopNext keyType tableFile searchKey
             else
                 false
 

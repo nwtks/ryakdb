@@ -30,7 +30,7 @@ let ``concurrent buffer pool pin`` () =
             let blockId = BlockId.newBlockId filename (int64 i)
             [ for _ in 0 .. 9 ->
                 async {
-                    for _ in 0 .. 1000 do
+                    for _ in 0 .. 999 do
                         bufferPool.Pin blockId
                         |> Option.get
                         |> bufferPool.Unpin

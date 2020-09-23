@@ -20,8 +20,58 @@ module ViewManager =
     let VcatVdef = "view_def"
     let MaxViewDef = 300
 
+    let rec findVcatfileByViewName tf viewName =
+        if tf.Next() then
+            if tf.GetVal VcatVname
+               |> Option.map DbConstant.toString
+               |> Option.map (fun name -> name = viewName)
+               |> Option.defaultValue false then
+                tf.GetVal VcatVdef
+                |> Option.map DbConstant.toString
+            else
+                findVcatfileByViewName tf viewName
+        else
+            None
+
+    let findViewDefByViewName fileMgr tblMgr tx viewName =
+        tblMgr.GetTableInfo tx Vcat
+        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        |> Option.bind (fun tf ->
+            tf.BeforeFirst()
+            let viewDef = findVcatfileByViewName tf viewName
+            tf.Close()
+            viewDef)
+
+    let rec findVcatfileByTableName tf tableName viewNames =
+        if tf.Next() then
+            tf.GetVal VcatVdef
+            |> Option.map DbConstant.toString
+            |> Option.map Parser.queryCommand
+            |> Option.map (fun qd ->
+                let QueryData(tables = tables) = qd
+                tables)
+            |> Option.filter (List.contains tableName)
+            |> Option.bind (fun _ ->
+                tf.GetVal VcatVname
+                |> Option.map DbConstant.toString)
+            |> Option.map (fun viewName -> viewName :: viewNames)
+            |> Option.defaultValue viewNames
+            |> findVcatfileByTableName tf tableName
+        else
+            viewNames
+
+    let findViewNamestByTableName fileMgr tblMgr tx tableName =
+        tblMgr.GetTableInfo tx Vcat
+        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        |> Option.map (fun tf ->
+            tf.BeforeFirst()
+            let viewNames = findVcatfileByTableName tf tableName []
+            tf.Close()
+            viewNames)
+        |> Option.defaultValue []
+
     let createView fileMgr tblMgr tx viewName viewDef =
-        let createVcat tblMgr =
+        let createVcatfile tblMgr =
             tblMgr.GetTableInfo tx Vcat
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
@@ -30,80 +80,33 @@ module ViewManager =
                 tf.SetVal VcatVdef (DbConstant.newVarchar viewDef)
                 tf.Close())
 
-        createVcat tblMgr
+        createVcatfile tblMgr
 
     let dropView fileMgr tblMgr tx viewName =
-        let rec loopVcat tf viewName =
+        let rec deleteVcatfile tf viewName =
             if tf.Next() then
-                if tf.GetVal VcatVname |> Option.get = viewName
-                then tf.Delete()
-                loopVcat tf viewName
+                if tf.GetVal VcatVname
+                   |> Option.map DbConstant.toString
+                   |> Option.map (fun name -> name = viewName)
+                   |> Option.defaultValue false then
+                    tf.Delete()
+                deleteVcatfile tf viewName
 
         let dropVcat tblMgr =
             tblMgr.GetTableInfo tx Vcat
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.BeforeFirst()
-                loopVcat tf (DbConstant.newVarchar viewName)
+                deleteVcatfile tf viewName
                 tf.Close())
 
         dropVcat tblMgr
 
     let getViewDef fileMgr tblMgr tx viewName =
-        let rec loopVcat tf viewName =
-            if tf.Next() then
-                if tf.GetVal VcatVname |> Option.get = viewName then
-                    tf.GetVal VcatVdef
-                    |> Option.map DbConstant.toString
-                else
-                    loopVcat tf viewName
-            else
-                None
-
-        let findVcat tblMgr viewName =
-            tblMgr.GetTableInfo tx Vcat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.bind (fun tf ->
-                tf.BeforeFirst()
-
-                let tn =
-                    loopVcat tf (DbConstant.newVarchar viewName)
-
-                tf.Close()
-                tn)
-
-        findVcat tblMgr viewName
+        findViewDefByViewName fileMgr tblMgr tx viewName
 
     let getViewNamesByTable fileMgr tblMgr tx tableName =
-        let rec loopVcat tf tableName viewNames =
-            if tf.Next() then
-                tf.GetVal VcatVdef
-                |> Option.map DbConstant.toString
-                |> Option.map Parser.queryCommand
-                |> Option.map (fun qd ->
-                    let QueryData(tables = tables) = qd
-                    tables)
-                |> Option.filter (List.contains tableName)
-                |> Option.bind (fun _ ->
-                    tf.GetVal VcatVname
-                    |> Option.map DbConstant.toString)
-                |> Option.map (fun viewName -> viewName :: viewNames)
-                |> Option.defaultValue viewNames
-                |> loopVcat tf tableName
-            else
-                viewNames
-
-        let findVcat tblMgr tableName =
-            tblMgr.GetTableInfo tx Vcat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.map (fun tf ->
-                tf.BeforeFirst()
-                let viewNames = loopVcat tf tableName []
-                tf.Close()
-                viewNames)
-
-        findVcat tblMgr tableName
-        |> Option.defaultValue []
+        findViewNamestByTableName fileMgr tblMgr tx tableName
 
     let initViewManager tblMgr tx =
         let schema = Schema.newSchema ()

@@ -73,46 +73,46 @@ module LockTable =
                    =
         lockByTxMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
 
-    let inline isSLocked lockers = not (lockers.SLockers.IsEmpty)
+    let isSLocked lockers = not (lockers.SLockers.IsEmpty)
 
-    let inline isXLocked lockers = lockers.XLocker <> -1L
+    let isXLocked lockers = lockers.XLocker <> -1L
 
-    let inline isSIXLocked lockers = lockers.SIXLocker <> -1L
+    let isSIXLocked lockers = lockers.SIXLocker <> -1L
 
-    let inline isISLocked lockers = not (lockers.ISLockers.IsEmpty)
+    let isISLocked lockers = not (lockers.ISLockers.IsEmpty)
 
-    let inline isIXLocked lockers = not (lockers.IXLockers.IsEmpty)
+    let isIXLocked lockers = not (lockers.IXLockers.IsEmpty)
 
-    let inline hasSLock lockers txNo = lockers.SLockers.Contains txNo
+    let hasSLock lockers txNo = lockers.SLockers.Contains txNo
 
-    let inline hasXLock lockers txNo = lockers.XLocker = txNo
+    let hasXLock lockers txNo = lockers.XLocker = txNo
 
-    let inline hasSIXLock lockers txNo = lockers.SIXLocker = txNo
+    let hasSIXLock lockers txNo = lockers.SIXLocker = txNo
 
-    let inline hasISLock lockers txNo = lockers.ISLockers.Contains txNo
+    let hasISLock lockers txNo = lockers.ISLockers.Contains txNo
 
-    let inline hasIXLock lockers txNo = lockers.IXLockers.Contains txNo
+    let hasIXLock lockers txNo = lockers.IXLockers.Contains txNo
 
-    let inline isTheOnlySLocker lockers txNo =
+    let isTheOnlySLocker lockers txNo =
         lockers.SLockers.Count = 1
         && lockers.SLockers.Contains txNo
 
-    let inline isTheOnlyISLocker lockers txNo =
+    let isTheOnlyISLocker lockers txNo =
         lockers.ISLockers.Count = 1
         && lockers.ISLockers.Contains txNo
 
-    let inline isTheOnlyIXLocker lockers txNo =
+    let isTheOnlyIXLocker lockers txNo =
         lockers.IXLockers.Count = 1
         && lockers.IXLockers.Contains txNo
 
-    let inline isSLockable lockers txNo =
+    let isSLockable lockers txNo =
         (not (isXLocked lockers) || hasXLock lockers txNo)
         && (not (isSIXLocked lockers)
             || hasSIXLock lockers txNo)
         && (not (isIXLocked lockers)
             || isTheOnlyIXLocker lockers txNo)
 
-    let inline isXLockable lockers txNo =
+    let isXLockable lockers txNo =
         (not (isSLocked lockers)
          || isTheOnlySLocker lockers txNo)
         && (not (isXLocked lockers) || hasXLock lockers txNo)
@@ -123,7 +123,7 @@ module LockTable =
         && (not (isIXLocked lockers)
             || isTheOnlyIXLocker lockers txNo)
 
-    let inline isSIXLockable lockers txNo =
+    let isSIXLockable lockers txNo =
         (not (isSLocked lockers)
          || isTheOnlySLocker lockers txNo)
         && (not (isXLocked lockers) || hasXLock lockers txNo)
@@ -132,10 +132,10 @@ module LockTable =
         && (not (isIXLocked lockers)
             || isTheOnlyIXLocker lockers txNo)
 
-    let inline isISLockable lockers txNo =
+    let isISLockable lockers txNo =
         not (isXLocked lockers) || hasXLock lockers txNo
 
-    let inline isIXLockable lockers txNo =
+    let isIXLockable lockers txNo =
         (not (isSLocked lockers)
          || isTheOnlySLocker lockers txNo)
         && (not (isXLocked lockers) || hasXLock lockers txNo)

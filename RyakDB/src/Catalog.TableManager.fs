@@ -44,7 +44,7 @@ module TableManager =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
                    |> Option.map DbConstant.toString
-                   |> Option.map (fun tn -> tn = tableName)
+                   |> Option.map (fun name -> name = tableName)
                    |> Option.defaultValue false then
                     true
                 else
@@ -65,7 +65,7 @@ module TableManager =
             if fcatfile.Next() then
                 if fcatfile.GetVal FcatTableName
                    |> Option.map DbConstant.toString
-                   |> Option.map (fun tn -> tn = tableName)
+                   |> Option.map (fun name -> name = tableName)
                    |> Option.defaultValue false then
                     match fcatfile.GetVal FcatFieldName
                           |> Option.map DbConstant.toString,
@@ -138,7 +138,7 @@ module TableManager =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
                    |> Option.map DbConstant.toString
-                   |> Option.map (fun tn -> tn = tableName)
+                   |> Option.map (fun name -> name = tableName)
                    |> Option.defaultValue false then
                     tcatfile.Delete()
                 deleteTcatfile tcatfile
@@ -155,7 +155,7 @@ module TableManager =
             if fcatfile.Next() then
                 if fcatfile.GetVal FcatTableName
                    |> Option.map DbConstant.toString
-                   |> Option.map (fun tn -> tn = tableName)
+                   |> Option.map (fun name -> name = tableName)
                    |> Option.defaultValue false then
                     fcatfile.Delete()
                 deleteFcatfile fcatfile
