@@ -39,7 +39,7 @@ type BTreePage =
       GetFlag: int32 -> int64
       SetFlag: int32 -> int64 -> unit
       IsFull: unit -> bool
-      IsGettingFull: unit -> bool
+      WillFull: unit -> bool
       Insert: int32 -> unit
       Delete: int32 -> unit
       TransferRecords: int32 -> BTreePage -> int32 -> int32 -> unit
@@ -49,6 +49,15 @@ type BTreePage =
       Close: unit -> unit }
 
 module BTreePage =
+    let appendBlock txBuffer txConcurrency schema fileName flags =
+        txConcurrency.ModifyFile fileName
+
+        let buff =
+            txBuffer.PinNew fileName (newBTreePageFormatter schema flags)
+
+        txBuffer.Unpin buff
+        buff.BlockId()
+
     let slotSize schema buffer =
         let size =
             schema.Fields()
@@ -137,7 +146,7 @@ module BTreePage =
         |> slotPosition headerSize slotSize
         >= buffer.BufferSize
 
-    let isGettingFull buffer headerSize slotSize =
+    let willFull buffer headerSize slotSize =
         (getCountOfRecords buffer)
         + 2
         |> slotPosition headerSize slotSize
@@ -194,16 +203,6 @@ module BTreePage =
         setCountOfRecords txRecovery buffer (countOfRecords - minCount)
         destPage.SetCountOfRecords(destCountOfRecords + minCount)
 
-    let appendBlock txBuffer txConcurrency schema (BlockId (filename, _)) flags =
-        txConcurrency.ModifyFile filename
-
-        let buffer =
-            newBTreePageFormatter schema flags
-            |> txBuffer.PinNew filename
-
-        txBuffer.Unpin buffer
-        buffer.BlockId()
-
     let split txBuffer
               txConcurrency
               txRecovery
@@ -218,9 +217,10 @@ module BTreePage =
               flags
               =
         let countOfRecords = getCountOfRecords buffer
+        let (BlockId (filename, _)) = blockId
 
         let newBlockId =
-            appendBlock txBuffer txConcurrency schema blockId flags
+            appendBlock txBuffer txConcurrency schema filename flags
 
         let newPage =
             newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (List.length flags)
@@ -300,10 +300,10 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
               match currentBuffer with
               | Some (buffer) -> BTreePage.isFull buffer headerSize slotSize
               | _ -> failwith "Closed page"
-      IsGettingFull =
+      WillFull =
           fun () ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.isGettingFull buffer headerSize slotSize
+              | Some (buffer) -> BTreePage.willFull buffer headerSize slotSize
               | _ -> failwith "Closed page"
       Insert =
           fun slot ->

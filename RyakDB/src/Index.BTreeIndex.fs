@@ -4,7 +4,6 @@ open RyakDB.Storage
 open RyakDB.Storage.File
 open RyakDB.Table
 open RyakDB.Index
-open RyakDB.Buffer.Buffer
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
@@ -16,15 +15,6 @@ module BTreeIndex =
     let fileSize (fileMgr: FileManager) txConcurrency fileName =
         txConcurrency.ReadFile fileName
         fileMgr.Size fileName
-
-    let appendBlock txBuffer txConcurrency fileName schema flags =
-        txConcurrency.ModifyFile fileName
-
-        let buff =
-            txBuffer.PinNew fileName (newBTreePageFormatter schema flags)
-
-        txBuffer.Unpin buff
-        buff.BlockId
 
     let getRoot txBuffer txConcurrency txRecovery keyType branchFileName =
         newBTreeBranch txBuffer txConcurrency txRecovery (BlockId.newBlockId branchFileName 0L) keyType
@@ -108,27 +98,27 @@ module BTreeIndex =
                 (SearchRange.newSearchRangeBySearchKey key)
                 Insert
 
-        let entry = leaf.Insert dataRecordId
+        let splitedLeaf = leaf.Insert dataRecordId
         leaf.Close()
-        if Option.isSome entry then
+        if Option.isSome splitedLeaf then
             if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
-            let mutable prevEntry = entry
             branchesMayBeUpdated
-            |> List.iter (fun bid ->
-                prevEntry
-                |> Option.iter (fun e ->
+            |> List.fold (fun splitedBranch branchBlockId ->
+                match splitedBranch with
+                | Some (entry) ->
                     let branch =
-                        newBTreeBranch txBuffer txConcurrency txRecovery bid keyType
+                        newBTreeBranch txBuffer txConcurrency txRecovery branchBlockId keyType
 
-                    prevEntry <- branch.Insert e
-                    branch.Close()))
-            prevEntry
-            |> Option.iter (fun e ->
+                    let prevEntry = branch.Insert entry
+                    branch.Close()
+                    prevEntry
+                | _ -> None) splitedLeaf
+            |> Option.iter (fun entry ->
                 let root =
                     getRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
-                root.MakeNewRoot e
+                root.MakeNewRoot entry
                 root.Close())
 
             if doLogicalLogging then
@@ -175,12 +165,12 @@ module BTreeIndex =
 
     let initLeaf fileMgr txBuffer txConcurrency keyType leafFileName =
         if fileSize fileMgr txConcurrency leafFileName = 0L then
-            appendBlock txBuffer txConcurrency leafFileName (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
+            BTreePage.appendBlock txBuffer txConcurrency (BTreeLeaf.keyTypeToSchema keyType) leafFileName [ -1L; -1L ]
             |> ignore
 
     let initBranch fileMgr txBuffer txConcurrency keyType branchFileName =
         if fileSize fileMgr txConcurrency branchFileName = 0L then
-            appendBlock txBuffer txConcurrency branchFileName (BTreeBranch.keyTypeToSchema keyType) [ 0L ]
+            BTreePage.appendBlock txBuffer txConcurrency (BTreeBranch.keyTypeToSchema keyType) branchFileName [ 0L ]
             |> ignore
 
     let initRoot txBuffer txConcurrency txRecovery keyType branchFileName =
