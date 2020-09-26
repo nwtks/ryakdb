@@ -64,29 +64,36 @@ let ``record page`` () =
 
     let mutable readId = 0
     while rp3.Next() do
-        Assert.Equal("course" + readId.ToString(), rp3.GetVal "title" |> DbConstant.toString)
-        Assert.Equal(int64 (readId % 3 + 1) * 1000L, rp3.GetVal "deptid" |> DbConstant.toLong)
-        Assert.Equal(readId, rp3.GetVal "cid" |> DbConstant.toInt)
+        rp3.GetVal "title"
+        |> DbConstant.toString
+        |> should equal ("course" + readId.ToString())
+        rp3.GetVal "deptid"
+        |> DbConstant.toLong
+        |> should equal (int64 (readId % 3 + 1) * 1000L)
+        rp3.GetVal "cid"
+        |> DbConstant.toInt
+        |> should equal readId
         readId <- readId + 1
     rp3.Close()
-    Assert.Equal(numinserted, readId)
+    readId |> should equal numinserted
 
     let rp4 =
         newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     let mutable numdeleted = 0
     while rp4.Next() do
-        if rp4.GetVal "deptid" = BigIntDbConstant(3000L) then
+        if rp4.GetVal "deptid" = BigIntDbConstant 3000L then
             rp4.Delete dummyFreeSlot
             numdeleted <- numdeleted + 1
     rp4.Close()
-    Assert.Equal(numinserted / 3, numdeleted)
+    numdeleted |> should equal (numinserted / 3)
 
     let rp5 =
         newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
 
     while rp5.Next() do
-        Assert.NotEqual(BigIntDbConstant(3000L), rp5.GetVal "deptid")
+        rp5.GetVal "deptid"
+        |> should not' (equal (BigIntDbConstant 3000L))
     rp5.Close()
 
     tx.Commit()

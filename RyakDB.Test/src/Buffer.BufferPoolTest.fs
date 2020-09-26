@@ -44,4 +44,4 @@ let ``concurrent buffer pool pin`` () =
     for i in 0 .. bufferCount - 1 do
         let buff = buffers.[i * 10]
         for j in 0 .. 9 do
-            Assert.Same(buff, buffers.[i * 10 + j])
+            buffers.[i * 10 + j] |> should sameAs buff

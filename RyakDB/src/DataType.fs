@@ -13,8 +13,8 @@ type DbConstant =
     | VarcharDbConstant of value: string * dbType: DbType
 
 type DbConstantRange =
-    { Low: unit -> DbConstant
-      High: unit -> DbConstant
+    { Low: unit -> DbConstant option
+      High: unit -> DbConstant option
       IsValid: unit -> bool
       IsConstant: unit -> bool
       ToConstant: unit -> DbConstant
@@ -272,20 +272,17 @@ module DbConstant =
                  + rhs.ToString())
 
 module DbConstantRange =
-    let getLow dbType low includesLow =
-        match low with
-        | Some (l) when includesLow -> l
-        | _ -> DbType.minValue dbType
+    let getLow low includesLow = if includesLow then low else None
 
-    let getHigh dbType high includesHigh =
-        match high with
-        | Some (h) when includesHigh -> h
-        | _ -> DbType.maxValue dbType
+    let getHigh high includesHigh = if includesHigh then high else None
 
     let isValid low includesLow high includesHigh =
         match low, high with
         | Some (l), Some (h) ->
-            if includesLow && includesHigh then (DbConstant.compare l h) <= 0 else (DbConstant.compare l h) < 0
+            DbConstant.compare l h < 0
+            || includesLow
+               && includesHigh
+               && DbConstant.compare l h = 0
         | _ -> true
 
     let isConstant low includesLow high includesHigh =
@@ -293,7 +290,7 @@ module DbConstantRange =
         | Some (l), Some (h) ->
             includesLow
             && includesHigh
-            && (DbConstant.compare l h) = 0
+            && DbConstant.compare l h = 0
         | _ -> false
 
     let toConstant low includesLow high includesHigh =
@@ -302,25 +299,21 @@ module DbConstantRange =
         else failwith "Not constant"
 
     let contains low includesLow high includesHigh value =
-        if isValid low includesLow high includesHigh then
-            match low, high with
-            | Some (l), _ when includesLow
-                               && (DbConstant.compare l value) > 0
-                               || not (includesLow)
-                                  && (DbConstant.compare l value)
-                                  >= 0 -> false
-            | _, Some (h) when includesHigh
-                               && (DbConstant.compare value h) > 0
-                               || not (includesHigh)
-                                  && (DbConstant.compare value h)
-                                  >= 0 -> false
-            | _ -> true
-        else
-            false
+        isValid low includesLow high includesHigh
+        && low
+        |> Option.map (fun l ->
+            DbConstant.compare l value < 0
+            || includesLow && DbConstant.compare l value = 0)
+        |> Option.defaultValue true
+        && high
+           |> Option.map (fun h ->
+               DbConstant.compare h value > 0
+               || includesHigh && DbConstant.compare h value = 0)
+           |> Option.defaultValue true
 
-    let newConstantRange dbType low includesLow high includesHigh =
-        { Low = fun () -> getLow dbType low includesLow
-          High = fun () -> getHigh dbType high includesHigh
+    let newConstantRange low includesLow high includesHigh =
+        { Low = fun () -> getLow low includesLow
+          High = fun () -> getHigh high includesHigh
           IsValid = fun () -> isValid low includesLow high includesHigh
           IsConstant = fun () -> isConstant low includesLow high includesHigh
           ToConstant = fun () -> toConstant low includesLow high includesHigh

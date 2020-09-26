@@ -40,41 +40,45 @@ let ``create index`` () =
     db.CatalogMgr.CreateIndex tx i3 IndexType.Hash tbl [ "CCC" ]
 
     let index1 = db.CatalogMgr.GetIndexInfoByName tx i1
-    Assert.Equal(i1, (index1 |> Option.get).IndexName)
-    Assert.Equal([ "AAA" ], (index1 |> Option.get).FieldNames |> List.toSeq)
+    (index1 |> Option.get).IndexName
+    |> should equal i1
+    (index1 |> Option.get).FieldNames
+    |> should equal [ "AAA" ]
 
     let index2 = db.CatalogMgr.GetIndexInfoByName tx i2
-    Assert.Equal(i2, (index2 |> Option.get).IndexName)
-    Assert.Equal([ "BBB" ], (index2 |> Option.get).FieldNames |> List.toSeq)
+    (index2 |> Option.get).IndexName
+    |> should equal i2
+    (index2 |> Option.get).FieldNames
+    |> should equal [ "BBB" ]
 
     let index3 = db.CatalogMgr.GetIndexInfoByName tx i3
-    Assert.Equal(i3, (index3 |> Option.get).IndexName)
-    Assert.Equal([ "CCC" ], (index3 |> Option.get).FieldNames |> List.toSeq)
+    (index3 |> Option.get).IndexName
+    |> should equal i3
+    (index3 |> Option.get).FieldNames
+    |> should equal [ "CCC" ]
 
-    let index4 =
-        db.CatalogMgr.GetIndexInfoByName tx "test_create_index_I4"
-
-    Assert.True(Option.isNone index4)
+    db.CatalogMgr.GetIndexInfoByName tx "test_create_index_I4"
+    |> should equal None
 
     let indexes1 =
         db.CatalogMgr.GetIndexInfoByField tx tbl "AAA"
 
-    Assert.Equal(i1, indexes1.Head.IndexName)
-    Assert.Equal([ "AAA" ], indexes1.Head.FieldNames |> List.toSeq)
+    indexes1.Head.IndexName |> should equal i1
+    indexes1.Head.FieldNames |> should equal [ "AAA" ]
 
     let indexes2 =
         db.CatalogMgr.GetIndexInfoByField tx tbl "BBB"
 
-    Assert.Equal(i2, indexes2.Head.IndexName)
-    Assert.Equal([ "BBB" ], indexes2.Head.FieldNames |> List.toSeq)
+    indexes2.Head.IndexName |> should equal i2
+    indexes2.Head.FieldNames |> should equal [ "BBB" ]
 
     let indexes3 =
         db.CatalogMgr.GetIndexInfoByField tx tbl "CCC"
 
-    Assert.Equal(i3, indexes3.Head.IndexName)
-    Assert.Equal([ "CCC" ], indexes3.Head.FieldNames |> List.toSeq)
+    indexes3.Head.IndexName |> should equal i3
+    indexes3.Head.FieldNames |> should equal [ "CCC" ]
 
-    let fields = db.CatalogMgr.GetIndexedFields tx tbl
-    Assert.Equal([ "AAA"; "BBB"; "CCC" ], fields |> List.toSeq)
+    db.CatalogMgr.GetIndexedFields tx tbl
+    |> should equal [ "AAA"; "BBB"; "CCC" ]
 
     tx.Commit()

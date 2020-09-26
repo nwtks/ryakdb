@@ -16,7 +16,7 @@ let createTable db =
     Schema.newSchema ()
     |> (fun sch ->
         sch.AddField "cid" IntDbType
-        sch.AddField "title" (VarcharDbType 500)
+        sch.AddField "title" (VarcharDbType 100)
         sch.AddField "deptid" IntDbType
         db.CatalogMgr.CreateTable tx "HITable" sch)
     tx.Commit()
@@ -51,7 +51,7 @@ let ``single key`` () =
     let blk = BlockId.newBlockId "HITable.tbl" 0L
 
     let key5 =
-        SearchKey.newSearchKey [ (IntDbConstant 5) ]
+        SearchKey.newSearchKey [ IntDbConstant 5 ]
 
     let rids =
         Array.init 10 (fun i -> RecordId.newRecordId i blk)
@@ -60,7 +60,7 @@ let ``single key`` () =
     |> Array.iter (fun id -> index.Insert false key5 id)
 
     let key7 =
-        SearchKey.newSearchKey [ (IntDbConstant 7) ]
+        SearchKey.newSearchKey [ IntDbConstant 7 ]
 
     let rid2 = RecordId.newRecordId 6 blk
     index.Insert false key7 rid2
@@ -199,8 +199,8 @@ let ``multi key`` () =
         |> IndexFactory.newIndex db.FileMgr tx
 
     let key11 =
-        SearchKey.newSearchKey [ (IntDbConstant 1)
-                                 (IntDbConstant 1) ]
+        SearchKey.newSearchKey [ IntDbConstant 1
+                                 IntDbConstant 1 ]
 
     let blk1 = BlockId.newBlockId "HITable.tbl" 1L
 
@@ -211,16 +211,16 @@ let ``multi key`` () =
     |> Array.iter (fun id -> index.Insert false key11 id)
 
     let key21 =
-        SearchKey.newSearchKey [ (IntDbConstant 2)
-                                 (IntDbConstant 1) ]
+        SearchKey.newSearchKey [ IntDbConstant 2
+                                 IntDbConstant 1 ]
 
     let blk2 = BlockId.newBlockId "HITable.tbl" 2L
     let rid2 = RecordId.newRecordId 100 blk2
     index.Insert false key21 rid2
 
     let key12 =
-        SearchKey.newSearchKey [ (IntDbConstant 1)
-                                 (IntDbConstant 2) ]
+        SearchKey.newSearchKey [ IntDbConstant 1
+                                 IntDbConstant 2 ]
 
     let blk3 = BlockId.newBlockId "HITable.tbl" 3L
 

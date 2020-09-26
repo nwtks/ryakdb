@@ -46,7 +46,6 @@ let insert () =
 
     let leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 IntDbType
                                                  (IntDbConstant 0 |> Some)
                                                  true
                                                  (IntDbConstant 20 |> Some)
@@ -98,7 +97,6 @@ let delete () =
 
     let leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 IntDbType
                                                  (IntDbConstant 0 |> Some)
                                                  true
                                                  (IntDbConstant 20 |> Some)
@@ -147,7 +145,6 @@ let split () =
 
     let leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 IntDbType
                                                  (IntDbConstant 0 |> Some)
                                                  true
                                                  (IntDbConstant count |> Some)
@@ -208,7 +205,6 @@ let overflow () =
 
     let leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 IntDbType
                                                  (IntDbConstant 0 |> Some)
                                                  true
                                                  (IntDbConstant count |> Some)

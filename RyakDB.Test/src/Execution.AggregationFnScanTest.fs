@@ -34,8 +34,9 @@ let count () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant 900, scan.GetVal "count_of_grad_year")
-        Assert.Equal(1, i)
+            scan.GetVal "count_of_grad_year"
+            |> should equal (IntDbConstant 900)
+        i |> should equal 1
         scan.Close())
 
     tx.Commit()
@@ -64,8 +65,9 @@ let max () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant 2009, scan.GetVal "max_of_grad_year")
-        Assert.Equal(1, i)
+            scan.GetVal "max_of_grad_year"
+            |> should equal (IntDbConstant 2009)
+        i |> should equal 1
         scan.Close())
 
     tx.Commit()
@@ -94,8 +96,9 @@ let min () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(DbConstant.newVarchar "student 1", scan.GetVal "min_of_s_name")
-        Assert.Equal(1, i)
+            scan.GetVal "min_of_s_name"
+            |> should equal (DbConstant.newVarchar "student 1")
+        i |> should equal 1
         scan.Close())
 
     tx.Commit()
@@ -124,8 +127,9 @@ let sum () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant 405450, scan.GetVal "sum_of_s_id")
-        Assert.Equal(1, i)
+            scan.GetVal "sum_of_s_id"
+            |> should equal (IntDbConstant 405450)
+        i |> should equal 1
         scan.Close())
 
     tx.Commit()
@@ -154,8 +158,9 @@ let avg () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(DoubleDbConstant 20.3, scan.GetVal "avg_of_major_id")
-        Assert.Equal(1, i)
+            scan.GetVal "avg_of_major_id"
+            |> should equal (DoubleDbConstant 20.3)
+        i |> should equal 1
         scan.Close())
 
     tx.Commit()

@@ -46,13 +46,13 @@ let ``X lock`` () =
     lockTbl.XLock txNo1 blocks.[1]
     lockTbl.XLock txNo1 blocks.[1]
 
-    Assert.Throws(fun () -> lockTbl.SLock txNo2 blocks.[0])
+    shouldFail (fun () -> lockTbl.SLock txNo2 blocks.[0])
     |> ignore
-    Assert.Throws(fun () -> lockTbl.SLock txNo2 blocks.[1])
+    shouldFail (fun () -> lockTbl.SLock txNo2 blocks.[1])
     |> ignore
-    Assert.Throws(fun () -> lockTbl.XLock txNo2 blocks.[0])
+    shouldFail (fun () -> lockTbl.XLock txNo2 blocks.[0])
     |> ignore
-    Assert.Throws(fun () -> lockTbl.XLock txNo2 blocks.[1])
+    shouldFail (fun () -> lockTbl.XLock txNo2 blocks.[1])
     |> ignore
 
     lockTbl.ReleaseAll txNo1 false
@@ -70,11 +70,11 @@ let ``SIX lock`` () =
     let txNo2 = 123456782L
 
     lockTbl.SLock txNo1 blocks.[0]
-    Assert.Throws(fun () -> lockTbl.SIXLock txNo2 blocks.[0])
+    shouldFail (fun () -> lockTbl.SIXLock txNo2 blocks.[0])
     |> ignore
 
     lockTbl.SIXLock txNo1 blocks.[1]
-    Assert.Throws(fun () -> lockTbl.SIXLock txNo2 blocks.[1])
+    shouldFail (fun () -> lockTbl.SIXLock txNo2 blocks.[1])
     |> ignore
 
     lockTbl.ReleaseAll txNo1 false
@@ -98,7 +98,7 @@ let ``IS lock`` () =
 
     lockTbl.SLock txNo2 blocks.[5]
     lockTbl.ISLock txNo2 blocks.[6]
-    Assert.Throws(fun () -> lockTbl.XLock txNo2 blocks.[7])
+    shouldFail (fun () -> lockTbl.XLock txNo2 blocks.[7])
     |> ignore
     lockTbl.IXLock txNo2 blocks.[8]
     lockTbl.SIXLock txNo2 blocks.[9]
@@ -114,18 +114,18 @@ let ``IX lock`` () =
     let txNo2 = 12345672L
 
     lockTbl.SLock txNo1 blocks.[0]
-    Assert.Throws(fun () -> lockTbl.IXLock txNo2 blocks.[0])
+    shouldFail (fun () -> lockTbl.IXLock txNo2 blocks.[0])
     |> ignore
 
     lockTbl.IXLock txNo1 blocks.[1]
     lockTbl.IXLock txNo2 blocks.[1]
 
     lockTbl.IXLock txNo1 blocks.[2]
-    Assert.Throws(fun () -> lockTbl.SLock txNo2 blocks.[2])
+    shouldFail (fun () -> lockTbl.SLock txNo2 blocks.[2])
     |> ignore
 
     lockTbl.IXLock txNo1 blocks.[3]
-    Assert.Throws(fun () -> lockTbl.XLock txNo2 blocks.[3])
+    shouldFail (fun () -> lockTbl.XLock txNo2 blocks.[3])
     |> ignore
 
     lockTbl.ReleaseAll txNo1 false

@@ -33,7 +33,7 @@ let ``serializable, read modify`` () =
 
     tx1.Concurrency.ReadFile filename
     tx1.Concurrency.ReadBlock blocks.[0]
-    Assert.Throws(fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
+    shouldFail (fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
     |> ignore
 
     tx1.Rollback()
@@ -110,7 +110,7 @@ let ``serializable, phantom`` () =
         db.TxMgr.NewTransaction false Serializable
 
     tx1.Concurrency.ReadBlock blocks.[0]
-    Assert.Throws(fun () -> tx2.Concurrency.InsertBlock blocks.[1])
+    shouldFail (fun () -> tx2.Concurrency.InsertBlock blocks.[1])
     |> ignore
 
     tx1.Rollback()
@@ -136,7 +136,7 @@ let ``repeatable read, read modify`` () =
         db.TxMgr.NewTransaction false RepeatableRead
 
     tx1.Concurrency.ReadBlock blocks.[0]
-    Assert.Throws(fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
+    shouldFail (fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
     |> ignore
 
     tx1.Rollback()
@@ -225,7 +225,7 @@ let ``serializable, serializable`` () =
             scan2.BeforeFirst()
             scan1.Next() |> ignore
             scan2.Next() |> ignore
-            Assert.Throws(fun () -> scan2.Insert()) |> ignore
+            shouldFail (fun () -> scan2.Insert()) |> ignore
             scan2.Close())
         scan1.Close())
 
@@ -234,13 +234,13 @@ let ``serializable, serializable`` () =
     |> Plan.newTablePlan tx1
     |> Plan.openScan db.FileMgr
     |> (fun scan1 ->
-        Assert.Throws(fun () -> scan1.Insert()) |> ignore
+        shouldFail (fun () -> scan1.Insert()) |> ignore
         db.CatalogMgr.GetTableInfo tx2 "student"
         |> Option.get
         |> Plan.newTablePlan tx2
         |> Plan.openScan db.FileMgr
         |> (fun scan2 ->
-            Assert.Throws(fun () -> scan2.Insert()) |> ignore
+            shouldFail (fun () -> scan2.Insert()) |> ignore
             scan2.Close())
         scan1.Close())
 
@@ -291,12 +291,12 @@ let ``serializable, repeatable read`` () =
         |> Plan.newTablePlan tx1
         |> Plan.openScan db.FileMgr
         |> (fun scan1 ->
-            Assert.Throws(fun () ->
+            shouldFail (fun () ->
                 scan1.BeforeFirst()
                 scan2.Next() |> ignore)
             |> ignore
             scan1.Next() |> ignore
-            Assert.Throws(fun () -> scan2.Insert()) |> ignore
+            shouldFail (fun () -> scan2.Insert()) |> ignore
             scan1.Close())
         scan2.Close())
 
@@ -331,7 +331,8 @@ let ``serializable, read committed`` () =
         |> (fun scan1 ->
             scan1.BeforeFirst()
             scan2.Next() |> ignore
-            Assert.Equal(IntDbConstant 1, scan2.GetVal "s_id")
+            scan2.GetVal "s_id"
+            |> should equal (IntDbConstant 1)
             tx2.EndStatement()
             scan1.Next() |> ignore
             scan1.Insert()

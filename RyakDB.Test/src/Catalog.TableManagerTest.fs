@@ -33,20 +33,24 @@ let ``create table`` () =
     db.CatalogMgr.CreateTable tx t2 sch2
 
     let ti1 = db.CatalogMgr.GetTableInfo tx t1
-    Assert.Equal(t1, (ti1 |> Option.get).TableName)
-    Assert.True((ti1 |> Option.get).Schema.HasField "AAA")
-    Assert.True((ti1 |> Option.get).Schema.HasField "BBB")
-    Assert.False((ti1 |> Option.get).Schema.HasField "CCC")
+    (ti1 |> Option.get).TableName |> should equal t1
+    (ti1 |> Option.get).Schema.HasField "AAA"
+    |> should be True
+    (ti1 |> Option.get).Schema.HasField "BBB"
+    |> should be True
+    (ti1 |> Option.get).Schema.HasField "CCC"
+    |> should be False
 
     let ti2 = db.CatalogMgr.GetTableInfo tx t2
-    Assert.Equal(t2, (ti2 |> Option.get).TableName)
-    Assert.True((ti2 |> Option.get).Schema.HasField "AAA")
-    Assert.False((ti2 |> Option.get).Schema.HasField "BBB")
-    Assert.True((ti2 |> Option.get).Schema.HasField "CCC")
+    (ti2 |> Option.get).TableName |> should equal t2
+    (ti2 |> Option.get).Schema.HasField "AAA"
+    |> should be True
+    (ti2 |> Option.get).Schema.HasField "BBB"
+    |> should be False
+    (ti2 |> Option.get).Schema.HasField "CCC"
+    |> should be True
 
-    let ti3 =
-        db.CatalogMgr.GetTableInfo tx "test_create_table_T3"
-
-    Assert.True(Option.isNone ti3)
+    db.CatalogMgr.GetTableInfo tx "test_create_table_T3"
+    |> should equal None
 
     tx.Commit()

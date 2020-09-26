@@ -20,7 +20,7 @@ type SearchPurpose =
 type BTreeBranch =
     { GetCountOfRecords: unit -> int32
       BranchesMayBeUpdated: unit -> BlockId list
-      Search: string -> SearchKey -> SearchPurpose -> BlockId
+      Search: SearchPurpose -> string -> SearchKey option -> BlockId
       Insert: BTreeBranchEntry -> BTreeBranchEntry option
       MakeNewRoot: BTreeBranchEntry -> unit
       Close: unit -> unit }
@@ -63,7 +63,7 @@ module BTreeBranch =
 
     let findMatchingSlot keyType page searchKey =
         let rec binarySearch startSlot endSlot taret =
-            if startSlot < endSlot then
+            if startSlot <= endSlot then
                 let middleSlot = startSlot + (endSlot - startSlot) / 2
 
                 let comp =
@@ -75,27 +75,22 @@ module BTreeBranch =
                 then binarySearch startSlot (middleSlot - 1) taret
                 else middleSlot
             else
-                startSlot
+                endSlot
 
         let countOfRecords = page.GetCountOfRecords()
-        if countOfRecords <= 0 then
+        if countOfRecords = 0 then
             0
         else
-            let slot =
-                binarySearch 0 (countOfRecords - 1) searchKey
-
-            if slot > 0
-               && SearchKey.compare (getKey page slot keyType) searchKey > 0 then
-                slot - 1
-            else
-                slot
+            match searchKey with
+            | Some key -> binarySearch 0 (countOfRecords - 1) key
+            | _ -> 0
 
     let findChildBlockNo keyType page searchKey =
         findMatchingSlot keyType page searchKey
         |> getChildBlockNo page
 
     let searchForInsert txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
-        let rec searchChild page childBlockNo branchesMayBeUpdated =
+        let rec searchChild branchesMayBeUpdated page childBlockNo =
             if getLevel page > 0L then
                 let (BlockId (pagefile, _)) = page.BlockId
                 let childBlockId = BlockId.newBlockId pagefile childBlockNo
@@ -113,20 +108,52 @@ module BTreeBranch =
                         [ childBlockId ]
 
                 page.Close()
-                searchChild childPage (findChildBlockNo keyType childPage searchKey) branchesMayBeUpdated
+                findChildBlockNo keyType childPage searchKey
+                |> searchChild branchesMayBeUpdated childPage
             else
-                page, childBlockNo, branchesMayBeUpdated
+                branchesMayBeUpdated, page, childBlockNo
 
         txConcurrency.CrabDownBranchBlockForModification page.BlockId
 
-        let currentPage, childBlockNo, branchesMayBeUpdated =
-            searchChild page (findChildBlockNo keyType page searchKey) [ page.BlockId ]
+        let branchesMayBeUpdated, currentPage, childBlockNo =
+            findChildBlockNo keyType page searchKey
+            |> searchChild [ page.BlockId ] page
 
         let leafBlockId =
             BlockId.newBlockId leafFileName childBlockNo
 
         txConcurrency.ModifyLeafBlock leafBlockId
         leafBlockId, currentPage, branchesMayBeUpdated
+
+    let searchForDelete txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
+        let rec searchChild page childBlockNo =
+            if getLevel page > 0L then
+                let (BlockId (pagefile, _)) = page.BlockId
+                let childBlockId = BlockId.newBlockId pagefile childBlockNo
+                txConcurrency.CrabDownBranchBlockForRead childBlockId
+
+                let childPage =
+                    initBTreePage txBuffer txConcurrency txRecovery schema childBlockId
+
+                txConcurrency.CrabBackBranchBlockForRead page.BlockId
+                page.Close()
+                findChildBlockNo keyType childPage searchKey
+                |> searchChild childPage
+            else
+                page, childBlockNo
+
+        txConcurrency.CrabDownBranchBlockForRead page.BlockId
+
+        let currentPage, childBlockNo =
+            findChildBlockNo keyType page searchKey
+            |> searchChild page
+
+        let leafBlockId =
+            BlockId.newBlockId leafFileName childBlockNo
+
+        txConcurrency.ModifyLeafBlock leafBlockId
+        txConcurrency.CrabDownBranchBlockForRead currentPage.BlockId
+        leafBlockId, currentPage, []
 
     let searchForRead txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
         let rec searchChild page childBlockNo =
@@ -140,14 +167,16 @@ module BTreeBranch =
 
                 txConcurrency.CrabBackBranchBlockForRead page.BlockId
                 page.Close()
-                searchChild childPage (findChildBlockNo keyType childPage searchKey)
+                findChildBlockNo keyType childPage searchKey
+                |> searchChild childPage
             else
                 page, childBlockNo
 
         txConcurrency.CrabDownBranchBlockForRead page.BlockId
 
         let currentPage, childBlockNo =
-            searchChild page (findChildBlockNo keyType page searchKey)
+            findChildBlockNo keyType page searchKey
+            |> searchChild page
 
         let leafBlockId =
             BlockId.newBlockId leafFileName childBlockNo
@@ -156,14 +185,16 @@ module BTreeBranch =
         txConcurrency.CrabDownBranchBlockForRead currentPage.BlockId
         leafBlockId, currentPage, []
 
-    let search txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey purpose =
+    let search txBuffer txConcurrency txRecovery schema keyType page purpose leafFileName searchKey =
         match purpose with
         | Insert -> searchForInsert txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey
-        | Delete
+        | Delete -> searchForDelete txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey
         | Read -> searchForRead txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey
 
     let insert txRecovery keyType (page: BTreePage) (BTreeBranchEntry (key, blockNo)) =
-        if page.GetCountOfRecords() > 0 then (findMatchingSlot keyType page key) + 1 else 0
+        if page.GetCountOfRecords() > 0
+        then (findMatchingSlot keyType page (Some key)) + 1
+        else 0
         |> insertSlot txRecovery keyType page key blockNo
 
         if page.IsFull() then
@@ -182,7 +213,8 @@ module BTreeBranch =
                 page
             else
                 page.Close()
-                initBTreePage txBuffer txConcurrency txRecovery schema (BlockId.newBlockId fileName 0L)
+                BlockId.newBlockId fileName 0L
+                |> initBTreePage txBuffer txConcurrency txRecovery schema
 
         let firstKey = getKey rootPage 0 keyType
         let level = getLevel rootPage
@@ -193,7 +225,7 @@ module BTreeBranch =
         |> ignore
 
         insert txRecovery keyType rootPage entry |> ignore
-        setLevel rootPage (level + 1L)
+        level + 1L |> setLevel rootPage
         rootPage
 
 let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =
@@ -211,7 +243,7 @@ let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =
               | _ -> failwith "Closed branch"
       BranchesMayBeUpdated = fun () -> branchesMayBeUpdated
       Search =
-          fun leafFileName searchKey purpose ->
+          fun purpose leafFileName searchKey ->
               match page with
               | Some (pg) ->
                   let leafBlockId, nextPage, nextMayBeUpdated =
@@ -222,9 +254,9 @@ let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =
                           schema
                           keyType
                           pg
+                          purpose
                           leafFileName
                           searchKey
-                          purpose
 
                   branchesMayBeUpdated <- nextMayBeUpdated
                   page <- Some nextPage

@@ -90,19 +90,21 @@ module BTreeLeaf =
                 startSlot
 
         let countOfRecords = page.GetCountOfRecords()
-        if countOfRecords <= 0 then
+        if countOfRecords = 0 then
             -1
         else
-            let searchMin = searchRange.GetMin()
-
-            let slot =
-                binarySearch 0 (countOfRecords - 1) searchMin
-
-            if SearchKey.compare (getKey page slot keyType) searchMin
-               >= 0 then
-                slot - 1
-            else
-                slot
+            match searchRange.GetMin() with
+            | Some searchMin ->
+                if SearchKey.compare (getKey page (countOfRecords - 1) keyType) searchMin < 0 then
+                    countOfRecords - 1
+                else
+                    let slot = binarySearch 0 countOfRecords searchMin
+                    if SearchKey.compare (getKey page slot keyType) searchMin
+                       >= 0 then
+                        slot - 1
+                    else
+                        slot
+            | _ -> -1
 
     let moveTo txBuffer txConcurrency txRecovery schema currentPage blockNo =
         let (BlockId (filename, _)) = currentPage.BlockId
@@ -115,7 +117,8 @@ module BTreeLeaf =
         let rec loopNext state =
             let nextSlot = state.CurrentSlot + 1
             if state.IsOverflowing then
-                if nextSlot >= state.CurrentPage.GetCountOfRecords() then
+                true,
+                (if nextSlot >= state.CurrentPage.GetCountOfRecords() then
                     let (BlockId (_, currentBlockNo)) = state.CurrentPage.BlockId
 
                     let nextPage =
@@ -124,20 +127,18 @@ module BTreeLeaf =
 
                     let (BlockId (_, nextBlockNo)) = nextPage.BlockId
                     if nextBlockNo = state.OverflowFrom then
-                        true,
                         { CurrentPage = nextPage
                           CurrentSlot = 0
                           MoveFrom = currentBlockNo
                           IsOverflowing = false
                           OverflowFrom = -1L }
                     else
-                        true,
                         { state with
                               CurrentPage = nextPage
                               CurrentSlot = 0
                               MoveFrom = currentBlockNo }
-                else
-                    true, { state with CurrentSlot = nextSlot }
+                 else
+                     { state with CurrentSlot = nextSlot })
             else if nextSlot >= state.CurrentPage.GetCountOfRecords() then
                 if getSiblingBlockNo state.CurrentPage >= 0L then
                     let (BlockId (_, currentBlockNo)) = state.CurrentPage.BlockId
@@ -152,10 +153,10 @@ module BTreeLeaf =
                     false, { state with CurrentSlot = nextSlot }
             else if getKey state.CurrentPage nextSlot keyType
                     |> searchRange.MatchsKey then
-                if nextSlot = 0
-                   && getOverflowBlockNo state.CurrentPage >= 0L then
+                true,
+                (if nextSlot = 0
+                    && getOverflowBlockNo state.CurrentPage >= 0L then
                     let (BlockId (_, currentBlockNo)) = state.CurrentPage.BlockId
-                    true,
                     { CurrentPage =
                           getOverflowBlockNo state.CurrentPage
                           |> moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage
@@ -163,8 +164,11 @@ module BTreeLeaf =
                       MoveFrom = currentBlockNo
                       IsOverflowing = true
                       OverflowFrom = currentBlockNo }
-                else
-                    true, { state with CurrentSlot = nextSlot }
+                 else
+                     { state with CurrentSlot = nextSlot })
+            else if getKey state.CurrentPage nextSlot keyType
+                    |> searchRange.BetweenMinAndMax then
+                loopNext { state with CurrentSlot = nextSlot }
             else
                 false, { state with CurrentSlot = nextSlot }
 

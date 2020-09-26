@@ -24,15 +24,15 @@ let ``create view`` () =
     db.CatalogMgr.DropView tx v2
     db.CatalogMgr.CreateView tx v2 "select * from T"
 
-    let vdef1 = db.CatalogMgr.GetViewDef tx v1
-    Assert.Equal("abcde", vdef1 |> Option.get)
+    db.CatalogMgr.GetViewDef tx v1
+    |> Option.get
+    |> should equal "abcde"
 
-    let vdef2 = db.CatalogMgr.GetViewDef tx v2
-    Assert.Equal("select * from T", vdef2 |> Option.get)
+    db.CatalogMgr.GetViewDef tx v2
+    |> Option.get
+    |> should equal "select * from T"
 
-    let vdef3 =
-        db.CatalogMgr.GetViewDef tx "test_create_view_V3"
-
-    Assert.True(Option.isNone vdef3)
+    db.CatalogMgr.GetViewDef tx "test_create_view_V3"
+    |> should equal None
 
     tx.Commit()

@@ -58,20 +58,21 @@ let ``record file`` () =
     rf3.BeforeFirst()
     let mutable readId = 0
     while rf3.Next() do
-        Assert.Equal
-            ("course" + readId.ToString(),
-             rf3.GetVal "title"
-             |> Option.get
-             |> DbConstant.toString)
-        Assert.Equal
-            (int64 (readId % 3 + 1) * 1000L,
-             rf3.GetVal "deptid"
-             |> Option.get
-             |> DbConstant.toLong)
-        Assert.Equal(readId, rf3.GetVal "cid" |> Option.get |> DbConstant.toInt)
+        rf3.GetVal "title"
+        |> Option.get
+        |> DbConstant.toString
+        |> should equal ("course" + readId.ToString())
+        rf3.GetVal "deptid"
+        |> Option.get
+        |> DbConstant.toLong
+        |> should equal (int64 (readId % 3 + 1) * 1000L)
+        rf3.GetVal "cid"
+        |> Option.get
+        |> DbConstant.toInt
+        |> should equal readId
         readId <- readId + 1
     rf3.Close()
-    Assert.Equal(301, readId)
+    readId |> should equal 301
 
     let rf4 =
         newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
@@ -80,14 +81,16 @@ let ``record file`` () =
     let mutable numdeleted = 0
     while rf4.Next() do
         if rf4.GetVal "deptid"
-           |> Option.get = BigIntDbConstant(3000L) then
+           |> Option.get = BigIntDbConstant 3000L then
             rf4.Delete()
             numdeleted <- numdeleted + 1
-    Assert.Equal(100, numdeleted)
+    numdeleted |> should equal 100
 
     rf4.BeforeFirst()
     while rf4.Next() do
-        Assert.NotEqual(BigIntDbConstant(3000L), rf4.GetVal "deptid" |> Option.get)
+        rf4.GetVal "deptid"
+        |> Option.get
+        |> should not' (equal (BigIntDbConstant 3000L))
 
     for i in 301 .. 456 do
         rf4.Insert()

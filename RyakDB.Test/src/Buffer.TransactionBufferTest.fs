@@ -48,12 +48,12 @@ let ``available buffers`` () =
     buffMgr.Unpin buff2
     let a7 = buffMgr.Available()
 
-    Assert.Equal(a1 - 1, a2)
-    Assert.Equal(a1 - 2, a3)
-    Assert.Equal(a1 - 3, a4)
-    Assert.Equal(a1 - 2, a5)
-    Assert.Equal(a1 - 1, a6)
-    Assert.Equal(a1, a7)
+    a2 |> should equal (a1 - 1)
+    a3 |> should equal (a1 - 2)
+    a4 |> should equal (a1 - 3)
+    a5 |> should equal (a1 - 2)
+    a6 |> should equal (a1 - 1)
+    a7 |> should equal a1
 
 [<Fact>]
 let ``concurrent buffer manager pin`` () =
@@ -123,5 +123,5 @@ let ``concurrent buffer manager pin`` () =
     |> Async.RunSynchronously
     |> ignore
 
-    Assert.Equal
-        ("start0.end0.start1.end1.start2.end2.start3.end3.start4.end4.start5.start6.end6.end5.", result.ToString())
+    result.ToString()
+    |> should equal "start0.end0.start1.end1.start2.end2.start3.end3.start4.end4.start5.start6.end6.end5."

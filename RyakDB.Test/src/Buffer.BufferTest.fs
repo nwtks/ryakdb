@@ -48,15 +48,16 @@ let ``set get`` () =
     let mutable pos2 = 0
     while pos2 + 4 < buff2.BufferSize do
         let i = IntDbConstant(12345 + pos2)
-        Assert.Equal(i, buff2.GetVal pos2 IntDbType)
+        buff2.GetVal pos2 IntDbType |> should equal i
         pos2 <- pos2 + 4
 
         let s =
             DbConstant.newVarchar ("value" + pos2.ToString())
 
         let slen = Page.size s
-        if pos2 + slen < buff2.BufferSize
-        then Assert.Equal(s, buff2.GetVal pos2 (VarcharDbType 0))
+        if pos2 + slen < buff2.BufferSize then
+            buff2.GetVal pos2 (VarcharDbType 0)
+            |> should equal s
         pos2 <- pos2 + slen
     buffMgr.Unpin buff2
 
@@ -81,12 +82,14 @@ let ``last LSN`` () =
     buff.SetVal 0 (BigIntDbConstant 986543210L) (Some(newLogSeqNo 0L 2L))
     buff.SetVal 0 (DoubleDbConstant 123.4567) (Some(newLogSeqNo 0L 3L))
     buff.SetVal 0 (DbConstant.newVarchar "") (Some(newLogSeqNo 0L 4L))
-    Assert.Equal(newLogSeqNo 0L 4L, buff.LastLogSeqNo())
+    buff.LastLogSeqNo()
+    |> should equal (newLogSeqNo 0L 4L)
 
     buff.Flush()
     let buff2 = newBuffer fileMgr logMgr
     buff2.AssignToBlock blk
-    Assert.Equal(newLogSeqNo 0L 4L, buff2.LastLogSeqNo())
+    buff2.LastLogSeqNo()
+    |> should equal (newLogSeqNo 0L 4L)
 
 [<Fact>]
 let ``assign new buffer`` () =
@@ -132,11 +135,11 @@ let ``assign new buffer`` () =
     let c14 = buff.GetVal offset DoubleDbType
     offset <- offset + Page.size c14
     let c15 = buff.GetVal offset (VarcharDbType 0)
-    Assert.Equal(c1, c11)
-    Assert.Equal(c2, c12)
-    Assert.Equal(c3, c13)
-    Assert.Equal(c4, c14)
-    Assert.Equal(c5, c15)
+    c11 |> should equal c1
+    c12 |> should equal c2
+    c13 |> should equal c3
+    c14 |> should equal c4
+    c15 |> should equal c5
 
 [<Fact>]
 let ``concurrent buffer pin`` () =
@@ -159,4 +162,4 @@ let ``concurrent buffer pin`` () =
     |> Async.RunSynchronously
     |> ignore
 
-    Assert.False(buff.IsPinned())
+    buff.IsPinned() |> should be False

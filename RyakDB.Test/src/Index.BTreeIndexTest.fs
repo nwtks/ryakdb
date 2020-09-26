@@ -16,7 +16,7 @@ let createTable db =
     Schema.newSchema ()
     |> (fun sch ->
         sch.AddField "cid" IntDbType
-        sch.AddField "title" (VarcharDbType 500)
+        sch.AddField "title" (VarcharDbType 100)
         sch.AddField "deptid" IntDbType
         sch.AddField "majorid" BigIntDbType
         db.CatalogMgr.CreateTable tx "BITable" sch)
@@ -54,7 +54,7 @@ let ``single key`` () =
     let blk = BlockId.newBlockId "BITable.tbl" 0L
 
     let key5 =
-        SearchKey.newSearchKey [ (IntDbConstant 5) ]
+        SearchKey.newSearchKey [ IntDbConstant 5 ]
 
     let rids =
         Array.init 10 (fun i -> RecordId.newRecordId i blk)
@@ -63,7 +63,7 @@ let ``single key`` () =
     |> Array.iter (fun id -> index.Insert false key5 id)
 
     let key7 =
-        SearchKey.newSearchKey [ (IntDbConstant 7) ]
+        SearchKey.newSearchKey [ IntDbConstant 7 ]
 
     let rid2 = RecordId.newRecordId 6 blk
     index.Insert false key7 rid2
@@ -202,8 +202,8 @@ let ``multi key`` () =
         |> IndexFactory.newIndex db.FileMgr tx
 
     let key11 =
-        SearchKey.newSearchKey [ (IntDbConstant 1)
-                                 (IntDbConstant 1) ]
+        SearchKey.newSearchKey [ IntDbConstant 1
+                                 IntDbConstant 1 ]
 
     let blk1 = BlockId.newBlockId "BITable.tbl" 1L
 
@@ -214,16 +214,16 @@ let ``multi key`` () =
     |> Array.iter (fun id -> index.Insert false key11 id)
 
     let key21 =
-        SearchKey.newSearchKey [ (IntDbConstant 2)
-                                 (IntDbConstant 1) ]
+        SearchKey.newSearchKey [ IntDbConstant 2
+                                 IntDbConstant 1 ]
 
     let blk2 = BlockId.newBlockId "BITable.tbl" 2L
     let rid2 = RecordId.newRecordId 100 blk2
     index.Insert false key21 rid2
 
     let key12 =
-        SearchKey.newSearchKey [ (IntDbConstant 1)
-                                 (IntDbConstant 2) ]
+        SearchKey.newSearchKey [ IntDbConstant 1
+                                 IntDbConstant 2 ]
 
     let blk3 = BlockId.newBlockId "BITable.tbl" 3L
 
@@ -269,5 +269,197 @@ let ``multi key`` () =
     cnt |> should equal 24
 
     index.Close()
+    db.CatalogMgr.DropTable tx "BITable"
+    tx.Commit()
+
+[<Fact>]
+let ``branch overflow`` () =
+    let db =
+        { Database.defaultConfig () with
+              BlockSize = 2048
+              InMemory = true }
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    createTable db
+    createIndex db
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
+    let index =
+        db.CatalogMgr.GetIndexInfoByField tx "BITable" "majorid"
+        |> List.head
+        |> IndexFactory.newIndex db.FileMgr tx
+
+    let blk = BlockId.newBlockId "BITable.tbl" 0L
+
+    for i in 9999L .. -1L .. 0L do
+        RecordId.newRecordId (int32 i) blk
+        |> index.Insert false (SearchKey.newSearchKey [ BigIntDbConstant(i % 1000L) ])
+
+    let key123 =
+        SearchKey.newSearchKey [ IntDbConstant 123 ]
+
+    let mutable cnt = 0
+    SearchRange.newSearchRangeBySearchKey key123
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 10
+
+    for i in 9999L .. -1L .. 0L do
+        RecordId.newRecordId (int32 i) blk
+        |> index.Delete false (SearchKey.newSearchKey [ BigIntDbConstant(i % 1000L) ])
+
+    SearchRange.newSearchRangeBySearchKey key123
+    |> index.BeforeFirst
+    index.Next() |> should be False
+
+    index.Close()
+    db.CatalogMgr.DropTable tx "BITable"
+    tx.Commit()
+
+[<Fact>]
+let ``search range`` () =
+    let db =
+        { Database.defaultConfig () with
+              BlockSize = 2048
+              InMemory = true }
+        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    createTable db
+    createIndex db
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
+    let index =
+        db.CatalogMgr.GetIndexInfoByName tx "BITable_SI3"
+        |> Option.get
+        |> IndexFactory.newIndex db.FileMgr tx
+
+    let blk0 = BlockId.newBlockId "BITable.tbl" 0L
+    let blk23 = BlockId.newBlockId "BITable.tbl" 23L
+
+    for i in 0 .. 599 do
+        RecordId.newRecordId i blk0
+        |> index.Insert false (SearchKey.newSearchKey [ IntDbConstant(i % 20) ])
+
+    let key7 =
+        SearchKey.newSearchKey [ IntDbConstant 7 ]
+
+    for i in 0 .. 99 do
+        RecordId.newRecordId i blk23
+        |> index.Insert false key7
+
+    let mutable cnt = 0
+
+    SearchRange.newSearchRangeBySearchKey key7
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 130
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (Some(IntDbConstant 5))
+                                             true
+                                             (Some(IntDbConstant 5))
+                                             true ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 30
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (Some(IntDbConstant 10))
+                                             true
+                                             (Some(IntDbConstant 12))
+                                             true ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 90
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (Some(IntDbConstant 10))
+                                             true
+                                             (Some(IntDbConstant 12))
+                                             false ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 60
+
+    cnt <- 0
+
+    let range =
+        SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                                 (Some(IntDbConstant 10))
+                                                 false
+                                                 (Some(IntDbConstant 12))
+                                                 true ]
+
+    range |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 60
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (Some(IntDbConstant 10))
+                                             false
+                                             (Some(IntDbConstant 12))
+                                             false ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 30
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange None false (Some(IntDbConstant 5)) false ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 150
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange None false (Some(IntDbConstant 5)) true ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 180
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 15)) false None false ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 120
+
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 15)) true None false ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 150
+
+    for i in 0 .. 599 do
+        RecordId.newRecordId i blk0
+        |> index.Delete false (SearchKey.newSearchKey [ IntDbConstant(i % 20) ])
+    SearchKey.newSearchKey [ IntDbConstant 5 ]
+    |> SearchRange.newSearchRangeBySearchKey
+    |> index.BeforeFirst
+    index.Next() |> should be False
+
+    for i in 0 .. 99 do
+        RecordId.newRecordId i blk23
+        |> index.Delete false key7
+    SearchRange.newSearchRangeBySearchKey key7
+    |> index.BeforeFirst
+    index.Next() |> should be False
+
     db.CatalogMgr.DropTable tx "BITable"
     tx.Commit()

@@ -32,10 +32,13 @@ let ``table plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant i, scan.GetVal "s_id")
-            Assert.Equal(DbConstant.newVarchar ("student " + i.ToString()), scan.GetVal "s_name")
-            Assert.Equal(IntDbConstant(i % 50 + 1960), scan.GetVal "grad_year")
-        Assert.Equal(900, i)
+            scan.GetVal "s_id"
+            |> should equal (IntDbConstant i)
+            scan.GetVal "s_name"
+            |> should equal (DbConstant.newVarchar ("student " + i.ToString()))
+            scan.GetVal "grad_year"
+            |> should equal (IntDbConstant(i % 50 + 1960))
+        i |> should equal 900
         scan.Close())
 
     tx.Commit()
@@ -66,8 +69,9 @@ let ``select plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant 20, scan.GetVal "major_id")
-        Assert.Equal(23, i)
+            scan.GetVal "major_id"
+            |> should equal (IntDbConstant 20)
+        i |> should equal 23
         scan.Close())
 
     tx.Commit()
@@ -95,11 +99,13 @@ let ``project plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(DbConstant.newVarchar ("student " + i.ToString()), scan.GetVal "s_name")
-            Assert.Equal(IntDbConstant(i % 50 + 1960), scan.GetVal "grad_year")
-            Assert.False(scan.HasField "s_id")
-            Assert.False(scan.HasField "major_id")
-        Assert.Equal(900, i)
+            scan.GetVal "s_name"
+            |> should equal (DbConstant.newVarchar ("student " + i.ToString()))
+            scan.GetVal "grad_year"
+            |> should equal (IntDbConstant(i % 50 + 1960))
+            scan.HasField "s_id" |> should be False
+            scan.HasField "major_id" |> should be False
+        i |> should equal 900
         scan.Close())
 
     tx.Commit()
@@ -135,10 +141,13 @@ let ``product plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant i, scan.GetVal "s_id")
-            Assert.Equal(IntDbConstant(i % 40 + 1), scan.GetVal "d_id")
-            Assert.Equal(DbConstant.newVarchar ("dept " + (i % 40 + 1).ToString()), scan.GetVal "d_name")
-        Assert.Equal(900, i)
+            scan.GetVal "s_id"
+            |> should equal (IntDbConstant i)
+            scan.GetVal "d_id"
+            |> should equal (IntDbConstant(i % 40 + 1))
+            scan.GetVal "d_name"
+            |> should equal (DbConstant.newVarchar ("dept " + (i % 40 + 1).ToString()))
+        i |> should equal 900
         scan.Close())
 
     tx.Commit()
@@ -172,8 +181,9 @@ let ``group by plan`` () =
         scan.BeforeFirst()
         while scan.Next() do
             i <- i + 1
-            Assert.Equal(IntDbConstant 18, scan.GetVal "count_of_grad_year")
-        Assert.Equal(50, i)
+            scan.GetVal "count_of_grad_year"
+            |> should equal (IntDbConstant 18)
+        i |> should equal 50
         scan.Close())
 
     tx.Commit()
@@ -212,11 +222,12 @@ let ``sort plan`` () =
                 scan.GetVal "grad_year" |> DbConstant.toInt
 
             let sid = scan.GetVal "s_id" |> DbConstant.toInt
-            Assert.True(prevGradYear <= gradYear)
-            if prevGradYear = gradYear then Assert.True(prevSid > sid)
+            prevGradYear
+            |> should be (lessThanOrEqualTo gradYear)
+            if prevGradYear = gradYear then prevSid |> should be (greaterThan sid)
             prevGradYear <- gradYear
             prevSid <- sid
-        Assert.Equal(900, i)
+        i |> should equal 900
         scan.Close())
 
     tx.Commit()

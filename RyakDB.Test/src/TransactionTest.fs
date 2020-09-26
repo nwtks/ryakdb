@@ -31,7 +31,7 @@ let commit () =
 
     let buff2 = tx2.Buffer.Pin blk
     tx2.Concurrency.ReadBlock blk
-    Assert.Equal(c, buff2.GetVal 0 IntDbType)
+    buff2.GetVal 0 IntDbType |> should equal c
     tx2.Commit()
 
 [<Fact>]
@@ -68,7 +68,7 @@ let rollback () =
 
     let buff3 = tx3.Buffer.Pin blk
     tx3.Concurrency.ReadBlock blk
-    Assert.Equal(c1, buff3.GetVal 0 IntDbType)
+    buff3.GetVal 0 IntDbType |> should equal c1
     tx3.Commit()
 
 [<Fact>]

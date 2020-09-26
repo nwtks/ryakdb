@@ -19,12 +19,13 @@ module BTreeIndex =
     let getRoot txBuffer txConcurrency txRecovery keyType branchFileName =
         newBTreeBranch txBuffer txConcurrency txRecovery (BlockId.newBlockId branchFileName 0L) keyType
 
-    let search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange purpose =
+    let search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName purpose leafFileName searchRange =
         let root =
             getRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
         let leafBlockId =
-            root.Search leafFileName (searchRange.GetMin()) purpose
+            searchRange.GetMin()
+            |> root.Search purpose leafFileName
 
         let branchesMayBeUpdated =
             if purpose = Insert then root.BranchesMayBeUpdated() else []
@@ -56,7 +57,7 @@ module BTreeIndex =
     let beforeFirst txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange =
         if searchRange.IsValid() then
             let leaf, _ =
-                search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange Read
+                search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Read leafFileName searchRange
 
             Some leaf
         else
@@ -87,16 +88,8 @@ module BTreeIndex =
         if txReadOnly then failwith "Transaction read only"
 
         let leaf, branchesMayBeUpdated =
-            search
-                txBuffer
-                txConcurrency
-                txRecovery
-                indexInfo
-                keyType
-                branchFileName
-                leafFileName
-                (SearchRange.newSearchRangeBySearchKey key)
-                Insert
+            SearchRange.newSearchRangeBySearchKey key
+            |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Insert leafFileName
 
         let splitedLeaf = leaf.Insert dataRecordId
         leaf.Close()
@@ -141,16 +134,8 @@ module BTreeIndex =
         if txReadOnly then failwith "Transaction read only"
 
         let leaf, _ =
-            search
-                txBuffer
-                txConcurrency
-                txRecovery
-                indexInfo
-                keyType
-                branchFileName
-                leafFileName
-                (SearchRange.newSearchRangeBySearchKey key)
-                Delete
+            SearchRange.newSearchRangeBySearchKey key
+            |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Delete leafFileName
 
         if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
