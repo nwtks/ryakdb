@@ -28,7 +28,7 @@ module Scan =
 
         let schema = tableInfo.Schema
 
-        { GetVal = fun field -> tableFile.GetVal field |> Option.get
+        { GetVal = fun field -> tableFile.GetVal field
           BeforeFirst = fun () -> tableFile.BeforeFirst()
           Close = fun () -> tableFile.Close()
           Next = fun () -> tableFile.Next()
@@ -36,7 +36,7 @@ module Scan =
           SetVal = tableFile.SetVal
           Insert = fun () -> tableFile.Insert()
           Delete = fun () -> tableFile.Delete()
-          GetRecordId = fun () -> tableFile.CurrentRecordId() |> Option.get
+          GetRecordId = fun () -> tableFile.CurrentRecordId()
           MoveToRecordId = tableFile.MoveToRecordId }
 
     let newSelectScan scan predicate =

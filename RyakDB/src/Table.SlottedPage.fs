@@ -31,8 +31,8 @@ module SlottedPage =
 
     let FlagSize = 4
 
-    let EmptyConst = IntDbConstant(0)
-    let InUseConst = IntDbConstant(1)
+    let EmptyConst = IntDbConstant 0
+    let InUseConst = IntDbConstant 1
 
     let offsetMap schema =
         let offsetMap, _ =
@@ -136,15 +136,10 @@ module SlottedPage =
             (currentPosition slotSize currentSlotNo)
             + FlagSize
 
-        setValue txConcurrency txRecovery doLog currentBuffer blockId position (BigIntDbConstant blockNo)
-        setValue
-            txConcurrency
-            txRecovery
-            doLog
-            currentBuffer
-            blockId
-            (position + BlockId.BlockNoSize)
-            (IntDbConstant slotNo)
+        BigIntDbConstant blockNo
+        |> setValue txConcurrency txRecovery doLog currentBuffer blockId position
+        IntDbConstant slotNo
+        |> setValue txConcurrency txRecovery doLog currentBuffer blockId (position + BlockId.BlockNoSize)
 
     let next txConcurrency currentBuffer blockId slotSize currentSlotNo =
         searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo InUseConst
@@ -189,15 +184,8 @@ module SlottedPage =
         let nextDeletedSlot =
             getDeletedRecordId txConcurrency currentBuffer blockId slotSize currentSlotNo
 
-        setDeletedRecordId
-            txConcurrency
-            txRecovery
-            doLog
-            currentBuffer
-            blockId
-            slotSize
-            currentSlotNo
-            (RecordId.newBlockRecordId 0 "" 0L)
+        RecordId.newBlockRecordId 0 "" 0L
+        |> setDeletedRecordId txConcurrency txRecovery doLog currentBuffer blockId slotSize currentSlotNo
         setValue
             txConcurrency
             txRecovery
@@ -226,27 +214,27 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
     let offsetMap = SlottedPage.offsetMap tableInfo.Schema
     let currentBuffer = txBuffer.Pin blockId
 
-    let mutable currentSlotNo = Some(-1)
+    let mutable currentSlotNo = Some -1
     { Close =
           fun () ->
               match currentSlotNo with
-              | Some (_) -> SlottedPage.close txBuffer currentBuffer
+              | Some _ -> SlottedPage.close txBuffer currentBuffer
               | _ -> ()
               currentSlotNo <- None
       Next =
           fun () ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   let newSlotNo, result =
                       SlottedPage.next txConcurrency currentBuffer blockId slotSize slotNo
 
-                  currentSlotNo <- Some(newSlotNo)
+                  currentSlotNo <- Some newSlotNo
                   result
-              | _ -> failwith "Closed page"
+              | _ -> false
       GetVal =
           fun fieldName ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   SlottedPage.getVal
                       txConcurrency
                       tableInfo.Schema
@@ -260,7 +248,7 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
       SetVal =
           fun fieldName value ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   SlottedPage.setVal
                       txConcurrency
                       txRecovery
@@ -276,7 +264,7 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
       Delete =
           fun nextDeletedSlot ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   SlottedPage.delete
                       txConcurrency
                       txRecovery
@@ -290,13 +278,13 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
       InsertIntoCurrentSlot =
           fun () ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   SlottedPage.insertIntoCurrentSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
               | _ -> failwith "Closed page"
       InsertIntoNextEmptySlot =
           fun () ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   let newSlotNo, result =
                       SlottedPage.insertIntoNextEmptySlot
                           txConcurrency
@@ -307,31 +295,31 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
                           slotSize
                           slotNo
 
-                  currentSlotNo <- Some(newSlotNo)
+                  currentSlotNo <- Some newSlotNo
                   result
               | _ -> failwith "Closed page"
       InsertIntoDeletedSlot =
           fun () ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   SlottedPage.insertIntoDeletedSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
               | _ -> failwith "Closed page"
-      MoveToSlotNo = fun slotNo -> currentSlotNo <- Some(slotNo)
+      MoveToSlotNo = fun slotNo -> currentSlotNo <- Some slotNo
       CurrentSlotNo =
           fun () ->
               match currentSlotNo with
-              | Some (slotNo) -> slotNo
+              | Some slotNo -> slotNo
               | _ -> failwith "Closed page"
       BlockId = blockId
       GetDeletedRecordId =
           fun () ->
               match currentSlotNo with
-              | Some (slotNo) -> SlottedPage.getDeletedRecordId txConcurrency currentBuffer blockId slotSize slotNo
+              | Some slotNo -> SlottedPage.getDeletedRecordId txConcurrency currentBuffer blockId slotSize slotNo
               | _ -> failwith "Closed page"
       SetDeletedRecordId =
           fun recordId ->
               match currentSlotNo with
-              | Some (slotNo) ->
+              | Some slotNo ->
                   SlottedPage.setDeletedRecordId
                       txConcurrency
                       txRecovery
@@ -347,10 +335,9 @@ module SlottedPageFormatter =
     let makeDefaultSlottedPage tableInfo (offsetMap: Map<string, int32>) buffer position =
         tableInfo.Schema.Fields()
         |> List.iter (fun field ->
-            buffer.SetValue
-                (position + 4 + offsetMap.[field])
-                (tableInfo.Schema.DbType field
-                 |> DbConstant.defaultConstant))
+            tableInfo.Schema.DbType field
+            |> DbConstant.defaultConstant
+            |> buffer.SetValue(position + 4 + offsetMap.[field]))
 
 let newSlottedPageFormatter tableInfo =
     let offsetMap = SlottedPage.offsetMap tableInfo.Schema

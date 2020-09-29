@@ -24,17 +24,22 @@ module TableManager =
     let MaxName = 30
 
     let formatFileHeader fileMgr tx tableName =
-        TableFile.formatFileHeader fileMgr tx.Buffer tx.Concurrency (tableName + ".tbl")
+        tableName
+        + ".tbl"
+        |> TableFile.formatFileHeader fileMgr tx.Buffer tx.Concurrency
 
     let newTcatInfo () =
         let tcatSchema = Schema.newSchema ()
-        tcatSchema.AddField TcatTableName (VarcharDbType MaxName)
+        VarcharDbType MaxName
+        |> tcatSchema.AddField TcatTableName
         TableInfo.newTableInfo Tcat tcatSchema
 
     let newFcatInfo () =
         let fcatSchema = Schema.newSchema ()
-        fcatSchema.AddField FcatTableName (VarcharDbType MaxName)
-        fcatSchema.AddField FcatFieldName (VarcharDbType MaxName)
+        VarcharDbType MaxName
+        |> fcatSchema.AddField FcatTableName
+        VarcharDbType MaxName
+        |> fcatSchema.AddField FcatFieldName
         fcatSchema.AddField FcatType IntDbType
         fcatSchema.AddField FcatTypeArg IntDbType
         TableInfo.newTableInfo Fcat fcatSchema
@@ -43,9 +48,7 @@ module TableManager =
         let rec findTcatfile tcatfile =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = tableName)
-                   |> Option.defaultValue false then
+                   |> DbConstant.toString = tableName then
                     true
                 else
                     findTcatfile tcatfile
@@ -64,17 +67,13 @@ module TableManager =
         let rec addField fcatfile schema =
             if fcatfile.Next() then
                 if fcatfile.GetVal FcatTableName
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = tableName)
-                   |> Option.defaultValue false then
-                    match fcatfile.GetVal FcatFieldName
-                          |> Option.map DbConstant.toString,
-                          fcatfile.GetVal FcatType
-                          |> Option.map DbConstant.toInt,
-                          fcatfile.GetVal FcatTypeArg
-                          |> Option.map DbConstant.toInt with
-                    | Some (fn), Some (ft), Some (fa) -> DbType.fromInt ft fa |> schema.AddField fn
-                    | _ -> ()
+                   |> DbConstant.toString = tableName then
+                    DbType.fromInt
+                        (fcatfile.GetVal FcatType |> DbConstant.toInt)
+                        (fcatfile.GetVal FcatTypeArg |> DbConstant.toInt)
+                    |> schema.AddField
+                        (fcatfile.GetVal FcatFieldName
+                         |> DbConstant.toString)
                 addField fcatfile schema
             else
                 schema
@@ -89,10 +88,10 @@ module TableManager =
             schema
 
         if newTcatInfo () |> findTcatInfo then
-            Some
-                (newFcatInfo ()
-                 |> createSchema
-                 |> TableInfo.newTableInfo tableName)
+            newFcatInfo ()
+            |> createSchema
+            |> TableInfo.newTableInfo tableName
+            |> Some
         else
             None
 
@@ -108,11 +107,17 @@ module TableManager =
 
         let addFieldName fcatfile fieldName =
             fcatfile.Insert()
-            fcatfile.SetVal FcatTableName (DbConstant.newVarchar tableName)
-            fcatfile.SetVal FcatFieldName (DbConstant.newVarchar fieldName)
+            DbConstant.newVarchar tableName
+            |> fcatfile.SetVal FcatTableName
+            DbConstant.newVarchar fieldName
+            |> fcatfile.SetVal FcatFieldName
             let fldType = schema.DbType fieldName
-            fcatfile.SetVal FcatType (DbType.toInt fldType |> IntDbConstant)
-            fcatfile.SetVal FcatTypeArg (DbType.argument fldType |> IntDbConstant)
+            DbType.toInt fldType
+            |> IntDbConstant
+            |> fcatfile.SetVal FcatType
+            DbType.argument fldType
+            |> IntDbConstant
+            |> fcatfile.SetVal FcatTypeArg
 
         let addFcatInfo fcatInfo =
             let fcatfile =
@@ -137,9 +142,7 @@ module TableManager =
         let rec deleteTcatfile tcatfile =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = tableName)
-                   |> Option.defaultValue false then
+                   |> DbConstant.toString = tableName then
                     tcatfile.Delete()
                 deleteTcatfile tcatfile
 
@@ -154,9 +157,7 @@ module TableManager =
         let rec deleteFcatfile fcatfile =
             if fcatfile.Next() then
                 if fcatfile.GetVal FcatTableName
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = tableName)
-                   |> Option.defaultValue false then
+                   |> DbConstant.toString = tableName then
                     fcatfile.Delete()
                 deleteFcatfile fcatfile
 

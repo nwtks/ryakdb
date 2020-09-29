@@ -57,8 +57,10 @@ module BTreeLeaf =
         txRecovery.LogIndexPageInsertion false page.BlockId keyType slot
         |> ignore
         page.Insert slot
-        page.SetVal slot FieldBlockNo (BigIntDbConstant blockNo)
-        page.SetVal slot FieldSlotNo (IntDbConstant slotNo)
+        BigIntDbConstant blockNo
+        |> page.SetVal slot FieldBlockNo
+        IntDbConstant slotNo
+        |> page.SetVal slot FieldSlotNo
         keys
         |> List.iteri (fun i k -> page.SetVal slot (KeyPrefix + i.ToString()) k)
 
@@ -106,14 +108,14 @@ module BTreeLeaf =
                         slot
             | _ -> -1
 
-    let moveTo txBuffer txConcurrency txRecovery schema currentPage blockNo =
-        let (BlockId (filename, _)) = currentPage.BlockId
-        let blockId = BlockId.newBlockId filename blockNo
-        txConcurrency.ReadLeafBlock blockId
-        currentPage.Close()
-        initBTreePage txBuffer txConcurrency txRecovery schema blockId
-
     let next txBuffer txConcurrency txRecovery schema keyType searchRange state =
+        let moveTo txBuffer txConcurrency txRecovery schema currentPage blockNo =
+            let (BlockId (filename, _)) = currentPage.BlockId
+            let blockId = BlockId.newBlockId filename blockNo
+            txConcurrency.ReadLeafBlock blockId
+            currentPage.Close()
+            initBTreePage txBuffer txConcurrency txRecovery schema blockId
+
         let rec loopNext state =
             let nextSlot = state.CurrentSlot + 1
             if state.IsOverflowing then
@@ -219,7 +221,7 @@ module BTreeLeaf =
                 splitOverflow page
                 None
             else
-                Some(splitSibling page firstKey)
+                splitSibling page firstKey |> Some
         else
             None
 
@@ -237,28 +239,6 @@ module BTreeLeaf =
             else
                 false, newstate
 
-        let transferOverflow page =
-            let (BlockId (filename, blockNo)) = page.BlockId
-
-            let overflowPageBlockId =
-                getOverflowBlockNo page
-                |> BlockId.newBlockId filename
-
-            txConcurrency.ModifyLeafBlock overflowPageBlockId
-
-            let overflowPage =
-                initBTreePage txBuffer txConcurrency txRecovery schema overflowPageBlockId
-
-            if page.GetCountOfRecords() = 0
-               || (overflowPage.GetCountOfRecords() > 0
-                   && SearchKey.compare (getKey page 0 keyType) (getKey overflowPage 0 keyType)
-                      <> 0) then
-                overflowPage.TransferRecords (overflowPage.GetCountOfRecords() - 1) page 0 1
-                if overflowPage.GetCountOfRecords() = 0 then
-                    let overflow = getOverflowBlockNo overflowPage
-                    setOverflowBlockNo page (if overflow = blockNo then -1L else overflow)
-                overflowPage.Close()
-
         let recoverOverflowFlag page moveFrom =
             let (BlockId (filename, _)) = page.BlockId
 
@@ -268,7 +248,8 @@ module BTreeLeaf =
 
             let overflow = getOverflowBlockNo page
             let (BlockId (_, blockNo)) = fromPage.BlockId
-            setOverflowBlockNo fromPage (if overflow = blockNo then -1L else overflow)
+            if overflow = blockNo then -1L else overflow
+            |> setOverflowBlockNo fromPage
             fromPage.Close()
 
         if not (searchRange.IsSingleValue()) then failwith "Not supported"
@@ -278,8 +259,6 @@ module BTreeLeaf =
             if newstate.IsOverflowing then
                 if newstate.CurrentPage.GetCountOfRecords() = 0
                 then recoverOverflowFlag newstate.CurrentPage newstate.MoveFrom
-            else if getOverflowBlockNo newstate.CurrentPage >= 0L then
-                transferOverflow newstate.CurrentPage
 
         newstate
 
@@ -300,27 +279,27 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
     { Next =
           fun () ->
               match state with
-              | Some (st) ->
+              | Some st ->
                   let result, newstate =
                       BTreeLeaf.next txBuffer txConcurrency txRecovery schema keyType searchRange st
 
                   state <- Some newstate
                   result
-              | _ -> failwith "Closed leaf"
+              | _ -> false
       GetDataRecordId =
           fun () ->
               match state with
-              | Some (st) -> BTreeLeaf.getDataRecordId dataFileName st.CurrentPage st.CurrentSlot
+              | Some st -> BTreeLeaf.getDataRecordId dataFileName st.CurrentPage st.CurrentSlot
               | _ -> failwith "Closed leaf"
       GetCountOfRecords =
           fun () ->
               match state with
-              | Some (st) -> st.CurrentPage.GetCountOfRecords()
+              | Some st -> st.CurrentPage.GetCountOfRecords()
               | _ -> failwith "Closed leaf"
       Insert =
           fun recordId ->
               match state with
-              | Some (st) ->
+              | Some st ->
                   let result =
                       BTreeLeaf.insert txRecovery keyType searchRange st.CurrentPage (st.CurrentSlot + 1) recordId
 
@@ -329,19 +308,19 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
       Delete =
           fun recordId ->
               match state with
-              | Some (st) ->
+              | Some st ->
                   state <-
-                      Some
-                          (BTreeLeaf.delete
-                              txBuffer
-                               txConcurrency
-                               txRecovery
-                               dataFileName
-                               schema
-                               keyType
-                               searchRange
-                               st
-                               recordId)
+                      BTreeLeaf.delete
+                          txBuffer
+                          txConcurrency
+                          txRecovery
+                          dataFileName
+                          schema
+                          keyType
+                          searchRange
+                          st
+                          recordId
+                      |> Some
               | _ -> failwith "Closed leaf"
       Close =
           fun () ->

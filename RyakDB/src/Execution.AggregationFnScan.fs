@@ -15,7 +15,7 @@ type AggregationFnScan =
 module AggregationFnScan =
     let newAvgFn fieldName aggFnFieldName =
         let mutable count = 1
-        let mutable sum = DoubleDbConstant(nan)
+        let mutable sum = DoubleDbConstant nan
 
         let processFirst record = sum <- record fieldName
 
@@ -38,12 +38,12 @@ module AggregationFnScan =
           ArgumentFieldName = fieldName
           ProcessFirst = fun _ -> count <- 1
           ProcessNext = fun _ -> count <- count + 1
-          Value = fun () -> (IntDbConstant count)
+          Value = fun () -> IntDbConstant count
           IsArgumentTypeDependent = false
           FieldType = fun () -> IntDbType }
 
     let newMaxFn fieldName aggFnFieldName =
-        let mutable value = DoubleDbConstant(nan)
+        let mutable value = DoubleDbConstant nan
 
         let processFirst record = value <- record fieldName
 
@@ -60,7 +60,7 @@ module AggregationFnScan =
           FieldType = fun () -> failwith "type is dependent" }
 
     let newMinFn fieldName aggFnFieldName =
-        let mutable value = DoubleDbConstant(nan)
+        let mutable value = DoubleDbConstant nan
 
         let processFirst record = value <- record fieldName
 
@@ -77,7 +77,7 @@ module AggregationFnScan =
           FieldType = fun () -> failwith "type is dependent" }
 
     let newSumFn fieldName aggFnFieldName =
-        let mutable sum = DoubleDbConstant(nan)
+        let mutable sum = DoubleDbConstant nan
 
         let processFirst record = sum <- record fieldName
 
@@ -95,8 +95,8 @@ module AggregationFnScan =
 let newAggregationFnScan aggregationFn =
     let aggFnFieldName = aggregationFn |> AggregationFn.fieldName
     match aggregationFn with
-    | AvgFn (fn) -> AggregationFnScan.newAvgFn fn aggFnFieldName
-    | CountFn (fn) -> AggregationFnScan.newCountFn fn aggFnFieldName
-    | MaxFn (fn) -> AggregationFnScan.newMaxFn fn aggFnFieldName
-    | MinFn (fn) -> AggregationFnScan.newMinFn fn aggFnFieldName
-    | SumFn (fn) -> AggregationFnScan.newSumFn fn aggFnFieldName
+    | AvgFn fn -> AggregationFnScan.newAvgFn fn aggFnFieldName
+    | CountFn fn -> AggregationFnScan.newCountFn fn aggFnFieldName
+    | MaxFn fn -> AggregationFnScan.newMaxFn fn aggFnFieldName
+    | MinFn fn -> AggregationFnScan.newMinFn fn aggFnFieldName
+    | SumFn fn -> AggregationFnScan.newSumFn fn aggFnFieldName

@@ -39,7 +39,7 @@ module TransactionRecovery =
 
     let logTableFileInsertionEnd logMgr txNo logicalStartLogSeqNo tableName blockNo slotNo =
         match logicalStartLogSeqNo with
-        | Some (startLsn) ->
+        | Some startLsn ->
             newTableFileInsertEndRecord txNo tableName blockNo slotNo startLsn
             |> writeToLog logMgr
             |> Some
@@ -47,7 +47,7 @@ module TransactionRecovery =
 
     let logTableFileDeletionEnd logMgr txNo logicalStartLogSeqNo tableName blockNo slotNo =
         match logicalStartLogSeqNo with
-        | Some (startLsn) ->
+        | Some startLsn ->
             newTableFileDeleteEndRecord txNo tableName blockNo slotNo startLsn
             |> writeToLog logMgr
             |> Some
@@ -55,7 +55,7 @@ module TransactionRecovery =
 
     let logIndexInsertionEnd logMgr txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
         match logicalStartLogSeqNo with
-        | Some (startLsn) ->
+        | Some startLsn ->
             newIndexInsertEndRecord txNo indexName searchKey blockNo slotNo startLsn
             |> writeToLog logMgr
             |> Some
@@ -63,7 +63,7 @@ module TransactionRecovery =
 
     let logIndexDeletionEnd logMgr txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
         match logicalStartLogSeqNo with
-        | Some (startLsn) ->
+        | Some startLsn ->
             newIndexDeleteEndRecord txNo indexName searchKey blockNo slotNo startLsn
             |> writeToLog logMgr
             |> Some

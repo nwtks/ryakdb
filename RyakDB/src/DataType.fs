@@ -278,7 +278,7 @@ module DbConstantRange =
 
     let isValid low includesLow high includesHigh =
         match low, high with
-        | Some (l), Some (h) ->
+        | Some l, Some h ->
             DbConstant.compare l h < 0
             || includesLow
                && includesHigh
@@ -287,7 +287,7 @@ module DbConstantRange =
 
     let isConstant low includesLow high includesHigh =
         match low, high with
-        | Some (l), Some (h) ->
+        | Some l, Some h ->
             includesLow
             && includesHigh
             && DbConstant.compare l h = 0

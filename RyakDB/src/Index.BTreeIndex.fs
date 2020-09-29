@@ -27,9 +27,7 @@ module BTreeIndex =
             searchRange.GetMin()
             |> root.Search purpose leafFileName
 
-        let branchesMayBeUpdated =
-            if purpose = Insert then root.BranchesMayBeUpdated() else []
-
+        let branchesMayBeUpdated = root.BranchesMayBeUpdated()
         root.Close()
 
         let leaf =
@@ -65,12 +63,12 @@ module BTreeIndex =
 
     let next leaf =
         match leaf with
-        | Some (l) -> l.Next()
-        | _ -> failwith "Must call beforeFirst()"
+        | Some l -> l.Next()
+        | _ -> false
 
     let getDataRecordId leaf =
         match leaf with
-        | Some (l) -> l.GetDataRecordId()
+        | Some l -> l.GetDataRecordId()
         | _ -> failwith "Must call beforeFirst()"
 
     let insert txBuffer
@@ -99,7 +97,7 @@ module BTreeIndex =
             branchesMayBeUpdated
             |> List.fold (fun splitedBranch branchBlockId ->
                 match splitedBranch with
-                | Some (entry) ->
+                | Some entry ->
                     let branch =
                         newBTreeBranch txBuffer txConcurrency txRecovery branchBlockId keyType
 
@@ -163,7 +161,8 @@ module BTreeIndex =
             getRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
         if root.GetCountOfRecords() = 0 then
-            root.Insert(newBTreeBranchEntry (SearchKeyType.getMin keyType) 0L)
+            newBTreeBranchEntry (SearchKeyType.getMin keyType) 0L
+            |> root.Insert
             |> ignore
         root.Close()
 

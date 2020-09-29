@@ -43,7 +43,7 @@ module TransactionBuffer =
 
         let buff, waitedBeforeGotBuffer =
             match pinBufferPool () with
-            | Some buff -> Some(buff), false
+            | Some buff -> Some buff, false
             | _ -> waitThreads bufferPool pinBufferPool System.DateTime.Now None, true
 
         let nextstate, buffer =

@@ -53,7 +53,8 @@ module BTreePage =
         txConcurrency.ModifyFile fileName
 
         let buff =
-            txBuffer.PinNew fileName (newBTreePageFormatter schema flags)
+            newBTreePageFormatter schema flags
+            |> txBuffer.PinNew fileName
 
         txBuffer.Unpin buff
         buff.BlockId()
@@ -252,27 +253,27 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
     let countOfSlots =
         (buffer.BufferSize - headerSize) / slotSize
 
-    let mutable currentBuffer = Some(buffer)
+    let mutable currentBuffer = Some buffer
     { GetCountOfRecords =
           fun () ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.getCountOfRecords buffer
+              | Some buffer -> BTreePage.getCountOfRecords buffer
               | _ -> failwith "Closed page"
       SetCountOfRecords =
           fun value ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.setCountOfRecords txRecovery buffer value
+              | Some buffer -> BTreePage.setCountOfRecords txRecovery buffer value
               | _ -> failwith "Closed page"
       BlockId = blockId
       GetVal =
           fun slot fieldName ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.getVal schema buffer headerSize slotSize offsetMap slot fieldName
+              | Some buffer -> BTreePage.getVal schema buffer headerSize slotSize offsetMap slot fieldName
               | _ -> failwith "Closed page"
       SetVal =
           fun slot fieldName value ->
               match currentBuffer with
-              | Some (buffer) ->
+              | Some buffer ->
                   BTreePage.setVal
                       txRecovery
                       schema
@@ -288,37 +289,37 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
       GetFlag =
           fun no ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.getFlag buffer no
+              | Some buffer -> BTreePage.getFlag buffer no
               | _ -> failwith "Closed page"
       SetFlag =
           fun no value ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.setFlag txRecovery buffer no value
+              | Some buffer -> BTreePage.setFlag txRecovery buffer no value
               | _ -> failwith "Closed page"
       IsFull =
           fun () ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.isFull buffer headerSize slotSize
+              | Some buffer -> BTreePage.isFull buffer headerSize slotSize
               | _ -> failwith "Closed page"
       WillFull =
           fun () ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.willFull buffer headerSize slotSize
+              | Some buffer -> BTreePage.willFull buffer headerSize slotSize
               | _ -> failwith "Closed page"
       Insert =
           fun slot ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.insert schema buffer headerSize slotSize offsetMap countOfSlots slot
+              | Some buffer -> BTreePage.insert schema buffer headerSize slotSize offsetMap countOfSlots slot
               | _ -> failwith "Closed page"
       Delete =
           fun slot ->
               match currentBuffer with
-              | Some (buffer) -> BTreePage.delete schema buffer headerSize slotSize offsetMap slot
+              | Some buffer -> BTreePage.delete schema buffer headerSize slotSize offsetMap slot
               | _ -> failwith "Closed page"
       TransferRecords =
           fun start destPage destStart count ->
               match currentBuffer with
-              | Some (buffer) ->
+              | Some buffer ->
                   BTreePage.transferRecords
                       txRecovery
                       schema
@@ -334,7 +335,7 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
       Split =
           fun splitSlot flags ->
               match currentBuffer with
-              | Some (buffer) ->
+              | Some buffer ->
                   BTreePage.split
                       txBuffer
                       txConcurrency
@@ -352,13 +353,13 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
       CopyRecord =
           fun fromSlot toSlot ->
               match currentBuffer with
-              | Some (buffer) ->
+              | Some buffer ->
                   BTreePage.copyRecord txRecovery schema buffer headerSize slotSize offsetMap fromSlot toSlot
               | _ -> failwith "Closed page"
       SetValueUnchecked =
           fun slot fieldName value ->
               match currentBuffer with
-              | Some (buffer) ->
+              | Some buffer ->
                   BTreePage.setValueUnchecked
                       txRecovery
                       schema

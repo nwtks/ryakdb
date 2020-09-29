@@ -26,23 +26,22 @@ module IndexManager =
     let KcatKeyName = "key_name"
 
     let readInfo tblMgr tx tf =
-        match tf.GetVal IcatIdxName
-              |> Option.map DbConstant.toString,
-              tf.GetVal IcatTblName
-              |> Option.map DbConstant.toString
-              |> Option.bind (tblMgr.GetTableInfo tx),
-              tf.GetVal IcatIdxType
-              |> Option.map DbConstant.toInt
-              |> Option.map enum<IndexType> with
-        | Some (idxName), (Some tblInfo), (Some idxType) -> Some(idxName, idxType, tblInfo)
+        match tf.GetVal IcatTblName
+              |> DbConstant.toString
+              |> tblMgr.GetTableInfo tx with
+        | Some tblInfo ->
+            (tf.GetVal IcatIdxName |> DbConstant.toString,
+             tf.GetVal IcatIdxType
+             |> DbConstant.toInt
+             |> enum<IndexType>,
+             tblInfo)
+            |> Some
         | _ -> None
 
     let rec findIcatfileByIndexName tblMgr tx (tf: TableFile) indexName =
         if tf.Next() then
             if tf.GetVal IcatIdxName
-               |> Option.map DbConstant.toString
-               |> Option.map (fun name -> name = indexName)
-               |> Option.defaultValue false then
+               |> DbConstant.toString = indexName then
                 readInfo tblMgr tx tf
             else
                 None
@@ -65,9 +64,7 @@ module IndexManager =
     let rec findIcatfileByTableName tblMgr tx (tf: TableFile) tableName indexes =
         if tf.Next() then
             if tf.GetVal IcatTblName
-               |> Option.map DbConstant.toString
-               |> Option.map (fun name -> name = tableName)
-               |> Option.defaultValue false then
+               |> DbConstant.toString = tableName then
                 readInfo tblMgr tx tf
                 |> Option.map (fun i -> i :: indexes)
                 |> Option.defaultValue indexes
@@ -92,14 +89,12 @@ module IndexManager =
 
     let rec findKcatfile (tf: TableFile) indexName fields =
         if tf.Next() then
-            tf.GetVal KcatIdxName
-            |> Option.map DbConstant.toString
-            |> Option.filter (fun name -> name = indexName)
-            |> Option.bind (fun _ ->
-                tf.GetVal KcatKeyName
-                |> Option.map DbConstant.toString)
-            |> Option.map (fun field -> field :: fields)
-            |> Option.defaultValue fields
+            if tf.GetVal KcatIdxName
+               |> DbConstant.toString = indexName then
+                (tf.GetVal KcatKeyName |> DbConstant.toString)
+                :: fields
+            else
+                fields
             |> findKcatfile tf indexName
         else
             fields
@@ -120,9 +115,12 @@ module IndexManager =
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.Insert()
-                tf.SetVal IcatIdxName (DbConstant.newVarchar indexName)
-                tf.SetVal IcatTblName (DbConstant.newVarchar tableName)
-                tf.SetVal IcatIdxType (IntDbConstant(int32 indexType))
+                DbConstant.newVarchar indexName
+                |> tf.SetVal IcatIdxName
+                DbConstant.newVarchar tableName
+                |> tf.SetVal IcatTblName
+                IntDbConstant(int32 indexType)
+                |> tf.SetVal IcatIdxType
                 tf.Close())
 
         let createKcatfile tblMgr =
@@ -132,8 +130,10 @@ module IndexManager =
                 fields
                 |> List.iter (fun field ->
                     tf.Insert()
-                    tf.SetVal KcatIdxName (DbConstant.newVarchar indexName)
-                    tf.SetVal KcatKeyName (DbConstant.newVarchar field)
+                    DbConstant.newVarchar indexName
+                    |> tf.SetVal KcatIdxName
+                    DbConstant.newVarchar field
+                    |> tf.SetVal KcatKeyName
                     tf.Close()))
 
         createIcatfile tblMgr
@@ -143,9 +143,7 @@ module IndexManager =
         let rec deleteIcatfile (tf: TableFile) indexName =
             if tf.Next() then
                 if tf.GetVal IcatIdxName
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = indexName)
-                   |> Option.defaultValue false then
+                   |> DbConstant.toString = indexName then
                     tf.Delete()
                 deleteIcatfile tf indexName
 
@@ -160,9 +158,7 @@ module IndexManager =
         let rec deleteKcatfile (tf: TableFile) indexName =
             if tf.Next() then
                 if tf.GetVal KcatIdxName
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = indexName)
-                   |> Option.defaultValue false then
+                   |> DbConstant.toString = indexName then
                     tf.Delete()
                 deleteKcatfile tf indexName
 
@@ -185,8 +181,7 @@ module IndexManager =
 
     let getIndexInfoByField fileMgr tblMgr tx tableName field =
         findIcatByTableName fileMgr tblMgr tx tableName
-        |> List.map (fun (idxName, idxType, tblInfo) ->
-            (idxName, idxType, tblInfo, findFields fileMgr tblMgr tx idxName))
+        |> List.map (fun (idxName, idxType, tblInfo) -> idxName, idxType, tblInfo, findFields fileMgr tblMgr tx idxName)
         |> List.filter (fun (_, _, _, fields) -> fields |> List.contains field)
         |> List.map (fun (idxName, idxType, tblInfo, fields) -> IndexInfo.newIndexInfo idxName idxType tblInfo fields)
 
@@ -200,15 +195,19 @@ module IndexManager =
     let initIndexManager tblMgr tx =
         let createIcat tblMgr =
             let icatSchema = Schema.newSchema ()
-            icatSchema.AddField IcatIdxName (VarcharDbType TableManager.MaxName)
-            icatSchema.AddField IcatTblName (VarcharDbType TableManager.MaxName)
+            VarcharDbType TableManager.MaxName
+            |> icatSchema.AddField IcatIdxName
+            VarcharDbType TableManager.MaxName
+            |> icatSchema.AddField IcatTblName
             icatSchema.AddField IcatIdxType IntDbType
             tblMgr.CreateTable tx Icat icatSchema
 
         let createKcat tblMgr =
             let kcatSchema = Schema.newSchema ()
-            kcatSchema.AddField KcatIdxName (VarcharDbType TableManager.MaxName)
-            kcatSchema.AddField KcatKeyName (VarcharDbType TableManager.MaxName)
+            VarcharDbType TableManager.MaxName
+            |> kcatSchema.AddField KcatIdxName
+            VarcharDbType TableManager.MaxName
+            |> kcatSchema.AddField KcatKeyName
             tblMgr.CreateTable tx Kcat kcatSchema
 
         createIcat tblMgr

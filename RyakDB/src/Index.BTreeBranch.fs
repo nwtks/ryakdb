@@ -232,20 +232,21 @@ let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =
     let schema = BTreeBranch.keyTypeToSchema keyType
 
     let mutable page =
-        Some(BTreeBranch.initBTreePage txBuffer txConcurrency txRecovery schema blockId)
+        BTreeBranch.initBTreePage txBuffer txConcurrency txRecovery schema blockId
+        |> Some
 
     let mutable branchesMayBeUpdated = []
 
     { GetCountOfRecords =
           fun () ->
               match page with
-              | Some (pg) -> pg.GetCountOfRecords()
+              | Some pg -> pg.GetCountOfRecords()
               | _ -> failwith "Closed branch"
       BranchesMayBeUpdated = fun () -> branchesMayBeUpdated
       Search =
           fun purpose leafFileName searchKey ->
               match page with
-              | Some (pg) ->
+              | Some pg ->
                   let leafBlockId, nextPage, nextMayBeUpdated =
                       BTreeBranch.search
                           txBuffer
@@ -264,13 +265,15 @@ let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =
               | _ -> failwith "Closed branch"
       Insert =
           match page with
-          | Some (pg) -> BTreeBranch.insert txRecovery keyType pg
+          | Some pg -> BTreeBranch.insert txRecovery keyType pg
           | _ -> failwith "Closed branch"
       MakeNewRoot =
           fun entry ->
               match page with
-              | Some (pg) ->
-                  page <- Some(BTreeBranch.makeNewRoot txBuffer txConcurrency txRecovery schema keyType pg entry)
+              | Some pg ->
+                  page <-
+                      BTreeBranch.makeNewRoot txBuffer txConcurrency txRecovery schema keyType pg entry
+                      |> Some
               | _ -> failwith "Closed branch"
       Close =
           fun () ->

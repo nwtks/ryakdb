@@ -123,7 +123,7 @@ module UpdatePlanner =
         let rec modifyAll i =
             if scan.Next() then
                 fieldValues
-                |> Map.iter (fun f e -> scan.SetVal f (Expression.evaluate scan.GetVal e))
+                |> Map.iter (fun f e -> Expression.evaluate scan.GetVal e |> scan.SetVal f)
                 modifyAll (i + 1)
             else
                 i

@@ -29,27 +29,32 @@ type TransactionConcurrency =
 let newReadCommitted txNo lockTable =
     let mutable toReleaseSLockAtEndStatement: LockerKey list = []
 
-    { ModifyFile = fun fileName -> lockTable.XLock txNo (FileNameLockerKey fileName)
+    { ModifyFile = fun fileName -> FileNameLockerKey fileName |> lockTable.XLock txNo
       ReadFile =
           fun fileName ->
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
       InsertBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.XLock txNo (FileNameLockerKey fileName)
-              lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName |> lockTable.XLock txNo
+              BlockIdLockerKey blockId |> lockTable.XLock txNo
       ModifyBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.IXLock txNo (FileNameLockerKey fileName)
-              lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.IXLock txNo
+              BlockIdLockerKey blockId |> lockTable.XLock txNo
       ReadBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
-              lockTable.SLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
+              BlockIdLockerKey blockId |> lockTable.SLock txNo
               toReleaseSLockAtEndStatement <-
                   (BlockIdLockerKey blockId)
                   :: toReleaseSLockAtEndStatement
@@ -57,154 +62,208 @@ let newReadCommitted txNo lockTable =
           fun recordId ->
               let (RecordId (_, blockId)) = recordId
               let (BlockId (fileName, _)) = blockId
-              lockTable.IXLock txNo (FileNameLockerKey fileName)
-              lockTable.IXLock txNo (BlockIdLockerKey blockId)
-              lockTable.XLock txNo (RecordIdLockerKey recordId)
+              FileNameLockerKey fileName
+              |> lockTable.IXLock txNo
+              BlockIdLockerKey blockId |> lockTable.IXLock txNo
+              RecordIdLockerKey recordId |> lockTable.XLock txNo
       ReadRecord =
           fun recordId ->
               let (RecordId (_, blockId)) = recordId
               let (BlockId (fileName, _)) = blockId
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
-              lockTable.ISLock txNo (BlockIdLockerKey blockId)
-              lockTable.ReleaseISLock txNo (BlockIdLockerKey blockId)
-              lockTable.SLock txNo (RecordIdLockerKey recordId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
+              BlockIdLockerKey blockId |> lockTable.ISLock txNo
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseISLock txNo
+              RecordIdLockerKey recordId |> lockTable.SLock txNo
               toReleaseSLockAtEndStatement <-
                   (RecordIdLockerKey recordId)
                   :: toReleaseSLockAtEndStatement
-      ModifyIndex = fun fileName -> lockTable.XLock txNo (FileNameLockerKey fileName)
+      ModifyIndex = fun fileName -> FileNameLockerKey fileName |> lockTable.XLock txNo
       ReadIndex =
           fun fileName ->
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
-      ModifyLeafBlock = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
+      ModifyLeafBlock = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
       ReadLeafBlock =
           fun blockId ->
               toReleaseSLockAtEndStatement <-
                   (BlockIdLockerKey blockId)
                   :: toReleaseSLockAtEndStatement
-      CrabDownBranchBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      CrabDownBranchBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabBackBranchBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
-      CrabBackBranchBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
-      LockTableFileHeader = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      ReleaseTableFileHeader = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForModification = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      CrabDownBranchBlockForRead = fun blockId -> BlockIdLockerKey blockId |> lockTable.SLock txNo
+      CrabBackBranchBlockForModification =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseXLock txNo
+      CrabBackBranchBlockForRead =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseSLock txNo
+      LockTableFileHeader = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      ReleaseTableFileHeader =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseXLock txNo
       OnTxCommit = fun () -> lockTable.ReleaseAll txNo false
       OnTxRollback = fun () -> lockTable.ReleaseAll txNo false
       OnTxEndStatement =
           fun () ->
               List.rev toReleaseSLockAtEndStatement
-              |> List.iter (fun key -> lockTable.ReleaseSLock txNo key)
+              |> List.iter (lockTable.ReleaseSLock txNo)
               toReleaseSLockAtEndStatement <- [] }
 
 let newRepeatableRead txNo lockTable =
     let mutable toReleaseSLockAtEndStatement: LockerKey list = []
 
-    { ModifyFile = fun fileName -> lockTable.XLock txNo (FileNameLockerKey fileName)
+    { ModifyFile = fun fileName -> FileNameLockerKey fileName |> lockTable.XLock txNo
       ReadFile =
           fun fileName ->
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
       InsertBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.XLock txNo (FileNameLockerKey fileName)
-              lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName |> lockTable.XLock txNo
+              BlockIdLockerKey blockId |> lockTable.XLock txNo
       ModifyBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.IXLock txNo (FileNameLockerKey fileName)
-              lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.IXLock txNo
+              BlockIdLockerKey blockId |> lockTable.XLock txNo
       ReadBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
-              lockTable.SLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
+              BlockIdLockerKey blockId |> lockTable.SLock txNo
       ModifyRecord =
           fun recordId ->
               let (RecordId (_, blockId)) = recordId
               let (BlockId (fileName, _)) = blockId
-              lockTable.IXLock txNo (FileNameLockerKey fileName)
-              lockTable.IXLock txNo (BlockIdLockerKey blockId)
-              lockTable.XLock txNo (RecordIdLockerKey recordId)
+              FileNameLockerKey fileName
+              |> lockTable.IXLock txNo
+              BlockIdLockerKey blockId |> lockTable.IXLock txNo
+              RecordIdLockerKey recordId |> lockTable.XLock txNo
       ReadRecord =
           fun recordId ->
               let (RecordId (_, blockId)) = recordId
               let (BlockId (fileName, _)) = blockId
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
-              lockTable.ISLock txNo (BlockIdLockerKey blockId)
-              lockTable.ReleaseISLock txNo (BlockIdLockerKey blockId)
-              lockTable.SLock txNo (RecordIdLockerKey recordId)
-      ModifyIndex = fun fileName -> lockTable.XLock txNo (FileNameLockerKey fileName)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
+              BlockIdLockerKey blockId |> lockTable.ISLock txNo
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseISLock txNo
+              RecordIdLockerKey recordId |> lockTable.SLock txNo
+      ModifyIndex = fun fileName -> FileNameLockerKey fileName |> lockTable.XLock txNo
       ReadIndex =
           fun fileName ->
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ReleaseISLock txNo (FileNameLockerKey fileName)
-      ModifyLeafBlock = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              FileNameLockerKey fileName
+              |> lockTable.ReleaseISLock txNo
+      ModifyLeafBlock = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
       ReadLeafBlock =
           fun blockId ->
-              lockTable.SLock txNo (BlockIdLockerKey blockId)
+              BlockIdLockerKey blockId |> lockTable.SLock txNo
               toReleaseSLockAtEndStatement <-
                   (BlockIdLockerKey blockId)
                   :: toReleaseSLockAtEndStatement
-      CrabDownBranchBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      CrabDownBranchBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabBackBranchBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
-      CrabBackBranchBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
-      LockTableFileHeader = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      ReleaseTableFileHeader = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
+      CrabDownBranchBlockForModification = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      CrabDownBranchBlockForRead = fun blockId -> BlockIdLockerKey blockId |> lockTable.SLock txNo
+      CrabBackBranchBlockForModification =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseXLock txNo
+      CrabBackBranchBlockForRead =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseSLock txNo
+      LockTableFileHeader = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      ReleaseTableFileHeader =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseXLock txNo
       OnTxCommit = fun () -> lockTable.ReleaseAll txNo false
       OnTxRollback = fun () -> lockTable.ReleaseAll txNo false
       OnTxEndStatement =
           fun () ->
               List.rev toReleaseSLockAtEndStatement
-              |> List.iter (fun key -> lockTable.ReleaseSLock txNo key)
+              |> List.iter (lockTable.ReleaseSLock txNo)
               toReleaseSLockAtEndStatement <- [] }
 
 let newSerializable txNo lockTable =
-    { ModifyFile = fun fileName -> lockTable.XLock txNo (FileNameLockerKey fileName)
-      ReadFile = fun fileName -> lockTable.ISLock txNo (FileNameLockerKey fileName)
+    { ModifyFile = fun fileName -> FileNameLockerKey fileName |> lockTable.XLock txNo
+      ReadFile =
+          fun fileName ->
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
       InsertBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.XLock txNo (FileNameLockerKey fileName)
-              lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName |> lockTable.XLock txNo
+              BlockIdLockerKey blockId |> lockTable.XLock txNo
       ModifyBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.IXLock txNo (FileNameLockerKey fileName)
-              lockTable.XLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.IXLock txNo
+              BlockIdLockerKey blockId |> lockTable.XLock txNo
       ReadBlock =
           fun blockId ->
               let (BlockId (fileName, _)) = blockId
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.SLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              BlockIdLockerKey blockId |> lockTable.SLock txNo
       ModifyRecord =
           fun recordId ->
               let (RecordId (_, blockId)) = recordId
               let (BlockId (fileName, _)) = blockId
-              lockTable.IXLock txNo (FileNameLockerKey fileName)
-              lockTable.IXLock txNo (BlockIdLockerKey blockId)
-              lockTable.XLock txNo (RecordIdLockerKey recordId)
+              FileNameLockerKey fileName
+              |> lockTable.IXLock txNo
+              BlockIdLockerKey blockId |> lockTable.IXLock txNo
+              RecordIdLockerKey recordId |> lockTable.XLock txNo
       ReadRecord =
           fun recordId ->
               let (RecordId (_, blockId)) = recordId
               let (BlockId (fileName, _)) = blockId
-              lockTable.ISLock txNo (FileNameLockerKey fileName)
-              lockTable.ISLock txNo (BlockIdLockerKey blockId)
-              lockTable.SLock txNo (RecordIdLockerKey recordId)
-      ModifyIndex = fun fileName -> lockTable.XLock txNo (FileNameLockerKey fileName)
-      ReadIndex = fun fileName -> lockTable.ISLock txNo (FileNameLockerKey fileName)
-      ModifyLeafBlock = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      ReadLeafBlock = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabDownBranchBlockForModification = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      CrabDownBranchBlockForRead = fun blockId -> lockTable.SLock txNo (BlockIdLockerKey blockId)
-      CrabBackBranchBlockForModification = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
-      CrabBackBranchBlockForRead = fun blockId -> lockTable.ReleaseSLock txNo (BlockIdLockerKey blockId)
-      LockTableFileHeader = fun blockId -> lockTable.XLock txNo (BlockIdLockerKey blockId)
-      ReleaseTableFileHeader = fun blockId -> lockTable.ReleaseXLock txNo (BlockIdLockerKey blockId)
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+              BlockIdLockerKey blockId |> lockTable.ISLock txNo
+              RecordIdLockerKey recordId |> lockTable.SLock txNo
+      ModifyIndex = fun fileName -> FileNameLockerKey fileName |> lockTable.XLock txNo
+      ReadIndex =
+          fun fileName ->
+              FileNameLockerKey fileName
+              |> lockTable.ISLock txNo
+      ModifyLeafBlock = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      ReadLeafBlock = fun blockId -> BlockIdLockerKey blockId |> lockTable.SLock txNo
+      CrabDownBranchBlockForModification = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      CrabDownBranchBlockForRead = fun blockId -> BlockIdLockerKey blockId |> lockTable.SLock txNo
+      CrabBackBranchBlockForModification =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseXLock txNo
+      CrabBackBranchBlockForRead =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseSLock txNo
+      LockTableFileHeader = fun blockId -> BlockIdLockerKey blockId |> lockTable.XLock txNo
+      ReleaseTableFileHeader =
+          fun blockId ->
+              BlockIdLockerKey blockId
+              |> lockTable.ReleaseXLock txNo
       OnTxCommit = fun () -> lockTable.ReleaseAll txNo false
       OnTxRollback = fun () -> lockTable.ReleaseAll txNo false
       OnTxEndStatement = fun () -> () }

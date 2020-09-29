@@ -59,15 +59,12 @@ let ``record file`` () =
     let mutable readId = 0
     while rf3.Next() do
         rf3.GetVal "title"
-        |> Option.get
         |> DbConstant.toString
         |> should equal ("course" + readId.ToString())
         rf3.GetVal "deptid"
-        |> Option.get
         |> DbConstant.toLong
         |> should equal (int64 (readId % 3 + 1) * 1000L)
         rf3.GetVal "cid"
-        |> Option.get
         |> DbConstant.toInt
         |> should equal readId
         readId <- readId + 1
@@ -80,8 +77,7 @@ let ``record file`` () =
     rf4.BeforeFirst()
     let mutable numdeleted = 0
     while rf4.Next() do
-        if rf4.GetVal "deptid"
-           |> Option.get = BigIntDbConstant 3000L then
+        if rf4.GetVal "deptid" = BigIntDbConstant 3000L then
             rf4.Delete()
             numdeleted <- numdeleted + 1
     numdeleted |> should equal 100
@@ -89,7 +85,6 @@ let ``record file`` () =
     rf4.BeforeFirst()
     while rf4.Next() do
         rf4.GetVal "deptid"
-        |> Option.get
         |> should not' (equal (BigIntDbConstant 3000L))
 
     for i in 301 .. 456 do

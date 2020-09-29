@@ -149,7 +149,7 @@ let rollback fileMgr logMgr catalogMgr tx =
                     undoLogRecord rlog
                     txUndoNextLogSeqNo <- Some lsn
                 | _ -> undoLogRecord rlog
-            | Some (lsn1), Some (lsn2) when lsn1 > lsn2 ->
+            | Some lsn1, Some lsn2 when lsn1 > lsn2 ->
                 match rlog with
                 | StartRecord (_) -> inStart <- true
                 | LogicalAbortRecord(logicalStartLogSeqNo = lsn) ->

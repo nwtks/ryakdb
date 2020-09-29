@@ -23,11 +23,8 @@ module ViewManager =
     let rec findVcatfileByViewName tf viewName =
         if tf.Next() then
             if tf.GetVal VcatVname
-               |> Option.map DbConstant.toString
-               |> Option.map (fun name -> name = viewName)
-               |> Option.defaultValue false then
-                tf.GetVal VcatVdef
-                |> Option.map DbConstant.toString
+               |> DbConstant.toString = viewName then
+                tf.GetVal VcatVdef |> DbConstant.toString |> Some
             else
                 findVcatfileByViewName tf viewName
         else
@@ -44,18 +41,16 @@ module ViewManager =
 
     let rec findVcatfileByTableName tf tableName viewNames =
         if tf.Next() then
-            tf.GetVal VcatVdef
-            |> Option.map DbConstant.toString
-            |> Option.map Parser.queryCommand
-            |> Option.map (fun qd ->
-                let QueryData(tables = tables) = qd
-                tables)
-            |> Option.filter (List.contains tableName)
-            |> Option.bind (fun _ ->
-                tf.GetVal VcatVname
-                |> Option.map DbConstant.toString)
-            |> Option.map (fun viewName -> viewName :: viewNames)
-            |> Option.defaultValue viewNames
+            let QueryData(tables = tables) =
+                tf.GetVal VcatVdef
+                |> DbConstant.toString
+                |> Parser.queryCommand
+
+            if List.contains tableName tables then
+                (tf.GetVal VcatVname |> DbConstant.toString)
+                :: viewNames
+            else
+                viewNames
             |> findVcatfileByTableName tf tableName
         else
             viewNames
@@ -76,8 +71,10 @@ module ViewManager =
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.Insert()
-                tf.SetVal VcatVname (DbConstant.newVarchar viewName)
-                tf.SetVal VcatVdef (DbConstant.newVarchar viewDef)
+                DbConstant.newVarchar viewName
+                |> tf.SetVal VcatVname
+                DbConstant.newVarchar viewDef
+                |> tf.SetVal VcatVdef
                 tf.Close())
 
         createVcatfile tblMgr
@@ -86,9 +83,7 @@ module ViewManager =
         let rec deleteVcatfile tf viewName =
             if tf.Next() then
                 if tf.GetVal VcatVname
-                   |> Option.map DbConstant.toString
-                   |> Option.map (fun name -> name = viewName)
-                   |> Option.defaultValue false then
+                   |> DbConstant.toString = viewName then
                     tf.Delete()
                 deleteVcatfile tf viewName
 
@@ -110,8 +105,10 @@ module ViewManager =
 
     let initViewManager tblMgr tx =
         let schema = Schema.newSchema ()
-        schema.AddField VcatVname (VarcharDbType TableManager.MaxName)
-        schema.AddField VcatVdef (VarcharDbType MaxViewDef)
+        VarcharDbType TableManager.MaxName
+        |> schema.AddField VcatVname
+        VarcharDbType MaxViewDef
+        |> schema.AddField VcatVdef
         tblMgr.CreateTable tx Vcat schema
 
 let newViewManager fileMgr tblMgr =

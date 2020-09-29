@@ -341,9 +341,9 @@ let ``search range`` () =
     let blk0 = BlockId.newBlockId "BITable.tbl" 0L
     let blk23 = BlockId.newBlockId "BITable.tbl" 23L
 
-    for i in 0 .. 599 do
+    for i in 0 .. 9999 do
         RecordId.newRecordId i blk0
-        |> index.Insert false (SearchKey.newSearchKey [ IntDbConstant(i % 20) ])
+        |> index.Insert false (SearchKey.newSearchKey [ IntDbConstant(i % 500) ])
 
     let key7 =
         SearchKey.newSearchKey [ IntDbConstant 7 ]
@@ -358,7 +358,7 @@ let ``search range`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 130
+    cnt |> should equal 120
 
     cnt <- 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
@@ -369,7 +369,7 @@ let ``search range`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 30
+    cnt |> should equal 20
 
     cnt <- 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
@@ -380,7 +380,7 @@ let ``search range`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 90
+    cnt |> should equal 60
 
     cnt <- 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
@@ -391,7 +391,7 @@ let ``search range`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 60
+    cnt |> should equal 40
 
     cnt <- 0
 
@@ -405,7 +405,7 @@ let ``search range`` () =
     range |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 60
+    cnt |> should equal 40
 
     cnt <- 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
@@ -416,39 +416,39 @@ let ``search range`` () =
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 30
+    cnt |> should equal 20
 
     cnt <- 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange None false (Some(IntDbConstant 5)) false ]
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 150
+    cnt |> should equal 100
 
     cnt <- 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange None false (Some(IntDbConstant 5)) true ]
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 180
-
-    cnt <- 0
-    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 15)) false None false ]
-    |> index.BeforeFirst
-    while index.Next() do
-        cnt <- cnt + 1
     cnt |> should equal 120
 
     cnt <- 0
-    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 15)) true None false ]
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 480)) false None false ]
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 150
+    cnt |> should equal 380
 
-    for i in 0 .. 599 do
+    cnt <- 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 480)) true None false ]
+    |> index.BeforeFirst
+    while index.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 400
+
+    for i in 0 .. 9999 do
         RecordId.newRecordId i blk0
-        |> index.Delete false (SearchKey.newSearchKey [ IntDbConstant(i % 20) ])
+        |> index.Delete false (SearchKey.newSearchKey [ IntDbConstant(i % 500) ])
     SearchKey.newSearchKey [ IntDbConstant 5 ]
     |> SearchRange.newSearchRangeBySearchKey
     |> index.BeforeFirst
