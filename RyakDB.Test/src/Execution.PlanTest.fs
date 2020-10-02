@@ -13,10 +13,10 @@ open RyakDB.Test.TestInit
 
 [<Fact>]
 let ``table plan`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -45,10 +45,10 @@ let ``table plan`` () =
 
 [<Fact>]
 let ``select plan`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -78,10 +78,10 @@ let ``select plan`` () =
 
 [<Fact>]
 let ``project plan`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -112,10 +112,10 @@ let ``project plan`` () =
 
 [<Fact>]
 let ``product plan`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
     TestInit.setupDeptTable db
@@ -154,10 +154,10 @@ let ``product plan`` () =
 
 [<Fact>]
 let ``group by plan`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -190,10 +190,10 @@ let ``group by plan`` () =
 
 [<Fact>]
 let ``sort plan`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 

@@ -35,7 +35,6 @@
     <Compile Include="src/Catalog.IndexManager.fs" />
     <Compile Include="src/Catalog.ViewManager.fs" />
     <Compile Include="src/Catalog.CatalogManager.fs" />
-    <Compile Include="src/Recovery.TransactionRecoveryFinalize.fs" />
     <Compile Include="src/Recovery.SystemRecovery.fs" />
     <Compile Include="src/TransactionManager.fs" />
     <Compile Include="src/Recovery.CheckpointTask.fs" />

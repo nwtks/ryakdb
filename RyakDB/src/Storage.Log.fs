@@ -88,28 +88,23 @@ module LogManager =
 
         let nextstate = flushLog logPage state
         let readPage = newPage fileMgr
-        let initBlockId = nextstate.CurrentBlockId
-
-        let initPosition =
-            readLastRecordPosition readPage initBlockId
 
         nextstate,
-        seq {
-            let mutable blockId = initBlockId
-            let mutable (BlockId (_, blockNo)) = initBlockId
-            let mutable position = initPosition
-            while position > 0 || blockNo > 0L do
+        Seq.unfold (fun (blockId, position) ->
+            let (BlockId (_, blockNo)) = blockId
+            if position > 0 || blockNo > 0L then
                 let blockId1, position1 =
                     if position = 0 then prevBlockRecordPosition readPage blockId else blockId, position
 
                 let (BlockId (_, blockNo1)) = blockId1
-                blockId <- blockId1
-                blockNo <- blockNo1
-                position <-
+
+                let prevPosition =
                     readPage.GetVal position1 IntDbType
                     |> DbConstant.toInt
-                yield newLogRecord blockNo (position + PointerSize) readPage
-        }
+
+                Some(newLogRecord blockNo1 (prevPosition + PointerSize) readPage, (blockId1, prevPosition))
+            else
+                None) (nextstate.CurrentBlockId, readLastRecordPosition readPage nextstate.CurrentBlockId)
 
     let append fileMgr logFileName logPage state constants =
         let appendVal page position value =

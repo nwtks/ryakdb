@@ -11,8 +11,10 @@ open RyakDB.Database
 let commit () =
     let filename = "test_commit"
 
-    let db =
-        newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let blk = BlockId.newBlockId filename 13L
     let c = IntDbConstant(123457)
@@ -38,8 +40,10 @@ let commit () =
 let rollback () =
     let filename = "test_rollback"
 
-    let db =
-        newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let blk = BlockId.newBlockId filename 17L
     let c1 = IntDbConstant(55555)
@@ -75,8 +79,10 @@ let rollback () =
 let ``end statement`` () =
     let filename = "test_end_statement"
 
-    let db =
-        newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let blk = BlockId.newBlockId filename 19L
 

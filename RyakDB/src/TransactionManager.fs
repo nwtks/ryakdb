@@ -44,8 +44,8 @@ module TransactionManager =
                     txCommitListener
                     txRollbackListener
                     txRecovery
-                    (TransactionRecoveryFinalize.onCommit logMgr)
-                    (TransactionRecoveryFinalize.onRollback fileMgr logMgr catalogMgr)
+                    (SystemRecovery.onCommit logMgr)
+                    (SystemRecovery.onRollback fileMgr logMgr catalogMgr)
                     txConcurrency
                     txBuffer
                     state.NextTxNo

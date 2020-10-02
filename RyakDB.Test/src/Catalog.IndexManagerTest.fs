@@ -11,10 +11,10 @@ open RyakDB.Database
 
 [<Fact>]
 let ``create index`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
         db.TxMgr.NewTransaction false Serializable

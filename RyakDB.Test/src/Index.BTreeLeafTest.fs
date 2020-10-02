@@ -11,13 +11,6 @@ open RyakDB.Index.BTreeLeaf
 open RyakDB.Transaction
 open RyakDB.Database
 
-let createTx () =
-    let db =
-        { Database.defaultConfig () with
-              InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
-
-    db.TxMgr.NewTransaction false Serializable
 
 [<Fact>]
 let insert () =
@@ -27,7 +20,14 @@ let insert () =
     let keyType =
         SearchKeyType.newSearchKeyTypeByTypes [ IntDbType ]
 
-    let tx = createTx ()
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let filename = "_test_insert"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
     |> tx.Buffer.PinNew filename
@@ -69,7 +69,14 @@ let delete () =
     let keyType =
         SearchKeyType.newSearchKeyTypeByTypes [ IntDbType ]
 
-    let tx = createTx ()
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let filename = "_test_delete"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
     |> tx.Buffer.PinNew filename
@@ -116,7 +123,14 @@ let split () =
     let keyType =
         SearchKeyType.newSearchKeyTypeByTypes [ IntDbType ]
 
-    let tx = createTx ()
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let filename = "_test_split"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
     |> tx.Buffer.PinNew filename
@@ -176,7 +190,14 @@ let overflow () =
     let keyType =
         SearchKeyType.newSearchKeyTypeByTypes [ IntDbType ]
 
-    let tx = createTx ()
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let filename = "_test_overflow"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
     |> tx.Buffer.PinNew filename

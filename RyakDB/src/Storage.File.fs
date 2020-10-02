@@ -9,6 +9,7 @@ type FileManager =
       IsNew: bool
       Size: string -> int64
       Close: string -> unit
+      CloseAll: unit -> unit
       Delete: string -> unit
       Read: FileBuffer -> BlockId -> unit
       Write: FileBuffer -> BlockId -> unit
@@ -138,6 +139,9 @@ module FileManager =
             if state.OpenFiles.TryRemove(fileName, &channel)
             then channel |> Channel.close)
 
+    let closeAll state =
+        state.OpenFiles.Keys |> Seq.iter (close state)
+
     let delete state fileName =
         close state fileName
         (System.IO.Path.Join(state.DbDirectory, fileName)
@@ -166,6 +170,7 @@ let newFileManager dbPath blockSize inMemory =
       IsNew = isNew
       Size = FileManager.size state
       Close = FileManager.close state
+      CloseAll = fun () -> FileManager.closeAll state
       Delete = FileManager.delete state
       Read = FileManager.read state
       Write = FileManager.write state

@@ -35,10 +35,10 @@ let createIndex db =
 
 [<Fact>]
 let ``single key`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db
@@ -97,10 +97,10 @@ let ``single key`` () =
 
 [<Fact>]
 let ``varchar key`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db
@@ -185,10 +185,10 @@ let ``varchar key`` () =
 
 [<Fact>]
 let ``multi key`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db
@@ -274,11 +274,11 @@ let ``multi key`` () =
 
 [<Fact>]
 let ``branch overflow`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               BlockSize = 2048
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db
@@ -321,11 +321,11 @@ let ``branch overflow`` () =
 
 [<Fact>]
 let ``search range`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               BlockSize = 2048
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db

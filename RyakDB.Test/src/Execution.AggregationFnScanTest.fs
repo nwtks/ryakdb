@@ -12,10 +12,10 @@ open RyakDB.Test.TestInit
 
 [<Fact>]
 let count () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -43,10 +43,10 @@ let count () =
 
 [<Fact>]
 let max () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -74,10 +74,10 @@ let max () =
 
 [<Fact>]
 let min () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -105,10 +105,10 @@ let min () =
 
 [<Fact>]
 let sum () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -136,10 +136,10 @@ let sum () =
 
 [<Fact>]
 let avg () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 

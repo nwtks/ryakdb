@@ -20,10 +20,10 @@ let ``serializable, read modify`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -47,10 +47,10 @@ let ``serializable, read read`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -73,10 +73,10 @@ let ``serializable, modify read`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -98,10 +98,10 @@ let ``serializable, phantom`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false Serializable
@@ -124,10 +124,10 @@ let ``repeatable read, read modify`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false RepeatableRead
@@ -150,10 +150,10 @@ let ``repeatable read, phantom`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false RepeatableRead
@@ -177,10 +177,10 @@ let ``read committed, end statement`` () =
 
     let blocks = init filename 5
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
         db.TxMgr.NewTransaction false ReadCommitted
@@ -198,10 +198,10 @@ let ``read committed, end statement`` () =
 
 [<Fact>]
 let ``serializable, serializable`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -249,10 +249,10 @@ let ``serializable, serializable`` () =
 
 [<Fact>]
 let ``serializable, repeatable read`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 
@@ -305,10 +305,10 @@ let ``serializable, repeatable read`` () =
 
 [<Fact>]
 let ``serializable, read committed`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     TestInit.setupStudentTable db
 

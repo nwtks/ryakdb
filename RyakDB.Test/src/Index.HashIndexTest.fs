@@ -32,10 +32,10 @@ let createIndex db =
 
 [<Fact>]
 let ``single key`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db
@@ -94,10 +94,10 @@ let ``single key`` () =
 
 [<Fact>]
 let ``varchar key`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db
@@ -182,10 +182,10 @@ let ``varchar key`` () =
 
 [<Fact>]
 let ``multi key`` () =
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     createTable db
     createIndex db

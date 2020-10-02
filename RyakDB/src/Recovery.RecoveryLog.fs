@@ -35,11 +35,11 @@ type RecoveryLog =
     | IndexInsertEndRecord of txNo: int64 * indexName: string * searchKey: SearchKey * recordBlockNo: int64 * recordSlotNo: int32 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | IndexDeleteEndRecord of txNo: int64 * indexName: string * searchKey: SearchKey * recordBlockNo: int64 * recordSlotNo: int32 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | IndexPageInsertRecord of txNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * lsn: LogSeqNo option
-    | IndexPageInsertClear of completedTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | IndexPageInsertClear of compesationTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | IndexPageDeleteRecord of txNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * lsn: LogSeqNo option
-    | IndexPageDeleteClear of completedTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | IndexPageDeleteClear of compesationTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | SetValueRecord of txNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * lsn: LogSeqNo option
-    | SetValueClear of completedTxNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | SetValueClear of compesationTxNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
 
 let newStartRecord txNo = StartRecord(txNo, None)
 
@@ -402,7 +402,7 @@ let transactionNo record =
     | StartRecord(txNo = n) -> n
     | CommitRecord(txNo = n) -> n
     | RollbackRecord(txNo = n) -> n
-    | CheckpointRecord (_) -> -1L
+    | CheckpointRecord _ -> -1L
     | LogicalStartRecord(txNo = n) -> n
     | LogicalAbortRecord(txNo = n) -> n
     | TableFileInsertEndRecord(txNo = n) -> n
@@ -410,11 +410,11 @@ let transactionNo record =
     | IndexInsertEndRecord(txNo = n) -> n
     | IndexDeleteEndRecord(txNo = n) -> n
     | IndexPageInsertRecord(txNo = n) -> n
-    | IndexPageInsertClear(completedTxNo = n) -> n
+    | IndexPageInsertClear(compesationTxNo = n) -> n
     | IndexPageDeleteRecord(txNo = n) -> n
-    | IndexPageDeleteClear(completedTxNo = n) -> n
+    | IndexPageDeleteClear(compesationTxNo = n) -> n
     | SetValueRecord(txNo = n) -> n
-    | SetValueClear(completedTxNo = n) -> n
+    | SetValueClear(compesationTxNo = n) -> n
 
 let getLogSeqNo record =
     match record with
@@ -435,24 +435,62 @@ let getLogSeqNo record =
     | SetValueRecord(lsn = n) -> n
     | SetValueClear(lsn = n) -> n
 
+let getLogicalStartLogSeqNo record =
+    match record with
+    | StartRecord _ -> None
+    | CommitRecord _ -> None
+    | RollbackRecord _ -> None
+    | CheckpointRecord _ -> None
+    | LogicalStartRecord _ -> None
+    | LogicalAbortRecord(logicalStartLogSeqNo = lsn) -> Some lsn
+    | TableFileInsertEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
+    | TableFileDeleteEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
+    | IndexInsertEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
+    | IndexDeleteEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
+    | IndexPageInsertRecord _ -> None
+    | IndexPageInsertClear _ -> None
+    | IndexPageDeleteRecord _ -> None
+    | IndexPageDeleteClear _ -> None
+    | SetValueRecord _ -> None
+    | SetValueClear _ -> None
+
+let getUndoNextLogSeqNo record =
+    match record with
+    | StartRecord _ -> None
+    | CommitRecord _ -> None
+    | RollbackRecord _ -> None
+    | CheckpointRecord _ -> None
+    | LogicalStartRecord _ -> None
+    | LogicalAbortRecord _ -> None
+    | TableFileInsertEndRecord _ -> None
+    | TableFileDeleteEndRecord _ -> None
+    | IndexInsertEndRecord _ -> None
+    | IndexDeleteEndRecord _ -> None
+    | IndexPageInsertRecord _ -> None
+    | IndexPageInsertClear(undoNextLogSeqNo = lsn) -> Some lsn
+    | IndexPageDeleteRecord _ -> None
+    | IndexPageDeleteClear(undoNextLogSeqNo = lsn) -> Some lsn
+    | SetValueRecord _ -> None
+    | SetValueClear(undoNextLogSeqNo = lsn) -> Some lsn
+
 let operation record =
     match record with
-    | StartRecord (_) -> RecoveryLogOperation.Start
-    | CommitRecord (_) -> RecoveryLogOperation.Commit
-    | RollbackRecord (_) -> RecoveryLogOperation.Rollback
-    | CheckpointRecord (_) -> RecoveryLogOperation.Checkpoint
-    | LogicalStartRecord (_) -> RecoveryLogOperation.LogicalStart
-    | LogicalAbortRecord (_) -> RecoveryLogOperation.LogicalAbort
-    | TableFileInsertEndRecord (_) -> RecoveryLogOperation.TableFileInsertEnd
-    | TableFileDeleteEndRecord (_) -> RecoveryLogOperation.TableFileDeleteEnd
-    | IndexInsertEndRecord (_) -> RecoveryLogOperation.IndexFileInsertEnd
-    | IndexDeleteEndRecord (_) -> RecoveryLogOperation.IndexFileDeleteEnd
-    | IndexPageInsertRecord (_) -> RecoveryLogOperation.IndexPageInsert
-    | IndexPageInsertClear (_) -> RecoveryLogOperation.IndexPageInsertClear
-    | IndexPageDeleteRecord (_) -> RecoveryLogOperation.IndexPageDelete
-    | IndexPageDeleteClear (_) -> RecoveryLogOperation.IndexPageDeleteClear
-    | SetValueRecord (_) -> RecoveryLogOperation.SetValue
-    | SetValueClear (_) -> RecoveryLogOperation.SetValueClear
+    | StartRecord _ -> RecoveryLogOperation.Start
+    | CommitRecord _ -> RecoveryLogOperation.Commit
+    | RollbackRecord _ -> RecoveryLogOperation.Rollback
+    | CheckpointRecord _ -> RecoveryLogOperation.Checkpoint
+    | LogicalStartRecord _ -> RecoveryLogOperation.LogicalStart
+    | LogicalAbortRecord _ -> RecoveryLogOperation.LogicalAbort
+    | TableFileInsertEndRecord _ -> RecoveryLogOperation.TableFileInsertEnd
+    | TableFileDeleteEndRecord _ -> RecoveryLogOperation.TableFileDeleteEnd
+    | IndexInsertEndRecord _ -> RecoveryLogOperation.IndexFileInsertEnd
+    | IndexDeleteEndRecord _ -> RecoveryLogOperation.IndexFileDeleteEnd
+    | IndexPageInsertRecord _ -> RecoveryLogOperation.IndexPageInsert
+    | IndexPageInsertClear _ -> RecoveryLogOperation.IndexPageInsertClear
+    | IndexPageDeleteRecord _ -> RecoveryLogOperation.IndexPageDelete
+    | IndexPageDeleteClear _ -> RecoveryLogOperation.IndexPageDeleteClear
+    | SetValueRecord _ -> RecoveryLogOperation.SetValue
+    | SetValueClear _ -> RecoveryLogOperation.SetValueClear
 
 let buildRecord record =
     let op =

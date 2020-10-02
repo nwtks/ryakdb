@@ -19,10 +19,10 @@ let newSchema () =
 let ``record page`` () =
     let tableName = "test_record_page"
 
-    let db =
+    use db =
         { Database.defaultConfig () with
               InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let ti =
         TableInfo.newTableInfo tableName (newSchema ())

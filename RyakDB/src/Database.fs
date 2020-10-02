@@ -8,7 +8,6 @@ open RyakDB.Concurrency.LockTable
 open RyakDB.Transaction
 open RyakDB.TransactionManager
 open RyakDB.Recovery
-open RyakDB.Recovery.SystemRecovery
 open RyakDB.Recovery.CheckpointTask
 open RyakDB.Catalog.CatalogManager
 open RyakDB.Execution.Planner
@@ -19,7 +18,10 @@ type Database =
       TaskMgr: TaskManager
       TxMgr: TransactionManager
       CatalogMgr: CatalogManager
-      NewPlanner: unit -> Planner }
+      NewPlanner: unit -> Planner
+      Shutdown: unit -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Shutdown()
 
 type DatabaseConfig =
     { InMemory: bool
@@ -34,7 +36,7 @@ module Database =
     let defaultConfig () =
         { InMemory = false
           BlockSize = 8192
-          BufferPoolSize = 1024
+          BufferPoolSize = 4096
           BufferPoolWaitTime = 10000
           LockTableWaitTime = 10000
           CheckpointPeriod = 300000
@@ -45,7 +47,12 @@ module Database =
         let updatePlanner = newUpdatePlanner fileMgr catalogMgr
         newPlanner queryPlanner updatePlanner
 
-let createDatabase dbPath config =
+    let shutdown fileMgr bufferPool taskMgr =
+        taskMgr.CancelTasks()
+        bufferPool.FlushAll()
+        fileMgr.CloseAll()
+
+let newDatabase dbPath config =
     let fileMgr =
         newFileManager dbPath config.BlockSize config.InMemory
 
@@ -65,7 +72,7 @@ let createDatabase dbPath config =
     let isDbNew = fileMgr.IsNew
     if isDbNew then catalogMgr.InitCatalogManager initTx
     if not (isDbNew)
-    then SystemRecovery.recover fileMgr logMgr catalogMgr initTx
+    then SystemRecovery.recoverSystem fileMgr logMgr catalogMgr initTx
     txMgr.CreateCheckpoint initTx
     initTx.Commit()
 
@@ -81,7 +88,5 @@ let createDatabase dbPath config =
       TaskMgr = taskMgr
       TxMgr = txMgr
       CatalogMgr = catalogMgr
-      NewPlanner = fun () -> Database.createPlanner fileMgr catalogMgr }
-
-let newDatabase dbPath =
-    Database.defaultConfig () |> createDatabase dbPath
+      NewPlanner = fun () -> Database.createPlanner fileMgr catalogMgr
+      Shutdown = fun () -> Database.shutdown fileMgr bufferPool taskMgr }

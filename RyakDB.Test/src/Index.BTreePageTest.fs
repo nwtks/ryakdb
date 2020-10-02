@@ -9,13 +9,6 @@ open RyakDB.Index.BTreePage
 open RyakDB.Transaction
 open RyakDB.Database
 
-let createTx () =
-    let db =
-        { Database.defaultConfig () with
-              InMemory = true }
-        |> createDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
-
-    db.TxMgr.NewTransaction false Serializable
 
 let createSchema () =
     let sch = Schema.newSchema ()
@@ -25,7 +18,15 @@ let createSchema () =
 [<Fact>]
 let insert () =
     let filename = "_test_insert"
-    let tx = createTx ()
+
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
     |> tx.Buffer.PinNew filename
@@ -50,7 +51,15 @@ let insert () =
 [<Fact>]
 let delete () =
     let filename = "_test_delete"
-    let tx = createTx ()
+
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
     |> tx.Buffer.PinNew filename
@@ -81,7 +90,15 @@ let delete () =
 [<Fact>]
 let ``transfer records`` () =
     let filename = "_test_transfer"
-    let tx = createTx ()
+
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
     |> tx.Buffer.PinNew filename
@@ -141,7 +158,15 @@ let ``transfer records`` () =
 [<Fact>]
 let split () =
     let filename = "_test_split"
-    let tx = createTx ()
+
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    let tx =
+        db.TxMgr.NewTransaction false Serializable
+
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
     |> tx.Buffer.PinNew filename
