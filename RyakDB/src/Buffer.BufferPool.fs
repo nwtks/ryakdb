@@ -99,6 +99,7 @@ module BufferPool =
                 pin state blockId
 
         let assignBuffer buffer = buffer.AssignToBlock blockId
+
         let (BlockId (fileName, _)) = blockId
         lock (prepareAnchor state.Anchors fileName) (fun () ->
             match findExistingBuffer state blockId with
@@ -107,6 +108,7 @@ module BufferPool =
 
     let pinNew state fileName formatter =
         let assignBuffer buffer = buffer.AssignToNew fileName formatter
+
         lock (prepareAnchor state.Anchors fileName) (fun () -> pinNewBuffer state assignBuffer)
 
 let newBufferPool fileMgr logMgr size waitTime =

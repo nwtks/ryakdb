@@ -8,12 +8,10 @@ open RyakDB.Storage.Log
 
 [<Fact>]
 let ``append read`` () =
-    let logfilename = "test_log.log"
-
     let fileMgr =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 false
 
-    let logMgr = newLogManager fileMgr logfilename
+    let logMgr = newLogManager fileMgr "test_log.log"
 
     logMgr.RemoveAndCreateNewLog()
 

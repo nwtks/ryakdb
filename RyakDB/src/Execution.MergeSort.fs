@@ -4,13 +4,14 @@ open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Query
 open RyakDB.Storage.File
+open RyakDB.Buffer.BufferPool
 open RyakDB.Table.SlottedPage
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
 open RyakDB.Execution.Scan
 
 module BufferNeeds =
-    let bestRoot tx size =
+    let bestRoot bufferPool size =
         let rec loopRoot avail k i =
             if k > avail then
                 loopRoot
@@ -23,7 +24,7 @@ module BufferNeeds =
             else
                 k
 
-        let avail = tx.Buffer.Available()
+        let avail = bufferPool.Available()
         if avail <= 1 then 1 else loopRoot avail System.Int32.MaxValue 1
 
 type TempTable = { OpenScan: unit -> Scan }
@@ -227,9 +228,9 @@ module MergeSort =
         else
             temps, results
 
-    let mergeRuns fileMgr tx schema comparator runs =
+    let mergeRuns fileMgr bufferPool tx schema comparator runs =
         let numofbuf =
-            BufferNeeds.bestRoot tx (List.length runs)
+            BufferNeeds.bestRoot bufferPool (List.length runs)
 
         let temps, results =
             loopMergeRuns fileMgr tx schema comparator numofbuf runs []
@@ -257,7 +258,7 @@ module MergeSort =
                 else None)
             |> Option.defaultValue 0
 
-    let newSortScan fileMgr tx =
+    let newSortScan fileMgr bufferPool tx =
         fun schema sortFields scan ->
             let mutable runs =
                 splitIntoRuns fileMgr tx schema sortFields scan
@@ -270,7 +271,7 @@ module MergeSort =
                 let comparator = newRecordComparator sortFields
 
                 while runs.Length > 2 do
-                    runs <- mergeRuns fileMgr tx schema comparator runs
+                    runs <- mergeRuns fileMgr bufferPool tx schema comparator runs
 
                 let scan1 = runs.Head.OpenScan()
 

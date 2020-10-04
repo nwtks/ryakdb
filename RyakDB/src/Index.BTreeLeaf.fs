@@ -56,17 +56,22 @@ module BTreeLeaf =
     let insertSlot txRecovery keyType page (SearchKey keys) (RecordId (slotNo, BlockId (_, blockNo))) slot =
         txRecovery.LogIndexPageInsertion false page.BlockId keyType slot
         |> ignore
+
         page.Insert slot
+
         BigIntDbConstant blockNo
         |> page.SetVal slot FieldBlockNo
+
         IntDbConstant slotNo
         |> page.SetVal slot FieldSlotNo
+
         keys
         |> List.iteri (fun i k -> page.SetVal slot (KeyPrefix + i.ToString()) k)
 
     let deleteSlot txRecovery keyType page slot =
         txRecovery.LogIndexPageDeletion false page.BlockId keyType slot
         |> ignore
+
         page.Delete slot
 
     let getOverflowBlockNo page = page.GetFlag 0
@@ -113,7 +118,9 @@ module BTreeLeaf =
             let (BlockId (filename, _)) = currentPage.BlockId
             let blockId = BlockId.newBlockId filename blockNo
             txConcurrency.ReadLeafBlock blockId
+
             currentPage.Close()
+
             initBTreePage txBuffer txConcurrency txRecovery schema blockId
 
         let rec loopNext state =
@@ -206,6 +213,7 @@ module BTreeLeaf =
                 page.Split splitPos [ -1L; getSiblingBlockNo page ]
 
             setSiblingBlockNo page siblingBlockNo
+
             newBTreeBranchEntry newSplitKey siblingBlockNo
 
         if not (searchRange.IsSingleValue()) then failwith "Not supported"
@@ -250,6 +258,7 @@ module BTreeLeaf =
             let (BlockId (_, blockNo)) = fromPage.BlockId
             if overflow = blockNo then -1L else overflow
             |> setOverflowBlockNo fromPage
+
             fromPage.Close()
 
         if not (searchRange.IsSingleValue()) then failwith "Not supported"

@@ -30,18 +30,25 @@ module TableManager =
 
     let newTcatInfo () =
         let tcatSchema = Schema.newSchema ()
+
         VarcharDbType MaxName
         |> tcatSchema.AddField TcatTableName
+
         TableInfo.newTableInfo Tcat tcatSchema
 
     let newFcatInfo () =
         let fcatSchema = Schema.newSchema ()
+
         VarcharDbType MaxName
         |> fcatSchema.AddField FcatTableName
+
         VarcharDbType MaxName
         |> fcatSchema.AddField FcatFieldName
+
         fcatSchema.AddField FcatType IntDbType
+
         fcatSchema.AddField FcatTypeArg IntDbType
+
         TableInfo.newTableInfo Fcat fcatSchema
 
     let getTableInfo fileMgr tx tableName =
@@ -62,6 +69,7 @@ module TableManager =
             tcatfile.BeforeFirst()
             let found = findTcatfile tcatfile
             tcatfile.Close()
+
             found
 
         let rec addField fcatfile schema =
@@ -85,6 +93,7 @@ module TableManager =
             fcatfile.BeforeFirst()
             let schema = Schema.newSchema () |> addField fcatfile
             fcatfile.Close()
+
             schema
 
         if newTcatInfo () |> findTcatInfo then
@@ -101,20 +110,26 @@ module TableManager =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.Insert()
+
             DbConstant.newVarchar tableName
             |> tcatfile.SetVal TcatTableName
+
             tcatfile.Close()
 
         let addFieldName fcatfile fieldName =
             fcatfile.Insert()
+
             DbConstant.newVarchar tableName
             |> fcatfile.SetVal FcatTableName
+
             DbConstant.newVarchar fieldName
             |> fcatfile.SetVal FcatFieldName
+
             let fldType = schema.DbType fieldName
             DbType.toInt fldType
             |> IntDbConstant
             |> fcatfile.SetVal FcatType
+
             DbType.argument fldType
             |> IntDbConstant
             |> fcatfile.SetVal FcatTypeArg
@@ -125,6 +140,7 @@ module TableManager =
 
             schema.Fields()
             |> List.iter (addFieldName fcatfile)
+
             fcatfile.Close()
 
         if tableName <> Tcat && tableName <> Fcat
@@ -134,10 +150,10 @@ module TableManager =
         newFcatInfo () |> addFcatInfo
 
     let dropTable fileMgr tx tableName =
-        let removeTableInfo fileMgr =
+        let removeTableFile fileMgr =
             getTableInfo fileMgr tx tableName
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf -> tf.Delete())
+            |> Option.iter (fun tf -> tf.Remove())
 
         let rec deleteTcatfile tcatfile =
             if tcatfile.Next() then
@@ -146,7 +162,7 @@ module TableManager =
                     tcatfile.Delete()
                 deleteTcatfile tcatfile
 
-        let removeTcatInfo tcatInfo =
+        let deleteTcatInfo tcatInfo =
             let tcatfile =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
@@ -161,7 +177,7 @@ module TableManager =
                     fcatfile.Delete()
                 deleteFcatfile fcatfile
 
-        let removeFcatInfo fcatInfo =
+        let deleteFcatInfo fcatInfo =
             let fcatfile =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
@@ -169,13 +185,14 @@ module TableManager =
             deleteFcatfile fcatfile
             fcatfile.Close()
 
-        removeTableInfo fileMgr
-        newTcatInfo () |> removeTcatInfo
-        newFcatInfo () |> removeFcatInfo
+        removeTableFile fileMgr
+        newTcatInfo () |> deleteTcatInfo
+        newFcatInfo () |> deleteFcatInfo
 
     let initTableManager fileMgr tx =
         formatFileHeader fileMgr tx Tcat
         formatFileHeader fileMgr tx Fcat
+
         createTable fileMgr tx Tcat (newTcatInfo ()).Schema
         createTable fileMgr tx Fcat (newFcatInfo ()).Schema
 

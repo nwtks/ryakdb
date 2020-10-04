@@ -18,8 +18,8 @@ type SearchRange =
       ToSearchKey: unit -> SearchKey }
 
 type IndexType =
-    | Hash = 1
-    | BTree = 2
+    | Hash
+    | BTree
 
 type IndexInfo =
     { IndexName: string

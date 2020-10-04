@@ -52,8 +52,11 @@ module BTreeBranch =
     let insertSlot txRecovery keyType page (SearchKey keys) blockNo slot =
         txRecovery.LogIndexPageInsertion false page.BlockId keyType slot
         |> ignore
+
         page.Insert slot
+
         page.SetVal slot ChildBlockNo (BigIntDbConstant blockNo)
+
         keys
         |> List.iteri (fun i k -> page.SetVal slot (KeyPrefix + i.ToString()) k)
 
@@ -108,6 +111,7 @@ module BTreeBranch =
                         [ childBlockId ]
 
                 page.Close()
+
                 findChildBlockNo keyType childPage searchKey
                 |> searchChild branchesMayBeUpdated childPage
             else
@@ -136,7 +140,9 @@ module BTreeBranch =
                     initBTreePage txBuffer txConcurrency txRecovery schema childBlockId
 
                 txConcurrency.CrabBackBranchBlockForRead page.BlockId
+
                 page.Close()
+
                 findChildBlockNo keyType childPage searchKey
                 |> searchChild childPage
             else
@@ -153,6 +159,7 @@ module BTreeBranch =
 
         txConcurrency.ModifyLeafBlock leafBlockId
         txConcurrency.CrabDownBranchBlockForRead currentPage.BlockId
+
         leafBlockId, currentPage, []
 
     let searchForRead txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
@@ -166,7 +173,9 @@ module BTreeBranch =
                     initBTreePage txBuffer txConcurrency txRecovery schema childBlockId
 
                 txConcurrency.CrabBackBranchBlockForRead page.BlockId
+
                 page.Close()
+
                 findChildBlockNo keyType childPage searchKey
                 |> searchChild childPage
             else
@@ -183,6 +192,7 @@ module BTreeBranch =
 
         txConcurrency.ReadLeafBlock leafBlockId
         txConcurrency.CrabDownBranchBlockForRead currentPage.BlockId
+
         leafBlockId, currentPage, []
 
     let search txBuffer txConcurrency txRecovery schema keyType page purpose leafFileName searchKey =
@@ -225,7 +235,9 @@ module BTreeBranch =
         |> ignore
 
         insert txRecovery keyType rootPage entry |> ignore
+
         level + 1L |> setLevel rootPage
+
         rootPage
 
 let newBTreeBranch txBuffer txConcurrency txRecovery blockId keyType =

@@ -27,8 +27,8 @@ let newBTreePageFormatter schema flags =
             buffer.SetValue position (BigIntDbConstant f)
             position <- position + 8)
         let slotSize = SlottedPage.slotSize schema
-        for pos in position .. slotSize .. buffer.BufferSize - slotSize - 1 do
-            BTreePageFormatter.makeDefaultRecord schema offsetMap buffer pos
+        [ position .. slotSize .. buffer.BufferSize - slotSize - 1 ]
+        |> List.iter (BTreePageFormatter.makeDefaultRecord schema offsetMap buffer)
 
 type BTreePage =
     { GetCountOfRecords: unit -> int32
@@ -66,6 +66,7 @@ module BTreePage =
 
         if size < 0 || size > buffer.BufferSize
         then failwith ("Slot size overflow:" + size.ToString())
+
         size
 
     let getValue (buffer: Buffer) = buffer.GetVal
@@ -109,6 +110,7 @@ module BTreePage =
     let getVal schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slot fieldName =
         if slot >= getCountOfRecords buffer
         then failwith ("Slot overflow:" + slot.ToString())
+
         schema.DbType fieldName
         |> getValue buffer (fieldPosition headerSize slotSize offsetMap slot fieldName)
 
@@ -125,8 +127,10 @@ module BTreePage =
                =
         if slot >= countOfSlots
         then failwith ("Slot overflow:" + slot.ToString())
+
         if slot >= getCountOfRecords buffer
         then failwith ("Slot overflow:" + slot.ToString())
+
         setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slot fieldName value
 
     let setValWithoutLogging schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slot fieldName value =
@@ -174,15 +178,15 @@ module BTreePage =
             if countOfRecords + 1 > countOfSlots
             then failwith ("Slot overflow:" + slot.ToString())
 
-            for i in countOfRecords .. -1 .. slot + 1 do
-                copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap (i - 1) i
+            [ countOfRecords .. -1 .. slot + 1 ]
+            |> List.iter (fun i -> copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap (i - 1) i)
             setCountOfRecordsWithoutLogging buffer (countOfRecords + 1))
 
     let delete schema buffer headerSize slotSize offsetMap slot =
         buffer.LockFlushing(fun () ->
             let countOfRecords = getCountOfRecords buffer
-            for i in slot + 1 .. countOfRecords - 1 do
-                copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap i (i - 1)
+            [ slot + 1 .. countOfRecords - 1 ]
+            |> List.iter (fun i -> copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap i (i - 1))
             setCountOfRecordsWithoutLogging buffer (countOfRecords - 1))
 
     let transferRecords txRecovery schema buffer headerSize slotSize offsetMap start destPage destStart count =
@@ -192,15 +196,19 @@ module BTreePage =
         let minCount =
             System.Math.Min(count, countOfRecords - start)
 
-        for i in destCountOfRecords - 1 .. -1 .. destStart do
-            destPage.CopyRecord i (i + minCount)
-        for i in 0 .. minCount - 1 do
+        [ destCountOfRecords - 1 .. -1 .. destStart ]
+        |> List.iter (fun i -> destPage.CopyRecord i (i + minCount))
+
+        [ 0 .. minCount - 1 ]
+        |> List.iter (fun i ->
             schema.Fields()
             |> List.iter (fun field ->
                 getVal schema buffer headerSize slotSize offsetMap (start + i) field
-                |> destPage.SetValueUnchecked (destStart + i) field)
-        for i in start + minCount .. countOfRecords - 1 do
-            copyRecord txRecovery schema buffer headerSize slotSize offsetMap i (i - minCount)
+                |> destPage.SetValueUnchecked (destStart + i) field))
+
+        [ start + minCount .. countOfRecords - 1 ]
+        |> List.iter (fun i -> copyRecord txRecovery schema buffer headerSize slotSize offsetMap i (i - minCount))
+
         setCountOfRecords txRecovery buffer (countOfRecords - minCount)
         destPage.SetCountOfRecords(destCountOfRecords + minCount)
 

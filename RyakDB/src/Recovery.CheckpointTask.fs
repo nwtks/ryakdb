@@ -20,14 +20,19 @@ module CheckpointTask =
             lastTxNo
 
 let newPeriodicCheckpointTask txMgr (period: int32) =
-    fun () ->
-        while true do
-            CheckpointTask.createPeriodicCheckpoint txMgr
-            System.Threading.Thread.Sleep(period)
+    let rec checkpoint () =
+        CheckpointTask.createPeriodicCheckpoint txMgr
+        System.Threading.Thread.Sleep(period)
+        checkpoint ()
+
+    checkpoint
 
 let newMonitorCheckpointTask txMgr (period: int32) txCount =
     let mutable lastTxNo = 0L
-    fun () ->
-        while true do
-            lastTxNo <- CheckpointTask.createMonitorCheckpoint txMgr txCount lastTxNo
-            System.Threading.Thread.Sleep(period)
+
+    let rec checkpoint () =
+        lastTxNo <- CheckpointTask.createMonitorCheckpoint txMgr txCount lastTxNo
+        System.Threading.Thread.Sleep(period)
+        checkpoint ()
+
+    checkpoint

@@ -10,9 +10,5 @@ let inline newIndex fileMgr tx indexInfo =
         SearchKeyType.newSearchKeyType indexInfo.TableInfo.Schema indexInfo.FieldNames
 
     match indexInfo.IndexType with
-    | IndexType.Hash -> newHashIndex fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType
-    | IndexType.BTree -> newBTreeIndex fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType
-    | _ ->
-        failwith
-            ("Not supported index type:"
-             + indexInfo.IndexType.ToString())
+    | Hash -> newHashIndex fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType 1000
+    | BTree -> newBTreeIndex fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType

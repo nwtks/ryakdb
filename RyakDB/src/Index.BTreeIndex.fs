@@ -39,18 +39,20 @@ module BTreeIndex =
         let branchSize =
             fileSize fileMgr txConcurrency branchFileName
 
-        for i in 0L .. branchSize - 1L do
+        [ 0L .. branchSize - 1L ]
+        |> List.iter (fun i ->
             BlockId.newBlockId branchFileName i
             |> txBuffer.Pin
-            |> ignore
+            |> ignore)
 
         let leafSize =
             fileSize fileMgr txConcurrency leafFileName
 
-        for i in 0L .. leafSize - 1L do
+        [ 0L .. leafSize - 1L ]
+        |> List.iter (fun i ->
             BlockId.newBlockId leafFileName i
             |> txBuffer.Pin
-            |> ignore
+            |> ignore)
 
     let beforeFirst txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange =
         if searchRange.IsValid() then
@@ -91,6 +93,7 @@ module BTreeIndex =
 
         let splitedLeaf = leaf.Insert dataRecordId
         leaf.Close()
+
         if Option.isSome splitedLeaf then
             if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
@@ -164,6 +167,7 @@ module BTreeIndex =
             newBTreeBranchEntry (SearchKeyType.getMin keyType) 0L
             |> root.Insert
             |> ignore
+
         root.Close()
 
 let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType =

@@ -59,7 +59,9 @@ module Buffer =
 
         newstate.LastLogSeqNo
         |> LogSeqNo.writeToPage 0 page
+
         page.SetVal (DataStartOffset + offset) value
+
         newstate
 
     let pin state = { state with Pins = state.Pins + 1 }
@@ -82,6 +84,7 @@ module Buffer =
     let assignToBlock logMgr page state blockId =
         let newstate = flush logMgr page state
         page.Read blockId
+
         { newstate with
               BlockId = blockId
               Pins = 0
@@ -90,6 +93,7 @@ module Buffer =
     let assignToNew logMgr page buffer state fileName formatter =
         let newstate = flush logMgr page state
         formatter buffer
+
         { newstate with
               BlockId = page.Append fileName
               Pins = 0

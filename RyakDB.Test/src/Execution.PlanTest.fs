@@ -164,7 +164,8 @@ let ``group by plan`` () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -200,7 +201,8 @@ let ``sort plan`` () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get

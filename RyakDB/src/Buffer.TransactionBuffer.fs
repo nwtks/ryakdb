@@ -8,9 +8,7 @@ type TransactionBuffer =
     { Pin: BlockId -> Buffer
       PinNew: string -> BufferFormatter -> Buffer
       Unpin: Buffer -> unit
-      UnpinAll: unit -> unit
-      FlushAll: unit -> unit
-      Available: unit -> int32 }
+      UnpinAll: unit -> unit }
 
 module TransactionBuffer =
     type PinningBuffer = { Buffer: Buffer; PinCount: int }
@@ -125,8 +123,6 @@ module TransactionBuffer =
 
         pinNewBuffer bufferPool state pinBufferPool pinNext
 
-    let flushAll (bufferPool: BufferPool) = bufferPool.FlushAll()
-
     let unpinAll (bufferPool: BufferPool) state =
         state.PinningBuffers
         |> Map.iter (fun _ v -> bufferPool.Unpin v.Buffer)
@@ -154,6 +150,4 @@ let newTransactionBuffer bufferPool =
               state <- nextstate
               buffer
       Unpin = fun buffer -> state <- TransactionBuffer.unpin bufferPool state buffer
-      UnpinAll = fun () -> state <- TransactionBuffer.unpinAll bufferPool state
-      FlushAll = fun () -> TransactionBuffer.flushAll bufferPool
-      Available = fun () -> bufferPool.Available() }
+      UnpinAll = fun () -> state <- TransactionBuffer.unpinAll bufferPool state }

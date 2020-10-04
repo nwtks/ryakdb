@@ -14,6 +14,7 @@ open RyakDB.Execution.Planner
 
 type Database =
     { FileMgr: FileManager
+      BufferPool: BufferPool
       LogMgr: LogManager
       TaskMgr: TaskManager
       TxMgr: TransactionManager
@@ -42,8 +43,10 @@ module Database =
           CheckpointPeriod = 300000
           CheckpointTxCount = 1000 }
 
-    let createPlanner fileMgr catalogMgr =
-        let queryPlanner = newQueryPlanner fileMgr catalogMgr
+    let createPlanner fileMgr bufferPool catalogMgr =
+        let queryPlanner =
+            newQueryPlanner fileMgr bufferPool catalogMgr
+
         let updatePlanner = newUpdatePlanner fileMgr catalogMgr
         newPlanner queryPlanner updatePlanner
 
@@ -69,24 +72,29 @@ let newDatabase dbPath config =
         newTransactionManager fileMgr logMgr bufferPool lockTable catalogMgr
 
     let initTx = txMgr.NewTransaction false Serializable
-    let isDbNew = fileMgr.IsNew
-    if isDbNew then catalogMgr.InitCatalogManager initTx
-    if not (isDbNew)
-    then SystemRecovery.recoverSystem fileMgr logMgr catalogMgr initTx
+
+    if fileMgr.IsNew
+    then catalogMgr.InitCatalogManager initTx
+    else SystemRecovery.recoverSystem fileMgr logMgr bufferPool catalogMgr initTx
+
     txMgr.CreateCheckpoint initTx
+
     initTx.Commit()
 
     let taskMgr = newTaskManager ()
+
     lockTable.LocktableNotifier() |> taskMgr.RunTask
+
     if config.CheckpointTxCount > 0
     then newMonitorCheckpointTask txMgr config.CheckpointPeriod config.CheckpointTxCount
     else newPeriodicCheckpointTask txMgr config.CheckpointPeriod
     |> taskMgr.RunTask
 
     { FileMgr = fileMgr
+      BufferPool = bufferPool
       LogMgr = logMgr
       TaskMgr = taskMgr
       TxMgr = txMgr
       CatalogMgr = catalogMgr
-      NewPlanner = fun () -> Database.createPlanner fileMgr catalogMgr
+      NewPlanner = fun () -> Database.createPlanner fileMgr bufferPool catalogMgr
       Shutdown = fun () -> Database.shutdown fileMgr bufferPool taskMgr }

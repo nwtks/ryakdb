@@ -34,6 +34,7 @@ module LogSeqNo =
 
     let writeToPage position page (LogSeqNo (blockNo, offset)) =
         BigIntDbConstant blockNo |> page.SetVal position
+
         BigIntDbConstant offset
         |> page.SetVal(position + BlockNoSize)
 

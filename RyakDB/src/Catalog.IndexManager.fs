@@ -25,17 +25,51 @@ module IndexManager =
     let KcatIdxName = "idx_name"
     let KcatKeyName = "key_name"
 
+    let createIcat tblMgr tx =
+        let icatSchema = Schema.newSchema ()
+
+        VarcharDbType TableManager.MaxName
+        |> icatSchema.AddField IcatIdxName
+
+        VarcharDbType TableManager.MaxName
+        |> icatSchema.AddField IcatTblName
+
+        icatSchema.AddField IcatIdxType IntDbType
+
+        tblMgr.CreateTable tx Icat icatSchema
+
+    let createKcat tblMgr tx =
+        let kcatSchema = Schema.newSchema ()
+
+        VarcharDbType TableManager.MaxName
+        |> kcatSchema.AddField KcatIdxName
+
+        VarcharDbType TableManager.MaxName
+        |> kcatSchema.AddField KcatKeyName
+
+        tblMgr.CreateTable tx Kcat kcatSchema
+
     let readInfo tblMgr tx tf =
         match tf.GetVal IcatTblName
               |> DbConstant.toString
               |> tblMgr.GetTableInfo tx with
         | Some tblInfo ->
-            (tf.GetVal IcatIdxName |> DbConstant.toString,
-             tf.GetVal IcatIdxType
-             |> DbConstant.toInt
-             |> enum<IndexType>,
-             tblInfo)
-            |> Some
+            let indexName =
+                tf.GetVal IcatIdxName |> DbConstant.toString
+
+            let indexTypeNum =
+                tf.GetVal IcatIdxType |> DbConstant.toInt
+
+            let indeType =
+                match indexTypeNum with
+                | 1 -> Hash
+                | 2 -> BTree
+                | _ ->
+                    failwith
+                        ("Not supported index type:"
+                         + indexTypeNum.ToString())
+
+            (indexName, indeType, tblInfo) |> Some
         | _ -> None
 
     let rec findIcatfileByIndexName tblMgr tx (tf: TableFile) indexName =
@@ -59,6 +93,7 @@ module IndexManager =
                 findIcatfileByIndexName tblMgr tx tf indexName
 
             tf.Close()
+
             index)
 
     let rec findIcatfileByTableName tblMgr tx (tf: TableFile) tableName indexes =
@@ -84,6 +119,7 @@ module IndexManager =
                 findIcatfileByTableName tblMgr tx tf tableName []
 
             tf.Close()
+
             indexes)
         |> Option.defaultValue []
 
@@ -106,6 +142,7 @@ module IndexManager =
             tf.BeforeFirst()
             let fields = findKcatfile tf indexName []
             tf.Close()
+
             fields)
         |> Option.defaultValue []
 
@@ -115,12 +152,19 @@ module IndexManager =
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.Insert()
+
                 DbConstant.newVarchar indexName
                 |> tf.SetVal IcatIdxName
+
                 DbConstant.newVarchar tableName
                 |> tf.SetVal IcatTblName
-                IntDbConstant(int32 indexType)
+
+                match indexType with
+                | Hash -> 1
+                | BTree -> 2
+                |> IntDbConstant
                 |> tf.SetVal IcatIdxType
+
                 tf.Close())
 
         let createKcatfile tblMgr =
@@ -130,10 +174,13 @@ module IndexManager =
                 fields
                 |> List.iter (fun field ->
                     tf.Insert()
+
                     DbConstant.newVarchar indexName
                     |> tf.SetVal KcatIdxName
+
                     DbConstant.newVarchar field
                     |> tf.SetVal KcatKeyName
+
                     tf.Close()))
 
         createIcatfile tblMgr
@@ -193,25 +240,8 @@ module IndexManager =
         |> Set.toList
 
     let initIndexManager tblMgr tx =
-        let createIcat tblMgr =
-            let icatSchema = Schema.newSchema ()
-            VarcharDbType TableManager.MaxName
-            |> icatSchema.AddField IcatIdxName
-            VarcharDbType TableManager.MaxName
-            |> icatSchema.AddField IcatTblName
-            icatSchema.AddField IcatIdxType IntDbType
-            tblMgr.CreateTable tx Icat icatSchema
-
-        let createKcat tblMgr =
-            let kcatSchema = Schema.newSchema ()
-            VarcharDbType TableManager.MaxName
-            |> kcatSchema.AddField KcatIdxName
-            VarcharDbType TableManager.MaxName
-            |> kcatSchema.AddField KcatKeyName
-            tblMgr.CreateTable tx Kcat kcatSchema
-
-        createIcat tblMgr
-        createKcat tblMgr
+        createIcat tblMgr tx
+        createKcat tblMgr tx
 
 let newIndexManager fileMgr tblMgr =
     { CreateIndex = IndexManager.createIndex fileMgr tblMgr

@@ -20,6 +20,17 @@ module ViewManager =
     let VcatVdef = "view_def"
     let MaxViewDef = 300
 
+    let createVcat tblMgr tx =
+        let schema = Schema.newSchema ()
+
+        VarcharDbType TableManager.MaxName
+        |> schema.AddField VcatVname
+
+        VarcharDbType MaxViewDef
+        |> schema.AddField VcatVdef
+
+        tblMgr.CreateTable tx Vcat schema
+
     let rec findVcatfileByViewName tf viewName =
         if tf.Next() then
             if tf.GetVal VcatVname
@@ -71,10 +82,13 @@ module ViewManager =
             |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.Insert()
+
                 DbConstant.newVarchar viewName
                 |> tf.SetVal VcatVname
+
                 DbConstant.newVarchar viewDef
                 |> tf.SetVal VcatVdef
+
                 tf.Close())
 
         createVcatfile tblMgr
@@ -103,13 +117,7 @@ module ViewManager =
     let getViewNamesByTable fileMgr tblMgr tx tableName =
         findViewNamestByTableName fileMgr tblMgr tx tableName
 
-    let initViewManager tblMgr tx =
-        let schema = Schema.newSchema ()
-        VarcharDbType TableManager.MaxName
-        |> schema.AddField VcatVname
-        VarcharDbType MaxViewDef
-        |> schema.AddField VcatVdef
-        tblMgr.CreateTable tx Vcat schema
+    let initViewManager tblMgr tx = createVcat tblMgr tx
 
 let newViewManager fileMgr tblMgr =
     { CreateView = ViewManager.createView fileMgr tblMgr

@@ -15,12 +15,11 @@ let ``concurrent buffer pool pin`` () =
         FileManager.TmpFilePrefix
         + "_test_concurrent_buffer_pool_pin"
 
-    let logfilename = "test_concurrent_buffer_pool_pin.log"
-
     let fileMgr =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr = newLogManager fileMgr logfilename
+    let logMgr =
+        newLogManager fileMgr "test_concurrent_buffer_pool_pin.log"
 
     let bufferPool =
         newBufferPool fileMgr logMgr bufferCount 1000

@@ -22,7 +22,8 @@ let count () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -53,7 +54,8 @@ let max () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -84,7 +86,8 @@ let min () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -115,7 +118,8 @@ let sum () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get
@@ -146,7 +150,8 @@ let avg () =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    let newSortScan = MergeSort.newSortScan db.FileMgr tx
+    let newSortScan =
+        MergeSort.newSortScan db.FileMgr db.BufferPool tx
 
     db.CatalogMgr.GetTableInfo tx "student"
     |> Option.get

@@ -92,10 +92,7 @@ module FileManager =
     let inline isTempFile (fileName: string) = fileName.StartsWith(TmpFilePrefix)
 
     type FileManagerState =
-        { BlockSize: int64
-          DbDirectory: string
-          OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, Channel>
-          InMemory: bool
+        { OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, Channel>
           Anchors: obj [] }
 
     let private prepareAnchor (anchors: obj []) a =
@@ -103,35 +100,34 @@ module FileManager =
         if h < 0 then h + anchors.Length else h
         |> anchors.GetValue
 
-    let private getChannel state fileName =
+    let private getChannel (dbDir: string) inMemory state fileName =
         lock (prepareAnchor state.Anchors fileName) (fun () ->
             let newFileChannel name =
-                if state.InMemory then
-                    newMemoryChannel ()
-                else
-                    System.IO.Path.Join(state.DbDirectory, name)
-                    |> newFileChannel
+                if inMemory
+                then newMemoryChannel ()
+                else System.IO.Path.Join(dbDir, name) |> newFileChannel
 
             state.OpenFiles.GetOrAdd(fileName, newFileChannel))
 
-    let read state buffer (BlockId (fileName, blockNo)) =
+    let read blockSize dbDir inMemory state buffer (BlockId (fileName, blockNo)) =
         buffer |> FileBuffer.clear
-        getChannel state fileName
-        |> Channel.read (blockNo * state.BlockSize) buffer
+        getChannel dbDir inMemory state fileName
+        |> Channel.read (blockNo * (int64 blockSize)) buffer
         |> ignore
 
-    let write state buffer (BlockId (fileName, blockNo)) =
-        getChannel state fileName
-        |> Channel.write (blockNo * state.BlockSize) buffer
+    let write blockSize dbDir inMemory state buffer (BlockId (fileName, blockNo)) =
+        getChannel dbDir inMemory state fileName
+        |> Channel.write (blockNo * (int64 blockSize)) buffer
 
-    let append state buffer fileName =
-        let channel = getChannel state fileName
+    let append blockSize dbDir inMemory state buffer fileName =
+        let channel = getChannel dbDir inMemory state fileName
         Channel.append buffer channel
-        BlockId.newBlockId fileName (Channel.size channel / state.BlockSize - 1L)
+        BlockId.newBlockId fileName (Channel.size channel / (int64 blockSize) - 1L)
 
-    let size state fileName =
-        (getChannel state fileName |> Channel.size)
-        / state.BlockSize
+    let size blockSize dbDir inMemory state fileName =
+        (getChannel dbDir inMemory state fileName
+         |> Channel.size)
+        / (int64 blockSize)
 
     let close state fileName =
         lock (prepareAnchor state.Anchors fileName) (fun () ->
@@ -142,10 +138,11 @@ module FileManager =
     let closeAll state =
         state.OpenFiles.Keys |> Seq.iter (close state)
 
-    let delete state fileName =
+    let delete dbDir inMemory state fileName =
         close state fileName
-        (System.IO.Path.Join(state.DbDirectory, fileName)
-         |> System.IO.FileInfo).Delete()
+        if not inMemory then
+            (System.IO.Path.Join(dbDir, fileName)
+             |> System.IO.FileInfo).Delete()
 
 let newFileManager dbPath blockSize inMemory =
     let dbDir, isNew =
@@ -154,24 +151,24 @@ let newFileManager dbPath blockSize inMemory =
         else
             let di = System.IO.DirectoryInfo(dbPath)
             let dbPathNew = not di.Exists
+
             if dbPathNew then di.Create()
+
             di.EnumerateFiles(FileManager.TmpFilePrefix + "*")
             |> Seq.iter (fun fi -> fi.Delete())
+
             di.FullName, dbPathNew
 
     let state: FileManager.FileManagerState =
-        { BlockSize = int64 blockSize
-          DbDirectory = dbDir
-          OpenFiles = System.Collections.Concurrent.ConcurrentDictionary()
-          InMemory = inMemory
+        { OpenFiles = System.Collections.Concurrent.ConcurrentDictionary()
           Anchors = Array.init 1019 (fun _ -> obj ()) }
 
     { BlockSize = blockSize
       IsNew = isNew
-      Size = FileManager.size state
+      Size = FileManager.size blockSize dbDir inMemory state
       Close = FileManager.close state
       CloseAll = fun () -> FileManager.closeAll state
-      Delete = FileManager.delete state
-      Read = FileManager.read state
-      Write = FileManager.write state
-      Append = FileManager.append state }
+      Delete = FileManager.delete dbDir inMemory state
+      Read = FileManager.read blockSize dbDir inMemory state
+      Write = FileManager.write blockSize dbDir inMemory state
+      Append = FileManager.append blockSize dbDir inMemory state }

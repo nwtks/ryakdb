@@ -1,6 +1,7 @@
 module RyakDB.Recovery.SystemRecovery
 
 open RyakDB.Storage.Log
+open RyakDB.Buffer.BufferPool
 open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Buffer.TransactionBuffer
@@ -49,8 +50,8 @@ let deleteBTreeLeafSlot tx keyType blockId slot =
 
 let undo fileMgr logMgr catalogMgr tx recoveryLog =
     match recoveryLog with
-    | LogicalStartRecord (n, optlsn) ->
-        optlsn
+    | LogicalStartRecord (n, lsn) ->
+        lsn
         |> Option.bind (tx.Recovery.LogLogicalAbort n)
         |> Option.iter logMgr.Flush
     | TableFileInsertEndRecord (n, tn, bn, sid, start, _) ->
@@ -60,7 +61,7 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             RecordId.newBlockRecordId sid ti.FileName bn
-            |> tf.DeleteByRecordId)
+            |> tf.UndoInsert)
         tx.Recovery.LogLogicalAbort n start
         |> Option.iter logMgr.Flush
     | TableFileDeleteEndRecord (n, tn, bn, sid, start, _) ->
@@ -70,7 +71,7 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
                 newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             RecordId.newBlockRecordId sid ti.FileName bn
-            |> tf.InsertByRecordId)
+            |> tf.UndoDelete)
         tx.Recovery.LogLogicalAbort n start
         |> Option.iter logMgr.Flush
     | IndexInsertEndRecord (n, inm, sk, bn, sid, start, _) ->
@@ -91,27 +92,27 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
             idx.Close())
         tx.Recovery.LogLogicalAbort n start
         |> Option.iter logMgr.Flush
-    | IndexPageInsertRecord (n, ibid, branch, kt, sid, optlsn) ->
+    | IndexPageInsertRecord (n, ibid, branch, kt, sid, lsn) ->
         let buffer = tx.Buffer.Pin ibid
-        match optlsn with
-        | Some lsn when lsn < buffer.LastLogSeqNo() ->
+        match lsn with
+        | Some l when l < buffer.LastLogSeqNo() ->
             if branch then deleteBTreeBranchSlot tx kt ibid sid else deleteBTreeLeafSlot tx kt ibid sid
-            tx.Recovery.LogIndexPageDeletionClear branch n ibid kt sid lsn
+            tx.Recovery.LogIndexPageDeletionClear branch n ibid kt sid l
             |> Option.iter logMgr.Flush
         | _ -> ()
         tx.Buffer.Unpin buffer
-    | IndexPageDeleteRecord (n, ibid, branch, kt, sid, optlsn) ->
+    | IndexPageDeleteRecord (n, ibid, branch, kt, sid, lsn) ->
         let buffer = tx.Buffer.Pin ibid
-        match optlsn with
-        | Some lsn when lsn < buffer.LastLogSeqNo() ->
+        match lsn with
+        | Some l when l < buffer.LastLogSeqNo() ->
             if branch then insertBTreeBranchSlot tx kt ibid sid else insertBTreeLeafSlot tx kt ibid sid
-            tx.Recovery.LogIndexPageInsertionClear branch n ibid kt sid lsn
+            tx.Recovery.LogIndexPageInsertionClear branch n ibid kt sid l
             |> Option.iter logMgr.Flush
         | _ -> ()
         tx.Buffer.Unpin buffer
-    | SetValueRecord (n, bid, off, _, v, _, optlsn) ->
+    | SetValueRecord (n, bid, off, _, v, _, lsn) ->
         let buffer = tx.Buffer.Pin bid
-        optlsn
+        lsn
         |> Option.bind (tx.Recovery.LogSetValClear n buffer off v)
         |> Option.iter logMgr.Flush
         buffer.SetVal off v None
@@ -120,38 +121,23 @@ let undo fileMgr logMgr catalogMgr tx recoveryLog =
 
 let redo tx recoveryLog =
     match recoveryLog with
-    | IndexPageInsertRecord (_, ibid, branch, kt, sid, optlsn) ->
+    | IndexPageInsertRecord (_, ibid, branch, kt, sid, lsn)
+    | IndexPageInsertClear (_, ibid, branch, kt, sid, _, lsn) ->
         let buffer = tx.Buffer.Pin ibid
-        match optlsn with
+        match lsn with
         | Some l when l > buffer.LastLogSeqNo() ->
             if branch then insertBTreeBranchSlot tx kt ibid sid else insertBTreeLeafSlot tx kt ibid sid
         | _ -> ()
         tx.Buffer.Unpin buffer
-    | IndexPageInsertClear (_, ibid, branch, kt, sid, _, optlsn) ->
+    | IndexPageDeleteRecord (_, ibid, branch, kt, sid, lsn)
+    | IndexPageDeleteClear (_, ibid, branch, kt, sid, _, lsn) ->
         let buffer = tx.Buffer.Pin ibid
-        match optlsn with
-        | Some l when l > buffer.LastLogSeqNo() ->
-            if branch then insertBTreeBranchSlot tx kt ibid sid else insertBTreeLeafSlot tx kt ibid sid
-        | _ -> ()
-        tx.Buffer.Unpin buffer
-    | IndexPageDeleteRecord (_, ibid, branch, kt, sid, optlsn) ->
-        let buffer = tx.Buffer.Pin ibid
-        match optlsn with
+        match lsn with
         | Some l when l > buffer.LastLogSeqNo() ->
             if branch then deleteBTreeBranchSlot tx kt ibid sid else deleteBTreeLeafSlot tx kt ibid sid
         | _ -> ()
         tx.Buffer.Unpin buffer
-    | IndexPageDeleteClear (_, ibid, branch, kt, sid, _, optlsn) ->
-        let buffer = tx.Buffer.Pin ibid
-        match optlsn with
-        | Some l when l > buffer.LastLogSeqNo() ->
-            if branch then deleteBTreeBranchSlot tx kt ibid sid else deleteBTreeLeafSlot tx kt ibid sid
-        | _ -> ()
-        tx.Buffer.Unpin buffer
-    | SetValueRecord (_, bid, off, _, _, nv, _) ->
-        let buffer = tx.Buffer.Pin bid
-        buffer.SetVal off nv None
-        tx.Buffer.Unpin buffer
+    | SetValueRecord (_, bid, off, _, _, nv, _)
     | SetValueClear (_, bid, off, _, _, nv, _, _) ->
         let buffer = tx.Buffer.Pin bid
         buffer.SetVal off nv None
@@ -196,7 +182,7 @@ let recoverPartially fileMgr logMgr catalogMgr tx stepsInUndo =
                 |> List.filter (finishedTxs.Contains >> not)
                 |> List.fold (fun uncompletedTxs txNo -> uncompletedTxs.Add txNo) uncompletedTxs,
                 finishedTxs
-            | CommitRecord(txNo = txNo) -> rlog :: redoRecords, uncompletedTxs, finishedTxs.Add txNo
+            | CommitRecord(txNo = txNo)
             | RollbackRecord(txNo = txNo) -> rlog :: redoRecords, uncompletedTxs, finishedTxs.Add txNo
             | StartRecord(txNo = txNo) when not (finishedTxs.Contains txNo) ->
                 rlog :: redoRecords, uncompletedTxs.Add txNo, finishedTxs
@@ -245,9 +231,9 @@ let onRollback fileMgr logMgr catalogMgr tx =
         |> writeToLog logMgr
         |> logMgr.Flush
 
-let recoverSystem fileMgr logMgr catalogMgr tx =
+let recoverSystem fileMgr logMgr bufferPool catalogMgr tx =
     recover fileMgr logMgr catalogMgr tx
-    tx.Buffer.FlushAll()
+    bufferPool.FlushAll()
     logMgr.RemoveAndCreateNewLog()
     newStartRecord tx.TransactionNo
     |> writeToLog logMgr

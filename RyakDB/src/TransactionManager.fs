@@ -1,6 +1,7 @@
 module RyakDB.TransactionManager
 
 open RyakDB.Storage.Log
+open RyakDB.Buffer.BufferPool
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
@@ -56,9 +57,9 @@ module TransactionManager =
                   NextTxNo = state.NextTxNo + 1L },
             tx
 
-    let createCheckpoint logMgr state =
+    let createCheckpoint logMgr bufferPool state =
         fun tx ->
-            tx.Buffer.FlushAll()
+            bufferPool.FlushAll()
             state.ActiveTxs
             |> Set.toList
             |> tx.Recovery.Checkpoint
@@ -81,4 +82,4 @@ let newTransactionManager fileMgr logMgr bufferPool lockTable catalogMgr =
                   tx)
       GetNextTxNo = fun () -> state.NextTxNo
       GetActiveTxCount = fun () -> state.ActiveTxs.Count
-      CreateCheckpoint = fun tx -> TransactionManager.createCheckpoint logMgr state tx }
+      CreateCheckpoint = fun tx -> TransactionManager.createCheckpoint logMgr bufferPool state tx }

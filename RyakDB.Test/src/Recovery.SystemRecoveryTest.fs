@@ -21,7 +21,6 @@ let initBuffer db =
     buff.SetVal 120 (DbConstant.newVarchar "gfedcba") None
     buff.SetVal 140 (DbConstant.newVarchar "kjih") None
     tx.Buffer.Unpin buff
-    tx.Buffer.FlushAll()
     tx.Commit()
 
 [<Fact>]
@@ -41,7 +40,6 @@ let rollback () =
     tx.Recovery.LogSetVal buff 20 (DbConstant.newVarchar "xyz")
     |> buff.SetVal 20 (DbConstant.newVarchar "xyz")
     tx.Buffer.Unpin buff
-    tx.Buffer.FlushAll()
 
     let buff = tx.Buffer.Pin blockId
     buff.GetVal 4 IntDbType
@@ -107,7 +105,7 @@ let recover () =
     let tx5 =
         db.TxMgr.NewTransaction false Serializable
 
-    recoverSystem db.FileMgr db.LogMgr db.CatalogMgr tx5
+    recoverSystem db.FileMgr db.LogMgr db.BufferPool db.CatalogMgr tx5
 
     let buff = tx5.Buffer.Pin blockId
     buff.GetVal 104 IntDbType

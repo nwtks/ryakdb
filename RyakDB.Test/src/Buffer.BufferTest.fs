@@ -16,20 +16,18 @@ let ``set get`` () =
     let filename =
         FileManager.TmpFilePrefix + "_test_buffer"
 
-    let logfilename = "test_buffer.log"
-
     let fileMgr =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr = newLogManager fileMgr logfilename
+    let logMgr = newLogManager fileMgr "test_buffer.log"
 
     let bufferPool = newBufferPool fileMgr logMgr 10 1000
 
-    let buffMgr = newTransactionBuffer bufferPool
+    let txBuffer = newTransactionBuffer bufferPool
 
     let blk = BlockId.newBlockId filename 13L
 
-    let buff1 = buffMgr.Pin blk
+    let buff1 = txBuffer.Pin blk
     let mutable pos1 = 0
     while pos1 + 4 < buff1.BufferSize do
         let i = IntDbConstant(12345 + pos1)
@@ -42,9 +40,9 @@ let ``set get`` () =
         let slen = Page.size s
         if pos1 + slen < buff1.BufferSize then buff1.SetVal pos1 s None
         pos1 <- pos1 + slen
-    buffMgr.Unpin buff1
+    txBuffer.Unpin buff1
 
-    let buff2 = buffMgr.Pin blk
+    let buff2 = txBuffer.Pin blk
     let mutable pos2 = 0
     while pos2 + 4 < buff2.BufferSize do
         let i = IntDbConstant(12345 + pos2)
@@ -59,19 +57,18 @@ let ``set get`` () =
             buff2.GetVal pos2 (VarcharDbType 0)
             |> should equal s
         pos2 <- pos2 + slen
-    buffMgr.Unpin buff2
+    txBuffer.Unpin buff2
 
 [<Fact>]
 let ``last LSN`` () =
     let filename =
         FileManager.TmpFilePrefix + "_test_last_lsn"
 
-    let logfilename = "test_last_lsn.log"
-
     let fileMgr =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr = newLogManager fileMgr logfilename
+    let logMgr =
+        newLogManager fileMgr "test_last_lsn.log"
 
     let blk = BlockId.newBlockId filename 13L
 
@@ -97,12 +94,11 @@ let ``assign new buffer`` () =
         FileManager.TmpFilePrefix
         + "_test_assign_new_buffer"
 
-    let logfilename = "test_assign_new_buffer.log"
-
     let fileMgr =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr = newLogManager fileMgr logfilename
+    let logMgr =
+        newLogManager fileMgr "test_assign_new_buffer.log"
 
     let c1 = IntDbConstant 123
     let c2 = DbConstant.newVarchar "abcde"
@@ -143,12 +139,11 @@ let ``assign new buffer`` () =
 
 [<Fact>]
 let ``concurrent buffer pin`` () =
-    let logfilename = "test_concurrent_buffer_pin.log"
-
     let fileMgr =
         newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr = newLogManager fileMgr logfilename
+    let logMgr =
+        newLogManager fileMgr "test_concurrent_buffer_pin.log"
 
     let buff = newBuffer fileMgr logMgr
 

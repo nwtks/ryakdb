@@ -54,17 +54,20 @@ let newPlanner queryPlanner updatePlanner =
 
 module QueryPlanner =
     let rec createPlan fileMgr
+                       bufferPool
                        catalogMgr
                        tx
                        (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
                        =
-        let newSortScan = MergeSort.newSortScan fileMgr tx
+        let newSortScan =
+            MergeSort.newSortScan fileMgr bufferPool tx
+
         tables
         |> List.map (fun tblname ->
             match catalogMgr.GetViewDef tx tblname with
             | Some (viewDef) ->
                 Parser.queryCommand viewDef
-                |> createPlan fileMgr catalogMgr tx
+                |> createPlan fileMgr bufferPool catalogMgr tx
             | _ ->
                 catalogMgr.GetTableInfo tx tblname
                 |> Option.get
@@ -75,8 +78,8 @@ module QueryPlanner =
         |> Plan.newProjectPlan projectionFields
         |> Plan.newSortPlan newSortScan sortFields
 
-let newQueryPlanner fileMgr catalogMgr =
-    { CreatePlan = QueryPlanner.createPlan fileMgr catalogMgr }
+let newQueryPlanner fileMgr bufferPool catalogMgr =
+    { CreatePlan = QueryPlanner.createPlan fileMgr bufferPool catalogMgr }
 
 module UpdatePlanner =
     let executeInsert fileMgr catalogMgr tx tableName fieldNames values =

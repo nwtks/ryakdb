@@ -148,22 +148,26 @@ module LockTable =
                 ("abort tx."
                  + txNo.ToString()
                  + " for preventing deadlock")
+
         if lockType = IXLock
            || lockType = SIXLock
            || lockType = XLock then
             lockers.SLockers
             |> Seq.filter (fun n -> n > txNo)
             |> Seq.iter (fun n -> if state.TxnsToBeAborted.TryAdd(n, true) then state.ToBeNotified.Add n)
+
         if lockType = SLock
            || lockType = SIXLock
            || lockType = XLock then
             lockers.IXLockers
             |> Seq.filter (fun n -> n > txNo)
             |> Seq.iter (fun n -> if state.TxnsToBeAborted.TryAdd(n, true) then state.ToBeNotified.Add n)
+
         if lockType = XLock then
             lockers.ISLockers
             |> Seq.filter (fun n -> n > txNo)
             |> Seq.iter (fun n -> if state.TxnsToBeAborted.TryAdd(n, true) then state.ToBeNotified.Add n)
+
         if lockType = IXLock
            || lockType = SLock
            || lockType = SIXLock
@@ -171,6 +175,7 @@ module LockTable =
             if lockers.SIXLocker > txNo then
                 if state.TxnsToBeAborted.TryAdd(lockers.SIXLocker, true)
                 then state.ToBeNotified.Add lockers.SIXLocker
+
         if lockers.XLocker > txNo then
             if state.TxnsToBeAborted.TryAdd(lockers.XLocker, true)
             then state.ToBeNotified.Add lockers.XLocker
@@ -187,15 +192,20 @@ module LockTable =
                     while not (isLockable loopLockers txNo)
                           && not (waitingTooLong timestamp state.WaitTime) do
                         avoidDeadlock state lockType loopLockers txNo
+
                         loopLockers <-
                             { loopLockers with
                                   RequestSet = lockers.RequestSet.Add txNo }
+
                         System.Threading.Monitor.Wait(anchor, state.WaitTime)
                         |> ignore
+
                         loopLockers <-
                             { loopLockers with
                                   RequestSet = lockers.RequestSet.Remove txNo }
+
                     if not (isLockable loopLockers txNo) then failwith "Lock abort"
+
                     let newLockers = addTxNoToLockers txNo loopLockers
                     (getLockSet state.LockByTxMap txNo).TryAdd(key, true)
                     |> ignore
@@ -226,6 +236,7 @@ module LockTable =
 
     let releaseLock lockers anchor lockType txNo =
         System.Threading.Monitor.PulseAll anchor
+
         match lockType with
         | XLock ->
             if lockers.XLocker = txNo then
@@ -249,6 +260,7 @@ module LockTable =
 
                 if newLockers.SLockers.IsEmpty
                 then System.Threading.Monitor.PulseAll anchor
+
                 newLockers
             else
                 lockers
@@ -260,6 +272,7 @@ module LockTable =
 
                 if newLockers.ISLockers.IsEmpty
                 then System.Threading.Monitor.PulseAll anchor
+
                 newLockers
             else
                 lockers
@@ -271,6 +284,7 @@ module LockTable =
 
                 if newLockers.IXLockers.IsEmpty
                 then System.Threading.Monitor.PulseAll anchor
+
                 newLockers
             else
                 lockers
@@ -321,14 +335,19 @@ module LockTable =
                 if state.LockerMap.TryGetValue(e.Key, &lockers) then
                     if hasSLock lockers txNo
                     then lockers <- releaseLock lockers anchor SLock txNo
+
                     if hasXLock lockers txNo && not sLockOnly
                     then lockers <- releaseLock lockers anchor XLock txNo
+
                     if hasSIXLock lockers txNo
                     then lockers <- releaseLock lockers anchor SIXLock txNo
+
                     while hasISLock lockers txNo do
                         lockers <- releaseLock lockers anchor ISLock txNo
+
                     while hasIXLock lockers txNo && not sLockOnly do
                         lockers <- releaseLock lockers anchor IXLock txNo
+
                     if not (isSLocked lockers)
                        && not (isXLocked lockers)
                        && not (isSIXLocked lockers)
@@ -341,12 +360,14 @@ module LockTable =
         state.LockByTxMap.TryRemove txNo |> ignore
 
     let locktableNotifier state =
-        fun () ->
-            while true do
-                let txNo = state.ToBeNotified.Take()
-                let mutable anchor = Unchecked.defaultof<_>
-                if state.TxWaitMap.TryGetValue(txNo, &anchor)
-                then lock anchor (fun () -> System.Threading.Monitor.PulseAll anchor)
+        let rec notify () =
+            let txNo = state.ToBeNotified.Take()
+            let mutable anchor = Unchecked.defaultof<_>
+            if state.TxWaitMap.TryGetValue(txNo, &anchor)
+            then lock anchor (fun () -> System.Threading.Monitor.PulseAll anchor)
+            notify ()
+
+        notify
 
 let newLockTable waitTime =
     let state: LockTable.LockTableState =
