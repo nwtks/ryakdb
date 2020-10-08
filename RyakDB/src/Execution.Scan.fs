@@ -41,15 +41,15 @@ module Scan =
 
     let newSelectScan scan predicate =
         let next () =
-            let rec loopNext () =
+            let rec searchNext () =
                 if scan.Next() then
                     if Predicate.isSatisfied scan.GetVal predicate
                     then true
-                    else loopNext ()
+                    else searchNext ()
                 else
                     false
 
-            loopNext ()
+            searchNext ()
 
         { GetVal = scan.GetVal
           BeforeFirst = fun () -> scan.BeforeFirst()
@@ -209,12 +209,12 @@ module Scan =
                 groupFields
                 |> List.fold (fun gv f -> Map.add f (scan.GetVal f) gv) Map.empty
 
-            let rec loopMoreGroups () =
+            let rec searchMoreGroups () =
                 if scan.Next() then
                     if groupVal = getGroupVal () then
                         aggFns
                         |> List.iter (fun fn -> fn.ProcessNext scan.GetVal)
-                        loopMoreGroups ()
+                        searchMoreGroups ()
                     else
                         true
                 else
@@ -224,7 +224,7 @@ module Scan =
                 aggFns
                 |> List.iter (fun fn -> fn.ProcessFirst scan.GetVal)
                 groupVal <- getGroupVal ()
-                moreGroups <- loopMoreGroups ()
+                moreGroups <- searchMoreGroups ()
                 true
             else
                 false

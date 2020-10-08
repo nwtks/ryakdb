@@ -80,18 +80,18 @@ module SlottedPage =
             + slotSize
             <= currentBuffer.BufferSize
 
-        let rec loopSearchFor blockId slotNo =
+        let rec searchSlotNo blockId slotNo =
             let newSlotNo = slotNo + 1
             if isValidSlot newSlotNo then
                 if getValue txConcurrency currentBuffer blockId newSlotNo (currentPosition slotSize newSlotNo) IntDbType =
                     flag then
                     newSlotNo, true
                 else
-                    loopSearchFor blockId newSlotNo
+                    searchSlotNo blockId newSlotNo
             else
                 newSlotNo, false
 
-        loopSearchFor blockId currentSlotNo
+        searchSlotNo blockId currentSlotNo
 
     let getVal txConcurrency schema currentBuffer blockId offsetMap slotSize currentSlotNo fieldName =
         getValue

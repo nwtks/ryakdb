@@ -281,17 +281,17 @@ module Parser =
         Term(op, lhs, rhs)
 
     let predicate (lex: Lexer) =
-        let rec loopTerm terms =
+        let rec searchTerms terms =
             term lex
             :: terms
             |> fun terms2 ->
                 if lex.MatchKeyword "and" then
                     lex.EatKeyword "and"
-                    loopTerm terms2
+                    searchTerms terms2
                 else
                     terms2
 
-        [] |> loopTerm |> List.rev |> Predicate
+        [] |> searchTerms |> List.rev |> Predicate
 
     let sortDirection (lex: Lexer) =
         if lex.MatchKeyword "asc" then
@@ -509,14 +509,14 @@ module Parser =
                 lex.EatKeyword "using"
                 if lex.MatchKeyword "hash" then
                     lex.EatKeyword "hash"
-                    IndexType.Hash
+                    Hash
                 elif lex.MatchKeyword "btree" then
                     lex.EatKeyword "btree"
-                    IndexType.BTree
+                    BTree
                 else
                     failwith "Syntax error: index type"
             else
-                IndexType.Hash
+                Hash
 
         CreateIndexData(idxname, idxType, tblname, fldNames)
 

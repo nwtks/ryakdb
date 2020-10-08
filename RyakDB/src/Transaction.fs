@@ -19,17 +19,6 @@ type IsolationLevel =
     | RepeatableRead
     | ReadCommitted
 
-module Transaction =
-    let commit commitListeners tx =
-        commitListeners |> List.iter (fun f -> f (tx))
-
-    let rollback rollbackListeners tx =
-        rollbackListeners |> List.iter (fun f -> f (tx))
-
-    let endStatement endStatementListeners tx =
-        endStatementListeners
-        |> List.iter (fun f -> f (tx))
-
 let newTransaction txCommitListener
                    txRollbackListener
                    txRecovery
@@ -40,20 +29,19 @@ let newTransaction txCommitListener
                    txNo
                    readOnly
                    =
-    let commitListeners =
-        [ txCommitListener
-          recoveryCommitListener
-          (fun _ -> txConcurrency.OnTxCommit())
-          (fun _ -> txBuffer.UnpinAll()) ]
+    let commit tx =
+        txCommitListener tx
+        recoveryCommitListener tx
+        txConcurrency.OnTxCommit()
+        txBuffer.UnpinAll()
 
-    let rollbackListeners =
-        [ txRollbackListener
-          recoveryRollbackListener
-          (fun _ -> txConcurrency.OnTxRollback())
-          (fun _ -> txBuffer.UnpinAll()) ]
+    let rollback tx =
+        txRollbackListener tx
+        recoveryRollbackListener tx
+        txConcurrency.OnTxRollback()
+        txBuffer.UnpinAll()
 
-    let endStatementListeners =
-        [ (fun _ -> txConcurrency.OnTxEndStatement()) ]
+    let endStatement () = txConcurrency.OnTxEndStatement()
 
     let rec tx =
         { Recovery = txRecovery
@@ -61,11 +49,8 @@ let newTransaction txCommitListener
           Buffer = txBuffer
           TransactionNo = txNo
           ReadOnly = readOnly
-          Commit = fun () -> tx |> Transaction.commit commitListeners
-          Rollback = fun () -> tx |> Transaction.rollback rollbackListeners
-          EndStatement =
-              fun () ->
-                  tx
-                  |> Transaction.endStatement endStatementListeners }
+          Commit = fun () -> commit tx
+          Rollback = fun () -> rollback tx
+          EndStatement = endStatement }
 
     tx

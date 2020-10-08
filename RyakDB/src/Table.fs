@@ -26,12 +26,9 @@ module Schema =
 
     let addAll fieldTypes schema =
         schema.Fields()
-        |> List.fold (fun st f -> add st f schema) fieldTypes
+        |> List.fold (fun fts f -> add fts f schema) fieldTypes
 
-    let fields fieldTypes =
-        fieldTypes
-        |> Map.toList
-        |> List.map (fun (k, _) -> k)
+    let fields fieldTypes = fieldTypes |> Map.toList |> List.map fst
 
     let hasField (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.ContainsKey fieldName
 

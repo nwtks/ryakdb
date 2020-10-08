@@ -18,4 +18,4 @@ module TaskManager =
 
 let newTaskManager () =
     { RunTask = TaskManager.runTask
-      CancelTasks = fun () -> TaskManager.cancelTasks () }
+      CancelTasks = TaskManager.cancelTasks }

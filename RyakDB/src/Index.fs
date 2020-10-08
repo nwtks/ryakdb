@@ -37,17 +37,17 @@ type Index =
       PreLoadToMemory: unit -> unit }
 
 module SearchKey =
-    let compare (SearchKey (key1)) (SearchKey (key2)) =
-        let rec loopCompare key1 key2 =
+    let compare (SearchKey key1) (SearchKey key2) =
+        let rec searchCompares key1 key2 =
             match key1, key2 with
             | [], [] -> 0
             | _, [] -> 1
             | [], _ -> -1
-            | (h1 :: t1), (h2 :: t2) ->
+            | h1 :: t1, h2 :: t2 ->
                 let comp = DbConstant.compare h1 h2
-                if comp = 0 then loopCompare t1 t2 else comp
+                if comp = 0 then searchCompares t1 t2 else comp
 
-        loopCompare key1 key2
+        searchCompares key1 key2
 
     let inline newSearchKey constants = SearchKey constants
 
@@ -93,8 +93,7 @@ module SearchRange =
             |> SearchKey.newSearchKey
             |> Some
 
-    let matchsKey ranges key =
-        let (SearchKey keyConstants) = key
+    let matchsKey ranges (SearchKey keyConstants) =
         List.length ranges = List.length keyConstants
         && List.zip ranges keyConstants
            |> List.forall (fun (r, c) -> r.Contains c)

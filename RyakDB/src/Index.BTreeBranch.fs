@@ -74,7 +74,7 @@ module BTreeBranch =
 
                 if comp < 0
                 then binarySearch (middleSlot + 1) endSlot taret
-                else if comp > 0
+                elif comp > 0
                 then binarySearch startSlot (middleSlot - 1) taret
                 else middleSlot
             else

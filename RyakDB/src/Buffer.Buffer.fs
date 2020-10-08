@@ -71,15 +71,14 @@ module Buffer =
     let isPinned state = state.Pins > 0
 
     let flush (logMgr: LogManager) page state =
-        lock state (fun () ->
-            if state.IsNew || state.IsModified then
-                logMgr.Flush state.LastLogSeqNo
-                page.Write state.BlockId
-                { state with
-                      IsNew = false
-                      IsModified = false }
-            else
-                state)
+        if state.IsNew || state.IsModified then
+            logMgr.Flush state.LastLogSeqNo
+            page.Write state.BlockId
+            { state with
+                  IsNew = false
+                  IsModified = false }
+        else
+            state
 
     let assignToBlock logMgr page state blockId =
         let newstate = flush logMgr page state
@@ -124,7 +123,7 @@ let newBuffer fileMgr logMgr =
           Pin = fun () -> lock internalLock (fun () -> state <- Buffer.pin state)
           Unpin = fun () -> lock internalLock (fun () -> state <- Buffer.unpin state)
           IsPinned = fun () -> Buffer.isPinned state
-          Flush = fun () -> lock internalLock (fun () -> state <- Buffer.flush logMgr page state)
+          Flush = fun () -> lock internalLock (fun () -> state <- lock state (fun () -> Buffer.flush logMgr page state))
           LockFlushing = lock state
           AssignToBlock =
               fun blockId -> lock internalLock (fun () -> state <- Buffer.assignToBlock logMgr page state blockId)

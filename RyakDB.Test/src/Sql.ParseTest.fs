@@ -179,7 +179,7 @@ let ``parse create index`` () =
     match Parser.updateCommand sql with
     | CreateIndexData (indexName, indexType, tableName, fields) ->
         indexName |> should equal "idx1"
-        indexType |> should equal IndexType.BTree
+        indexType |> should equal BTree
         tableName |> should equal "tbl1"
         fields |> should equal [ "col5"; "col12"; "col8" ]
     | _ -> failwith "cant parse create index"

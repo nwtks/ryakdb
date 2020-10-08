@@ -87,6 +87,8 @@ module BTreeIndex =
                =
         if txReadOnly then failwith "Transaction read only"
 
+        if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
+
         let leaf, branchesMayBeUpdated =
             SearchRange.newSearchRangeBySearchKey key
             |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Insert leafFileName
@@ -95,8 +97,6 @@ module BTreeIndex =
         leaf.Close()
 
         if Option.isSome splitedLeaf then
-            if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
-
             branchesMayBeUpdated
             |> List.fold (fun splitedBranch branchBlockId ->
                 match splitedBranch with
@@ -115,10 +115,10 @@ module BTreeIndex =
                 root.MakeNewRoot entry
                 root.Close())
 
-            if doLogicalLogging then
-                let (RecordId (slotNo, BlockId (_, blockNo))) = dataRecordId
-                txRecovery.LogIndexInsertionEnd indexInfo.IndexName key blockNo slotNo
-                |> ignore
+        if doLogicalLogging then
+            let (RecordId (slotNo, BlockId (_, blockNo))) = dataRecordId
+            txRecovery.LogIndexInsertionEnd indexInfo.IndexName key blockNo slotNo
+            |> ignore
 
     let delete txBuffer
                txConcurrency
@@ -134,13 +134,14 @@ module BTreeIndex =
                =
         if txReadOnly then failwith "Transaction read only"
 
+        if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
+
         let leaf, _ =
             SearchRange.newSearchRangeBySearchKey key
             |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Delete leafFileName
 
-        if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
-
         leaf.Delete dataRecordId
+        leaf.Close()
 
         if doLogicalLogging then
             let (RecordId (slotNo, BlockId (_, blockNo))) = dataRecordId

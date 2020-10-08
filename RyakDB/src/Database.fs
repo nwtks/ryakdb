@@ -7,9 +7,9 @@ open RyakDB.Buffer.BufferPool
 open RyakDB.Concurrency.LockTable
 open RyakDB.Transaction
 open RyakDB.TransactionManager
-open RyakDB.Recovery
-open RyakDB.Recovery.CheckpointTask
 open RyakDB.Catalog.CatalogManager
+open RyakDB.Recovery.SystemRecovery
+open RyakDB.Recovery.CheckpointTask
 open RyakDB.Execution.Planner
 
 type Database =
@@ -19,6 +19,7 @@ type Database =
       TaskMgr: TaskManager
       TxMgr: TransactionManager
       CatalogMgr: CatalogManager
+      SystemRecovery: SystemRecovery
       NewPlanner: unit -> Planner
       Shutdown: unit -> unit }
     interface System.IDisposable with
@@ -50,8 +51,9 @@ module Database =
         let updatePlanner = newUpdatePlanner fileMgr catalogMgr
         newPlanner queryPlanner updatePlanner
 
-    let shutdown fileMgr bufferPool taskMgr =
+    let shutdown fileMgr bufferPool txMgr taskMgr =
         taskMgr.CancelTasks()
+        txMgr.RollbackAll()
         bufferPool.FlushAll()
         fileMgr.CloseAll()
 
@@ -68,16 +70,17 @@ let newDatabase dbPath config =
 
     let lockTable = newLockTable config.LockTableWaitTime
 
+    let systemRecovery =
+        newSystemRecovery fileMgr logMgr bufferPool catalogMgr
+
     let txMgr =
-        newTransactionManager fileMgr logMgr bufferPool lockTable catalogMgr
+        newTransactionManager logMgr bufferPool lockTable systemRecovery
 
     let initTx = txMgr.NewTransaction false Serializable
 
-    if fileMgr.IsNew
-    then catalogMgr.InitCatalogManager initTx
-    else SystemRecovery.recoverSystem fileMgr logMgr bufferPool catalogMgr initTx
+    if fileMgr.IsNew then catalogMgr.InitCatalogManager initTx else systemRecovery.RecoverSystem initTx
 
-    txMgr.CreateCheckpoint initTx
+    txMgr.CreateCheckpoint()
 
     initTx.Commit()
 
@@ -96,5 +99,6 @@ let newDatabase dbPath config =
       TaskMgr = taskMgr
       TxMgr = txMgr
       CatalogMgr = catalogMgr
+      SystemRecovery = systemRecovery
       NewPlanner = fun () -> Database.createPlanner fileMgr bufferPool catalogMgr
-      Shutdown = fun () -> Database.shutdown fileMgr bufferPool taskMgr }
+      Shutdown = fun () -> Database.shutdown fileMgr bufferPool txMgr taskMgr }

@@ -85,7 +85,7 @@ module LogManager =
             let prevBlockId =
                 BlockId.newBlockId fileName (blockNo - 1L)
 
-            prevBlockId, (readLastRecordPosition page prevBlockId)
+            prevBlockId, readLastRecordPosition page prevBlockId
 
         let nextstate = flushLog logPage state
         let readPage = newPage fileMgr
@@ -176,10 +176,7 @@ let newLogManager fileMgr logFileName =
       Append =
           fun constants ->
               lock logPage (fun () ->
-                  let nextstate =
-                      LogManager.append fileMgr logFileName logPage state constants
-
-                  state <- nextstate
+                  state <- LogManager.append fileMgr logFileName logPage state constants
                   state.LastLogSeqNo)
       Flush = fun lsn -> lock logPage (fun () -> state <- LogManager.flush logPage state lsn)
       RemoveAndCreateNewLog =

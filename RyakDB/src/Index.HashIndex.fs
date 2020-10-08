@@ -67,16 +67,16 @@ module HashIndex =
           TableFile = tf }
 
     let next keyType state =
-        let rec loopNext keyType (tableFile: TableFile) searchKey =
+        let rec searchNext keyType (tableFile: TableFile) searchKey =
             if tableFile.Next() then
                 if SearchKey.compare searchKey (getKey tableFile keyType) = 0
                 then true
-                else loopNext keyType tableFile searchKey
+                else searchNext keyType tableFile searchKey
             else
                 false
 
         match state with
-        | Some { SearchKey = searchKey; TableFile = tf } -> loopNext keyType tf searchKey
+        | Some { SearchKey = searchKey; TableFile = tf } -> searchNext keyType tf searchKey
         | _ -> false
 
     let getDataRecordId indexInfo state =
@@ -117,7 +117,7 @@ module HashIndex =
             |> ignore
 
     let delete txRecovery indexInfo tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
-        let rec loopDelete (tableFile: TableFile) blockNo slotNo =
+        let rec searchDelete (tableFile: TableFile) blockNo slotNo =
             if tableFile.Next() then
                 let tfBlockNo =
                     tableFile.GetVal FieldBlockNo |> DbConstant.toLong
@@ -128,11 +128,11 @@ module HashIndex =
                 if tfBlockNo = blockNo && tfSlotNo = slotNo then
                     tableFile.Delete()
                 else
-                    loopDelete tableFile blockNo slotNo
+                    searchDelete tableFile blockNo slotNo
 
         if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
-        loopDelete tableFile blockNo slotNo
+        searchDelete tableFile blockNo slotNo
 
         if doLogicalLogging then
             txRecovery.LogIndexDeletionEnd indexInfo.IndexName key blockNo slotNo

@@ -69,11 +69,11 @@ module BufferPool =
                 else
                     None
 
-            if Option.isSome result
-            then result
-            elif currBlk = lastReplacedBuff
-            then None
-            else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length)
+            result
+            |> Option.orElseWith (fun () ->
+                if currBlk = lastReplacedBuff
+                then None
+                else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length))
 
         let pinNew assignBuffer =
             fun (buffer: Buffer) ->

@@ -15,7 +15,6 @@
     <Compile Include="src/Buffer.TransactionBufferTest.fs" />
     <Compile Include="src/Concurrency.LockTableTest.fs" />
     <Compile Include="src/Concurrency.TransactionConcurrencyTest.fs" />
-    <Compile Include="src/Recovery.SystemRecoveryTest.fs" />
     <Compile Include="src/Table.SlottedPageTest.fs" />
     <Compile Include="src/Table.TableFileTest.fs" />
     <Compile Include="src/Index.HashIndexTest.fs" />
@@ -26,6 +25,7 @@
     <Compile Include="src/Catalog.TableManagerTest.fs" />
     <Compile Include="src/Catalog.IndexManagerTest.fs" />
     <Compile Include="src/Catalog.ViewManagerTest.fs" />
+    <Compile Include="src/Recovery.SystemRecoveryTest.fs" />
     <Compile Include="src/Execution.AggregationFnScanTest.fs" />
     <Compile Include="src/Execution.PlanTest.fs" />
   </ItemGroup>

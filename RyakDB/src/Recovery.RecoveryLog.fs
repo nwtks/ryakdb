@@ -38,8 +38,8 @@ type RecoveryLog =
     | IndexPageInsertClear of compesationTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | IndexPageDeleteRecord of txNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * lsn: LogSeqNo option
     | IndexPageDeleteClear of compesationTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
-    | SetValueRecord of txNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * lsn: LogSeqNo option
-    | SetValueClear of compesationTxNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * value: DbConstant * newValue: DbConstant * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | SetValueRecord of txNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * oldValue: DbConstant * newValue: DbConstant * lsn: LogSeqNo option
+    | SetValueClear of compesationTxNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * oldValue: DbConstant * newValue: DbConstant * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
 
 let newStartRecord txNo = StartRecord(txNo, None)
 

@@ -1,20 +1,14 @@
 module RyakDB.Recovery.CheckpointTask
 
-open RyakDB.Transaction
 open RyakDB.TransactionManager
 
 module CheckpointTask =
-    let createPeriodicCheckpoint txMgr =
-        let tx = txMgr.NewTransaction false Serializable
-        txMgr.CreateCheckpoint tx
-        tx.Commit()
+    let createPeriodicCheckpoint txMgr = txMgr.CreateCheckpoint()
 
     let createMonitorCheckpoint txMgr txCount lastTxNo =
         let txNo = txMgr.GetNextTxNo()
         if txNo - lastTxNo > int64 txCount then
-            let tx = txMgr.NewTransaction false Serializable
-            txMgr.CreateCheckpoint tx
-            tx.Commit()
+            txMgr.CreateCheckpoint()
             txNo
         else
             lastTxNo

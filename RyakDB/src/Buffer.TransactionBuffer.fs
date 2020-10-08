@@ -13,55 +13,50 @@ type TransactionBuffer =
 module TransactionBuffer =
     type PinningBuffer = { Buffer: Buffer; PinCount: int }
 
-    type TransactionBufferState =
-        { PinningBuffers: Map<BlockId, PinningBuffer>
-          BuffersToFlush: Buffer list }
-
     let private waitingTooLong (timestamp: System.DateTime) waitTime =
         (System.DateTime.Now.Ticks - timestamp.Ticks)
         / System.TimeSpan.TicksPerMillisecond
         + 50L > (int64 waitTime)
 
-    let rec waitThreads bufferPool pinBufferPool timestamp buff =
-        if Option.isSome buff then
-            buff
-        elif waitingTooLong timestamp bufferPool.WaitTime then
-            None
-        else
-            lock bufferPool (fun () ->
-                System.Threading.Monitor.Wait(bufferPool, bufferPool.WaitTime)
-                |> ignore
-                pinBufferPool ())
-            |> waitThreads bufferPool pinBufferPool timestamp
+    let rec waitUnpinningBuffer bufferPool pinBufferPool timestamp buffer =
+        buffer
+        |> Option.orElseWith (fun () ->
+            if waitingTooLong timestamp bufferPool.WaitTime then
+                None
+            else
+                lock bufferPool (fun () ->
+                    System.Threading.Monitor.Wait(bufferPool, bufferPool.WaitTime)
+                    |> ignore)
+                pinBufferPool ()
+                |> waitUnpinningBuffer bufferPool pinBufferPool timestamp)
 
-    let pinNewBuffer (bufferPool: BufferPool) state pinBufferPool pinNext =
-        if state.PinningBuffers.Count
-           >= bufferPool.BufferPoolSize then
-            failwith "Buffer pool full"
+    let pinNewBuffer (bufferPool: BufferPool) (pinningBuffers: Map<BlockId, PinningBuffer>) pinBufferPool repinBuffer =
+        if pinningBuffers.Count >= bufferPool.BufferPoolSize
+        then failwith "Buffer pool full"
 
-        let buff, waitedBeforeGotBuffer =
-            match pinBufferPool () with
-            | Some buff -> Some buff, false
-            | _ -> waitThreads bufferPool pinBufferPool System.DateTime.Now None, true
+        let nextBuffers, buffer =
+            match pinBufferPool ()
+                  |> Option.orElseWith (fun () -> waitUnpinningBuffer bufferPool pinBufferPool System.DateTime.Now None) with
+            | Some buff -> pinningBuffers.Add(buff.BlockId(), { Buffer = buff; PinCount = 1 }), buff
+            | _ -> repinBuffer pinningBuffers
 
-        let nextstate, buffer =
-            match buff with
-            | Some b ->
-                { state with
-                      PinningBuffers = state.PinningBuffers.Add(b.BlockId(), { Buffer = b; PinCount = 1 })
-                      BuffersToFlush = b :: state.BuffersToFlush },
-                b
-            | None -> pinNext state
+        lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
 
-        if waitedBeforeGotBuffer
-        then lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
+        nextBuffers, buffer
 
-        nextstate, buffer
+    let pinExistBuffer (pinningBuffers: Map<BlockId, PinningBuffer>) blockId =
+        let pinnedBuff = pinningBuffers.[blockId]
 
-    let unpin (bufferPool: BufferPool) state buffer =
+        let nextPinnedBuff =
+            { pinnedBuff with
+                  PinCount = pinnedBuff.PinCount + 1 }
+
+        pinningBuffers.Add(blockId, nextPinnedBuff), nextPinnedBuff.Buffer
+
+    let unpin (bufferPool: BufferPool) (pinningBuffers: Map<BlockId, PinningBuffer>) buffer =
         let blockId = buffer.BlockId()
-        if state.PinningBuffers.ContainsKey blockId then
-            let pinnedBuff = state.PinningBuffers.[blockId]
+        if pinningBuffers.ContainsKey blockId then
+            let pinnedBuff = pinningBuffers.[blockId]
 
             let nextPinnedBuff =
                 { pinnedBuff with
@@ -70,84 +65,66 @@ module TransactionBuffer =
             if nextPinnedBuff.PinCount = 0 then
                 bufferPool.Unpin buffer
                 lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
-                { state with
-                      PinningBuffers = state.PinningBuffers.Remove blockId }
+                pinningBuffers.Remove blockId
             else
-                { state with
-                      PinningBuffers = state.PinningBuffers.Add(blockId, nextPinnedBuff) }
+                pinningBuffers.Add(blockId, nextPinnedBuff)
         else
-            state
+            pinningBuffers
 
-    let rec pin (bufferPool: BufferPool) state blockId =
-        let pinExistBuffer state pinnedBuff =
-            let nextPinnedBuff =
-                { pinnedBuff with
-                      PinCount = pinnedBuff.PinCount + 1 }
-
-            let nextstate =
-                { state with
-                      PinningBuffers = state.PinningBuffers.Add(blockId, nextPinnedBuff) }
-
-            nextstate, nextPinnedBuff.Buffer
-
+    let rec pin (bufferPool: BufferPool) blockId (pinningBuffers: Map<BlockId, PinningBuffer>) =
         let pinBufferPool () = bufferPool.Pin blockId
 
-        let pinNext state =
-            pin bufferPool (repin bufferPool state) blockId
+        let repinBuffer pinningBuffers =
+            repin bufferPool pinningBuffers
+            |> pin bufferPool blockId
 
-        if state.PinningBuffers.ContainsKey blockId
-        then pinExistBuffer state state.PinningBuffers.[blockId]
-        else pinNewBuffer bufferPool state pinBufferPool pinNext
+        if pinningBuffers.ContainsKey blockId
+        then pinExistBuffer pinningBuffers blockId
+        else pinNewBuffer bufferPool pinningBuffers pinBufferPool repinBuffer
 
-    and repin (bufferPool: BufferPool) state =
-        let repinningBuffers = state.PinningBuffers
-
-        let newstate =
-            repinningBuffers
-            |> Map.fold (fun st _ v -> unpin bufferPool st v.Buffer) state
+    and repin (bufferPool: BufferPool) pinningBuffers =
+        let repinningBuffers =
+            pinningBuffers
+            |> Map.fold (fun buffers _ buf -> unpin bufferPool buffers buf.Buffer) pinningBuffers
 
         lock bufferPool (fun () ->
             System.Threading.Monitor.Wait(bufferPool, bufferPool.WaitTime)
             |> ignore)
 
-        repinningBuffers
-        |> Map.fold (fun st k _ ->
-            let st1, _ = pin bufferPool st k
-            st1) newstate
+        pinningBuffers
+        |> Map.fold (fun buffers blockId _ -> pin bufferPool blockId buffers |> fst) repinningBuffers
 
-    let rec pinNew (bufferPool: BufferPool) state fileName formatter =
+    let rec pinNew (bufferPool: BufferPool) fileName formatter pinningBuffers =
         let pinBufferPool () = bufferPool.PinNew fileName formatter
 
-        let pinNext state =
-            pinNew bufferPool (repin bufferPool state) fileName formatter
+        let repinBuffer pinningBuffers =
+            repin bufferPool pinningBuffers
+            |> pinNew bufferPool fileName formatter
 
-        pinNewBuffer bufferPool state pinBufferPool pinNext
+        pinNewBuffer bufferPool pinningBuffers pinBufferPool repinBuffer
 
-    let unpinAll (bufferPool: BufferPool) state =
-        state.PinningBuffers
-        |> Map.iter (fun _ v -> bufferPool.Unpin v.Buffer)
+    let unpinAll (bufferPool: BufferPool) pinningBuffers =
+        pinningBuffers
+        |> Map.iter (fun _ buf -> bufferPool.Unpin buf.Buffer)
         lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
-        { state with
-              PinningBuffers = Map.empty }
+        Map.empty
 
 let newTransactionBuffer bufferPool =
-    let mutable state: TransactionBuffer.TransactionBufferState =
-        { PinningBuffers = Map.empty
-          BuffersToFlush = [] }
+    let mutable pinningBuffers = Map.empty
 
     { Pin =
           fun blockId ->
-              let nextstate, buffer =
-                  TransactionBuffer.pin bufferPool state blockId
+              let nextBuffers, buffer =
+                  TransactionBuffer.pin bufferPool blockId pinningBuffers
 
-              state <- nextstate
+              pinningBuffers <- nextBuffers
               buffer
       PinNew =
           fun fileName formatter ->
-              let nextstate, buffer =
-                  TransactionBuffer.pinNew bufferPool state fileName formatter
+              let nextBuffers, buffer =
+                  TransactionBuffer.pinNew bufferPool fileName formatter pinningBuffers
 
-              state <- nextstate
+              pinningBuffers <- nextBuffers
               buffer
-      Unpin = fun buffer -> state <- TransactionBuffer.unpin bufferPool state buffer
-      UnpinAll = fun () -> state <- TransactionBuffer.unpinAll bufferPool state }
+      Unpin = fun buffer -> pinningBuffers <- TransactionBuffer.unpin bufferPool pinningBuffers buffer
+      UnpinAll = fun () -> pinningBuffers <- TransactionBuffer.unpinAll bufferPool pinningBuffers }

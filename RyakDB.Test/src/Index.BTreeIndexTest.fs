@@ -26,11 +26,11 @@ let createIndex db =
     let tx =
         db.TxMgr.NewTransaction false Serializable
 
-    db.CatalogMgr.CreateIndex tx "BITable_SI1" IndexType.BTree "BITable" [ "cid" ]
-    db.CatalogMgr.CreateIndex tx "BITable_SI2" IndexType.BTree "BITable" [ "title" ]
-    db.CatalogMgr.CreateIndex tx "BITable_SI3" IndexType.BTree "BITable" [ "deptid" ]
-    db.CatalogMgr.CreateIndex tx "BITable_SI4" IndexType.BTree "BITable" [ "majorid" ]
-    db.CatalogMgr.CreateIndex tx "BITable_MI1" IndexType.BTree "BITable" [ "cid"; "deptid" ]
+    db.CatalogMgr.CreateIndex tx "BITable_SI1" BTree "BITable" [ "cid" ]
+    db.CatalogMgr.CreateIndex tx "BITable_SI2" BTree "BITable" [ "title" ]
+    db.CatalogMgr.CreateIndex tx "BITable_SI3" BTree "BITable" [ "deptid" ]
+    db.CatalogMgr.CreateIndex tx "BITable_SI4" BTree "BITable" [ "majorid" ]
+    db.CatalogMgr.CreateIndex tx "BITable_MI1" BTree "BITable" [ "cid"; "deptid" ]
     tx.Commit()
 
 [<Fact>]

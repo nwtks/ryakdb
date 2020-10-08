@@ -217,7 +217,7 @@ module TableFile =
               CurrentBlockNo = 0L }
 
     let next fileMgr txBuffer txConcurrency txRecovery doLog tableInfo state =
-        let rec loopNext state =
+        let rec searchNext state =
             match state.SlottedPage
                   |> Option.map (fun sp -> sp.Next()) with
             | Some true -> state, true
@@ -225,15 +225,15 @@ module TableFile =
                 let newstate, result =
                     moveTo fileMgr txBuffer txConcurrency txRecovery doLog tableInfo state (state.CurrentBlockNo + 1L)
 
-                if result then loopNext newstate else newstate, false
+                if result then searchNext newstate else newstate, false
 
         if state.CurrentBlockNo = 0L then
             let newstate, result =
                 moveTo fileMgr txBuffer txConcurrency txRecovery doLog tableInfo state 1L
 
-            if result then loopNext newstate else newstate, false
+            if result then searchNext newstate else newstate, false
         else
-            loopNext state
+            searchNext state
 
     let moveToRecordId fileMgr
                        txBuffer

@@ -12,9 +12,9 @@ open RyakDB.Execution.Scan
 
 module BufferNeeds =
     let bestRoot bufferPool size =
-        let rec loopRoot avail k i =
+        let rec searchRoot avail k i =
             if k > avail then
-                loopRoot
+                searchRoot
                     avail
                     ((double size, 1.0 / double i)
                      |> System.Math.Pow
@@ -25,7 +25,7 @@ module BufferNeeds =
                 k
 
         let avail = bufferPool.Available()
-        if avail <= 1 then 1 else loopRoot avail System.Int32.MaxValue 1
+        if avail <= 1 then 1 else searchRoot avail System.Int32.MaxValue 1
 
 type TempTable = { OpenScan: unit -> Scan }
 

@@ -123,7 +123,7 @@ module BTreeLeaf =
 
             initBTreePage txBuffer txConcurrency txRecovery schema blockId
 
-        let rec loopNext state =
+        let rec searchNext state =
             let nextSlot = state.CurrentSlot + 1
             if state.IsOverflowing then
                 true,
@@ -148,10 +148,10 @@ module BTreeLeaf =
                               MoveFrom = currentBlockNo }
                  else
                      { state with CurrentSlot = nextSlot })
-            else if nextSlot >= state.CurrentPage.GetCountOfRecords() then
+            elif nextSlot >= state.CurrentPage.GetCountOfRecords() then
                 if getSiblingBlockNo state.CurrentPage >= 0L then
                     let (BlockId (_, currentBlockNo)) = state.CurrentPage.BlockId
-                    loopNext
+                    searchNext
                         { state with
                               CurrentPage =
                                   getSiblingBlockNo state.CurrentPage
@@ -160,8 +160,8 @@ module BTreeLeaf =
                               MoveFrom = currentBlockNo }
                 else
                     false, { state with CurrentSlot = nextSlot }
-            else if getKey state.CurrentPage nextSlot keyType
-                    |> searchRange.MatchsKey then
+            elif getKey state.CurrentPage nextSlot keyType
+                 |> searchRange.MatchsKey then
                 true,
                 (if nextSlot = 0
                     && getOverflowBlockNo state.CurrentPage >= 0L then
@@ -175,13 +175,13 @@ module BTreeLeaf =
                       OverflowFrom = currentBlockNo }
                  else
                      { state with CurrentSlot = nextSlot })
-            else if getKey state.CurrentPage nextSlot keyType
-                    |> searchRange.BetweenMinAndMax then
-                loopNext { state with CurrentSlot = nextSlot }
+            elif getKey state.CurrentPage nextSlot keyType
+                 |> searchRange.BetweenMinAndMax then
+                searchNext { state with CurrentSlot = nextSlot }
             else
                 false, { state with CurrentSlot = nextSlot }
 
-        loopNext state
+        searchNext state
 
     let insert txRecovery keyType searchRange page slot recordId =
         let splitOverflow page =
@@ -234,7 +234,7 @@ module BTreeLeaf =
             None
 
     let delete txBuffer txConcurrency txRecovery dataFileName schema keyType searchRange state recordId =
-        let rec loopDelete state =
+        let rec searchDelete state =
             let result, newstate =
                 next txBuffer txConcurrency txRecovery schema keyType searchRange state
 
@@ -243,7 +243,7 @@ module BTreeLeaf =
                     deleteSlot txRecovery keyType newstate.CurrentPage newstate.CurrentSlot
                     true, newstate
                 else
-                    loopDelete newstate
+                    searchDelete newstate
             else
                 false, newstate
 
@@ -263,7 +263,7 @@ module BTreeLeaf =
 
         if not (searchRange.IsSingleValue()) then failwith "Not supported"
 
-        let deleted, newstate = loopDelete state
+        let deleted, newstate = searchDelete state
         if deleted then
             if newstate.IsOverflowing then
                 if newstate.CurrentPage.GetCountOfRecords() = 0

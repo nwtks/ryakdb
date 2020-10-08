@@ -29,15 +29,15 @@ let ``create index`` () =
 
     let i1 = "test_create_index_I1"
     db.CatalogMgr.DropIndex tx i1
-    db.CatalogMgr.CreateIndex tx i1 IndexType.Hash tbl [ "AAA" ]
+    db.CatalogMgr.CreateIndex tx i1 Hash tbl [ "AAA" ]
 
     let i2 = "test_create_index_I2"
     db.CatalogMgr.DropIndex tx i2
-    db.CatalogMgr.CreateIndex tx i2 IndexType.BTree tbl [ "BBB" ]
+    db.CatalogMgr.CreateIndex tx i2 BTree tbl [ "BBB" ]
 
     let i3 = "test_create_index_I3"
     db.CatalogMgr.DropIndex tx i3
-    db.CatalogMgr.CreateIndex tx i3 IndexType.Hash tbl [ "CCC" ]
+    db.CatalogMgr.CreateIndex tx i3 Hash tbl [ "CCC" ]
 
     let index1 = db.CatalogMgr.GetIndexInfoByName tx i1
     (index1 |> Option.get).IndexName
