@@ -20,16 +20,16 @@ let count () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newGroupByPlan newSortScan [] [ CountFn("grad_year") ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -52,16 +52,16 @@ let max () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newGroupByPlan newSortScan [] [ MaxFn("grad_year") ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -84,16 +84,16 @@ let min () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newGroupByPlan newSortScan [] [ MinFn("s_name") ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -116,16 +116,16 @@ let sum () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newGroupByPlan newSortScan [] [ SumFn("s_id") ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -148,16 +148,16 @@ let avg () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newGroupByPlan newSortScan [] [ AvgFn("major_id") ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()

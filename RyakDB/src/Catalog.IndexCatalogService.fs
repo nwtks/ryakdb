@@ -1,21 +1,21 @@
-module RyakDB.Catalog.IndexManager
+module RyakDB.Catalog.IndexCatalogService
 
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
-open RyakDB.Catalog.TableManager
+open RyakDB.Catalog.TableCatalogService
 
-type IndexManager =
+type IndexCatalogService =
     { CreateIndex: Transaction -> string -> IndexType -> string -> string list -> unit
       DropIndex: Transaction -> string -> unit
       GetIndexInfoByName: Transaction -> string -> IndexInfo option
-      GetIndexInfoByField: Transaction -> string -> string -> IndexInfo list
+      GetIndexInfosByField: Transaction -> string -> string -> IndexInfo list
       GetIndexedFields: Transaction -> string -> string list
-      InitIndexManager: Transaction -> unit }
+      InitIndexCatalogService: Transaction -> unit }
 
-module IndexManager =
+module IndexCatalogService =
     let Icat = "cat_idx"
     let IcatIdxName = "idx_name"
     let IcatTblName = "tbl_name"
@@ -25,34 +25,34 @@ module IndexManager =
     let KcatIdxName = "idx_name"
     let KcatKeyName = "key_name"
 
-    let createIcat tblMgr tx =
+    let createIcat tableService tx =
         let icatSchema = Schema.newSchema ()
 
-        VarcharDbType TableManager.MaxName
+        VarcharDbType TableCatalogService.MaxName
         |> icatSchema.AddField IcatIdxName
 
-        VarcharDbType TableManager.MaxName
+        VarcharDbType TableCatalogService.MaxName
         |> icatSchema.AddField IcatTblName
 
         icatSchema.AddField IcatIdxType IntDbType
 
-        tblMgr.CreateTable tx Icat icatSchema
+        tableService.CreateTable tx Icat icatSchema
 
-    let createKcat tblMgr tx =
+    let createKcat tableService tx =
         let kcatSchema = Schema.newSchema ()
 
-        VarcharDbType TableManager.MaxName
+        VarcharDbType TableCatalogService.MaxName
         |> kcatSchema.AddField KcatIdxName
 
-        VarcharDbType TableManager.MaxName
+        VarcharDbType TableCatalogService.MaxName
         |> kcatSchema.AddField KcatKeyName
 
-        tblMgr.CreateTable tx Kcat kcatSchema
+        tableService.CreateTable tx Kcat kcatSchema
 
-    let readInfo tblMgr tx tf =
+    let readInfo tableService tx tf =
         match tf.GetVal IcatTblName
               |> DbConstant.toString
-              |> tblMgr.GetTableInfo tx with
+              |> tableService.GetTableInfo tx with
         | Some tblInfo ->
             let indexName =
                 tf.GetVal IcatIdxName |> DbConstant.toString
@@ -72,51 +72,55 @@ module IndexManager =
             (indexName, indeType, tblInfo) |> Some
         | _ -> None
 
-    let rec findIcatfileByIndexName tblMgr tx (tf: TableFile) indexName =
+    let rec findIcatfileByIndexName tableService tx (tf: TableFile) indexName =
         if tf.Next() then
-            if tf.GetVal IcatIdxName
-               |> DbConstant.toString = indexName then
-                readInfo tblMgr tx tf
-            else
-                None
-            |> Option.orElseWith (fun () -> findIcatfileByIndexName tblMgr tx tf indexName)
+            let info =
+                if tf.GetVal IcatIdxName
+                   |> DbConstant.toString = indexName then
+                    readInfo tableService tx tf
+                else
+                    None
+
+            if Option.isSome info
+            then info
+            else findIcatfileByIndexName tableService tx tf indexName
         else
             None
 
-    let findIcatByIndexName fileMgr tblMgr tx indexName =
-        tblMgr.GetTableInfo tx Icat
-        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let findIcatByIndexName fileService tableService tx indexName =
+        tableService.GetTableInfo tx Icat
+        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.bind (fun tf ->
             tf.BeforeFirst()
 
             let index =
-                findIcatfileByIndexName tblMgr tx tf indexName
+                findIcatfileByIndexName tableService tx tf indexName
 
             tf.Close()
 
             index)
 
-    let rec findIcatfileByTableName tblMgr tx (tf: TableFile) tableName indexes =
+    let rec findIcatfileByTableName tableService tx (tf: TableFile) tableName indexes =
         if tf.Next() then
             if tf.GetVal IcatTblName
                |> DbConstant.toString = tableName then
-                readInfo tblMgr tx tf
+                readInfo tableService tx tf
                 |> Option.map (fun i -> i :: indexes)
                 |> Option.defaultValue indexes
             else
                 indexes
-            |> findIcatfileByTableName tblMgr tx tf tableName
+            |> findIcatfileByTableName tableService tx tf tableName
         else
             indexes
 
-    let findIcatByTableName fileMgr tblMgr tx tableName =
-        tblMgr.GetTableInfo tx Icat
-        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let findIcatByTableName fileService tableService tx tableName =
+        tableService.GetTableInfo tx Icat
+        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.map (fun tf ->
             tf.BeforeFirst()
 
             let indexes =
-                findIcatfileByTableName tblMgr tx tf tableName []
+                findIcatfileByTableName tableService tx tf tableName []
 
             tf.Close()
 
@@ -135,9 +139,9 @@ module IndexManager =
         else
             fields
 
-    let findFields fileMgr tblMgr tx indexName =
-        tblMgr.GetTableInfo tx Kcat
-        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let findFields fileService tableService tx indexName =
+        tableService.GetTableInfo tx Kcat
+        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.map (fun tf ->
             tf.BeforeFirst()
             let fields = findKcatfile tf indexName []
@@ -146,10 +150,10 @@ module IndexManager =
             fields)
         |> Option.defaultValue []
 
-    let createIndex fileMgr tblMgr tx indexName indexType tableName fields =
-        let createIcatfile tblMgr =
-            tblMgr.GetTableInfo tx Icat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let createIndex fileService tableService tx indexName indexType tableName fields =
+        let createIcatfile tableService =
+            tableService.GetTableInfo tx Icat
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.Insert()
 
@@ -167,9 +171,9 @@ module IndexManager =
 
                 tf.Close())
 
-        let createKcatfile tblMgr =
-            tblMgr.GetTableInfo tx Kcat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        let createKcatfile tableService =
+            tableService.GetTableInfo tx Kcat
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 fields
                 |> List.iter (fun field ->
@@ -183,10 +187,10 @@ module IndexManager =
 
                     tf.Close()))
 
-        createIcatfile tblMgr
-        createKcatfile tblMgr
+        createIcatfile tableService
+        createKcatfile tableService
 
-    let dropIndex fileMgr tblMgr tx indexName =
+    let dropIndex fileService tableService tx indexName =
         let rec deleteIcatfile (tf: TableFile) indexName =
             if tf.Next() then
                 if tf.GetVal IcatIdxName
@@ -194,9 +198,9 @@ module IndexManager =
                     tf.Delete()
                 deleteIcatfile tf indexName
 
-        let dropIcat tblMgr =
-            tblMgr.GetTableInfo tx Icat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        let dropIcat tableService =
+            tableService.GetTableInfo tx Icat
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.BeforeFirst()
                 deleteIcatfile tf indexName
@@ -209,44 +213,45 @@ module IndexManager =
                     tf.Delete()
                 deleteKcatfile tf indexName
 
-        let dropKcat tblMgr =
-            tblMgr.GetTableInfo tx Kcat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        let dropKcat tableService =
+            tableService.GetTableInfo tx Kcat
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.BeforeFirst()
                 deleteKcatfile tf indexName
                 tf.Close())
 
-        dropIcat tblMgr
-        dropKcat tblMgr
+        dropIcat tableService
+        dropKcat tableService
 
-    let getIndexInfoByName fileMgr tblMgr tx indexName =
-        findIcatByIndexName fileMgr tblMgr tx indexName
+    let getIndexInfoByName fileService tableService tx indexName =
+        findIcatByIndexName fileService tableService tx indexName
         |> Option.map (fun (idxName, idxType, tblInfo) ->
-            findFields fileMgr tblMgr tx indexName
+            findFields fileService tableService tx indexName
             |> IndexInfo.newIndexInfo idxName idxType tblInfo)
 
-    let getIndexInfoByField fileMgr tblMgr tx tableName field =
-        findIcatByTableName fileMgr tblMgr tx tableName
-        |> List.map (fun (idxName, idxType, tblInfo) -> idxName, idxType, tblInfo, findFields fileMgr tblMgr tx idxName)
+    let getIndexInfosByField fileService tableService tx tableName field =
+        findIcatByTableName fileService tableService tx tableName
+        |> List.map (fun (idxName, idxType, tblInfo) ->
+            idxName, idxType, tblInfo, findFields fileService tableService tx idxName)
         |> List.filter (fun (_, _, _, fields) -> fields |> List.contains field)
         |> List.map (fun (idxName, idxType, tblInfo, fields) -> IndexInfo.newIndexInfo idxName idxType tblInfo fields)
 
-    let getIndexedFields fileMgr tblMgr tx tableName =
-        findIcatByTableName fileMgr tblMgr tx tableName
-        |> List.map (fun (idxName, _, _) -> findFields fileMgr tblMgr tx idxName)
+    let getIndexedFields fileService tableService tx tableName =
+        findIcatByTableName fileService tableService tx tableName
+        |> List.map (fun (idxName, _, _) -> findFields fileService tableService tx idxName)
         |> List.collect id
         |> Set.ofList
         |> Set.toList
 
-    let initIndexManager tblMgr tx =
-        createIcat tblMgr tx
-        createKcat tblMgr tx
+    let initIndexCatalogService tableService tx =
+        createIcat tableService tx
+        createKcat tableService tx
 
-let newIndexManager fileMgr tblMgr =
-    { CreateIndex = IndexManager.createIndex fileMgr tblMgr
-      DropIndex = IndexManager.dropIndex fileMgr tblMgr
-      GetIndexInfoByName = IndexManager.getIndexInfoByName fileMgr tblMgr
-      GetIndexInfoByField = IndexManager.getIndexInfoByField fileMgr tblMgr
-      GetIndexedFields = IndexManager.getIndexedFields fileMgr tblMgr
-      InitIndexManager = IndexManager.initIndexManager tblMgr }
+let newIndexCatalogService fileService tableService =
+    { CreateIndex = IndexCatalogService.createIndex fileService tableService
+      DropIndex = IndexCatalogService.dropIndex fileService tableService
+      GetIndexInfoByName = IndexCatalogService.getIndexInfoByName fileService tableService
+      GetIndexInfosByField = IndexCatalogService.getIndexInfosByField fileService tableService
+      GetIndexedFields = IndexCatalogService.getIndexedFields fileService tableService
+      InitIndexCatalogService = IndexCatalogService.initIndexCatalogService tableService }

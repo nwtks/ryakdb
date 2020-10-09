@@ -11,7 +11,7 @@ type LogRecord =
     { LogSeqNo: LogSeqNo
       NextVal: DbType -> DbConstant }
 
-type LogManager =
+type LogService =
     { LogFile: string
       Records: unit -> LogRecord seq
       Append: DbConstant list -> LogSeqNo
@@ -50,8 +50,8 @@ let newLogRecord blockNo offset page =
               position <- position + Page.size value
               value }
 
-module LogManager =
-    type LogManagerState =
+module LogService =
+    type LogServiceState =
         { CurrentBlockId: BlockId
           LastLogSeqNo: LogSeqNo
           LastFlushedLogSeqNo: LogSeqNo }
@@ -76,7 +76,7 @@ module LogManager =
         { state with
               LastFlushedLogSeqNo = state.LastLogSeqNo }
 
-    let records fileMgr logPage state =
+    let records fileService logPage state =
         let readLastRecordPosition page blockId =
             page.Read blockId
             getLastRecordPosition page
@@ -88,7 +88,7 @@ module LogManager =
             prevBlockId, readLastRecordPosition page prevBlockId
 
         let nextstate = flushLog logPage state
-        let readPage = newPage fileMgr
+        let readPage = newPage fileService
 
         nextstate,
         Seq.unfold (fun (blockId, position) ->
@@ -107,7 +107,7 @@ module LogManager =
             else
                 None) (nextstate.CurrentBlockId, readLastRecordPosition readPage nextstate.CurrentBlockId)
 
-    let append fileMgr logFileName logPage state constants =
+    let append fileService logFileName logPage state constants =
         let appendVal page position value =
             page.SetVal position value
             position + (Page.size value)
@@ -126,7 +126,7 @@ module LogManager =
             if lastRecordPosition
                + PointerSize
                + recordSize
-               >= fileMgr.BlockSize then
+               >= fileService.BlockSize then
                 0,
                 { flushLog logPage state with
                       CurrentBlockId = appendNewBlock logFileName logPage }
@@ -149,11 +149,11 @@ module LogManager =
           LastLogSeqNo = LogSeqNo.DefaltValue
           LastFlushedLogSeqNo = LogSeqNo.DefaltValue }
 
-let newLogManager fileMgr logFileName =
-    let logsize = fileMgr.Size logFileName
-    let logPage = newPage fileMgr
+let newLogService fileService logFileName =
+    let logsize = fileService.Size logFileName
+    let logPage = newPage fileService
 
-    let mutable state: LogManager.LogManagerState =
+    let mutable state: LogService.LogServiceState =
         if logsize > 0L then
             let blockId =
                 BlockId.newBlockId logFileName (logsize - 1L)
@@ -164,23 +164,25 @@ let newLogManager fileMgr logFileName =
               LastLogSeqNo = LogSeqNo.DefaltValue
               LastFlushedLogSeqNo = LogSeqNo.DefaltValue }
         else
-            LogManager.createNewLog logFileName logPage
+            LogService.createNewLog logFileName logPage
 
     { LogFile = logFileName
       Records =
           fun () ->
               lock logPage (fun () ->
-                  let nextstate, recs = LogManager.records fileMgr logPage state
+                  let nextstate, recs =
+                      LogService.records fileService logPage state
+
                   state <- nextstate
                   recs)
       Append =
           fun constants ->
               lock logPage (fun () ->
-                  state <- LogManager.append fileMgr logFileName logPage state constants
+                  state <- LogService.append fileService logFileName logPage state constants
                   state.LastLogSeqNo)
-      Flush = fun lsn -> lock logPage (fun () -> state <- LogManager.flush logPage state lsn)
+      Flush = fun lsn -> lock logPage (fun () -> state <- LogService.flush logPage state lsn)
       RemoveAndCreateNewLog =
           fun () ->
               lock logPage (fun () ->
-                  fileMgr.Delete logFileName
-                  state <- LogManager.createNewLog logFileName logPage) }
+                  fileService.Delete logFileName
+                  state <- LogService.createNewLog logFileName logPage) }

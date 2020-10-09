@@ -59,7 +59,7 @@ module SlottedPage =
 
     let getValue txConcurrency (currentBuffer: Buffer) blockId currentSlotNo offset dbType =
         let (BlockId (fileName, _)) = blockId
-        if not (FileManager.isTempFile fileName) then
+        if not (FileService.isTempFile fileName) then
             RecordId.newRecordId currentSlotNo blockId
             |> txConcurrency.ReadRecord
 
@@ -67,7 +67,7 @@ module SlottedPage =
 
     let setValue txConcurrency txRecovery doLog currentBuffer blockId offset value =
         let (BlockId (fileName, _)) = blockId
-        if not (FileManager.isTempFile fileName) then txConcurrency.ModifyFile fileName
+        if not (FileService.isTempFile fileName) then txConcurrency.ModifyFile fileName
 
         if doLog
         then txRecovery.LogSetVal currentBuffer offset value

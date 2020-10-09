@@ -1,4 +1,4 @@
-module RyakDB.Recovery.SystemRecovery
+module RyakDB.Recovery.RecoveryService
 
 open RyakDB.DataType
 open RyakDB.Storage
@@ -14,15 +14,15 @@ open RyakDB.Table.TableFile
 open RyakDB.Index.BTreeBranch
 open RyakDB.Index.BTreeLeaf
 open RyakDB.Transaction
-open RyakDB.Catalog.CatalogManager
+open RyakDB.Catalog.CatalogService
 
-type SystemRecovery =
+type RecoveryService =
     { RecoverSystem: Transaction -> unit
       OnCommit: Transaction -> unit
       OnRollback: Transaction -> unit
       Checkpoint: int64 list -> unit }
 
-module SystemRecovery =
+module RecoveryService =
     let insertBTreeBranchSlot tx keyType blockId slot =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
@@ -59,25 +59,25 @@ module SystemRecovery =
         page.Delete slot
         page.Close()
 
-    let logLogicalAbort logMgr txNo undoNextLogSeqNo =
+    let logLogicalAbort logService txNo undoNextLogSeqNo =
         newLogicalAbortRecord txNo undoNextLogSeqNo
-        |> writeToLog logMgr
-        |> logMgr.Flush
+        |> writeToLog logService
+        |> logService.Flush
 
-    let logIndexPageInsertionClear logMgr isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
+    let logIndexPageInsertionClear logService isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
         newIndexPageInsertClear isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo
-        |> writeToLog logMgr
-        |> logMgr.Flush
+        |> writeToLog logService
+        |> logService.Flush
 
-    let logIndexPageDeletionClear logMgr isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
+    let logIndexPageDeletionClear logService isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
         newIndexPageDeleteClear isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo
-        |> writeToLog logMgr
-        |> logMgr.Flush
+        |> writeToLog logService
+        |> logService.Flush
 
-    let logSetValClear logMgr compTxNo (buffer: Buffer) offset newValue undoNextLogSeqNo =
+    let logSetValClear logService compTxNo (buffer: Buffer) offset newValue undoNextLogSeqNo =
         let blockId = buffer.BlockId()
         let (BlockId (fileName, _)) = blockId
-        if not (FileManager.isTempFile fileName) then
+        if not (FileService.isTempFile fileName) then
             newSetValueClear
                 compTxNo
                 blockId
@@ -85,46 +85,48 @@ module SystemRecovery =
                 (buffer.GetVal offset (DbConstant.dbType newValue))
                 newValue
                 undoNextLogSeqNo
-            |> writeToLog logMgr
-            |> logMgr.Flush
+            |> writeToLog logService
+            |> logService.Flush
 
-    let undo fileMgr (logMgr: LogManager) catalogMgr tx recoveryLog =
+    let undo fileService (logService: LogService) catalogService tx recoveryLog =
         match recoveryLog with
-        | LogicalStartRecord (txNo, lsn) -> lsn |> Option.iter (logLogicalAbort logMgr txNo)
+        | LogicalStartRecord (txNo, lsn) ->
+            lsn
+            |> Option.iter (logLogicalAbort logService txNo)
         | TableFileInsertEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
-            catalogMgr.GetTableInfo tx tableName
+            catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
                 let tf =
-                    newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
                 RecordId.newBlockRecordId slot ti.FileName blockNo
                 |> tf.UndoInsert)
-            logLogicalAbort logMgr txNo startLsn
+            logLogicalAbort logService txNo startLsn
         | TableFileDeleteEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
-            catalogMgr.GetTableInfo tx tableName
+            catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
                 let tf =
-                    newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
                 RecordId.newBlockRecordId slot ti.FileName blockNo
                 |> tf.UndoDelete)
-            logLogicalAbort logMgr txNo startLsn
+            logLogicalAbort logService txNo startLsn
         | IndexInsertEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
-            catalogMgr.GetIndexInfoByName tx indexName
+            catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
-                let idx = IndexFactory.newIndex fileMgr tx ii
+                let idx = IndexFactory.newIndex fileService tx ii
                 RecordId.newBlockRecordId slot ii.TableInfo.FileName blockNo
                 |> idx.Delete false searchKey
                 idx.Close())
-            logLogicalAbort logMgr txNo startLsn
+            logLogicalAbort logService txNo startLsn
         | IndexDeleteEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
-            catalogMgr.GetIndexInfoByName tx indexName
+            catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
-                let idx = IndexFactory.newIndex fileMgr tx ii
+                let idx = IndexFactory.newIndex fileService tx ii
                 RecordId.newBlockRecordId slot ii.TableInfo.FileName blockNo
                 |> idx.Insert false searchKey
                 idx.Close())
-            logLogicalAbort logMgr txNo startLsn
+            logLogicalAbort logService txNo startLsn
         | IndexPageInsertRecord (txNo, blockId, branch, keyType, slot, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
@@ -132,7 +134,7 @@ module SystemRecovery =
                 if branch
                 then deleteBTreeBranchSlot tx keyType blockId slot
                 else deleteBTreeLeafSlot tx keyType blockId slot
-                logIndexPageDeletionClear logMgr branch txNo blockId keyType slot l
+                logIndexPageDeletionClear logService branch txNo blockId keyType slot l
             | _ -> ()
             tx.Buffer.Unpin buffer
         | IndexPageDeleteRecord (txNo, blockId, branch, keyType, slot, lsn) ->
@@ -142,13 +144,13 @@ module SystemRecovery =
                 if branch
                 then insertBTreeBranchSlot tx keyType blockId slot
                 else insertBTreeLeafSlot tx keyType blockId slot
-                logIndexPageInsertionClear logMgr branch txNo blockId keyType slot l
+                logIndexPageInsertionClear logService branch txNo blockId keyType slot l
             | _ -> ()
             tx.Buffer.Unpin buffer
         | SetValueRecord (txNo, blockId, offset, _, oldValue, _, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
-            | Some l -> logSetValClear logMgr txNo buffer offset oldValue l
+            | Some l -> logSetValClear logService txNo buffer offset oldValue l
             | _ -> ()
             buffer.SetVal offset oldValue None
             tx.Buffer.Unpin buffer
@@ -183,10 +185,10 @@ module SystemRecovery =
             tx.Buffer.Unpin buffer
         | _ -> ()
 
-    let rollbackPartially fileMgr logMgr catalogMgr tx stepsInUndo =
+    let rollbackPartially fileService logService catalogService tx stepsInUndo =
         let mutable txUndoNextLogSeqNo = None
 
-        logMgr.Records()
+        logService.Records()
         |> if stepsInUndo > 0 then Seq.take stepsInUndo else id
         |> Seq.map fromLogRecord
         |> Seq.filter (fun rlog -> transactionNo rlog = tx.TransactionNo)
@@ -197,19 +199,19 @@ module SystemRecovery =
             |> Option.map (fun lsn -> txUndoNextLogSeqNo |> Option.get > lsn)
             |> Option.defaultValue false)
         |> Seq.iter (fun rlog ->
-            undo fileMgr logMgr catalogMgr tx rlog
+            undo fileService logService catalogService tx rlog
             txUndoNextLogSeqNo <-
                 getLogicalStartLogSeqNo rlog
                 |> Option.orElse txUndoNextLogSeqNo)
 
-    let rollback fileMgr logMgr catalogMgr tx =
-        rollbackPartially fileMgr logMgr catalogMgr tx -1
+    let rollback fileService logService catalogService tx =
+        rollbackPartially fileService logService catalogService tx -1
 
-    let recoverPartially fileMgr logMgr catalogMgr tx stepsInUndo =
+    let recoverPartially fileService logService catalogService tx stepsInUndo =
         let mutable inCheckpoint = false
 
         let redoRecords, uncompletedTxs, _ =
-            logMgr.Records()
+            logService.Records()
             |> Seq.map fromLogRecord
             |> Seq.takeWhile (fun _ -> not (inCheckpoint))
             |> Seq.fold (fun (redoRecords, uncompletedTxs: Set<int64>, finishedTxs: Set<int64>) rlog ->
@@ -232,7 +234,7 @@ module SystemRecovery =
         let mutable uncompletedTxs = uncompletedTxs.Remove tx.TransactionNo
         let mutable txUndoNextLogSeqNos = Map.empty
 
-        logMgr.Records()
+        logService.Records()
         |> if stepsInUndo > 0 then Seq.take stepsInUndo else id
         |> Seq.map fromLogRecord
         |> Seq.takeWhile (fun _ -> not (uncompletedTxs.IsEmpty))
@@ -249,42 +251,42 @@ module SystemRecovery =
             | RollbackRecord _, _, _ -> ()
             | StartRecord _, _, _ -> uncompletedTxs <- uncompletedTxs.Remove txNo
             | _, Some logicalStartLSN, _ ->
-                undo fileMgr logMgr catalogMgr tx rlog
+                undo fileService logService catalogService tx rlog
                 txUndoNextLogSeqNos <- txUndoNextLogSeqNos.Add(txNo, logicalStartLSN)
             | _, _, Some undoNextLSN -> txUndoNextLogSeqNos <- txUndoNextLogSeqNos.Add(txNo, undoNextLSN)
-            | _, _, _ -> undo fileMgr logMgr catalogMgr tx rlog)
+            | _, _, _ -> undo fileService logService catalogService tx rlog)
 
-    let recover fileMgr logMgr catalogMgr tx =
-        recoverPartially fileMgr logMgr catalogMgr tx -1
+    let recover fileService logService catalogService tx =
+        recoverPartially fileService logService catalogService tx -1
 
-    let onCommit logMgr tx =
+    let onCommit logService tx =
         if not (tx.ReadOnly) then
             newCommitRecord tx.TransactionNo
-            |> writeToLog logMgr
-            |> logMgr.Flush
+            |> writeToLog logService
+            |> logService.Flush
 
-    let onRollback fileMgr logMgr catalogMgr tx =
+    let onRollback fileService logService catalogService tx =
         if not (tx.ReadOnly) then
-            rollback fileMgr logMgr catalogMgr tx
+            rollback fileService logService catalogService tx
             newRollbackRecord tx.TransactionNo
-            |> writeToLog logMgr
-            |> logMgr.Flush
+            |> writeToLog logService
+            |> logService.Flush
 
-    let recoverSystem fileMgr logMgr bufferPool catalogMgr tx =
-        recover fileMgr logMgr catalogMgr tx
+    let recoverSystem fileService logService bufferPool catalogService tx =
+        recover fileService logService catalogService tx
         bufferPool.FlushAll()
-        logMgr.RemoveAndCreateNewLog()
+        logService.RemoveAndCreateNewLog()
         newStartRecord tx.TransactionNo
-        |> writeToLog logMgr
-        |> logMgr.Flush
+        |> writeToLog logService
+        |> logService.Flush
 
-    let checkpoint logMgr txNos =
+    let checkpoint logService txNos =
         newCheckpointRecord txNos
-        |> writeToLog logMgr
-        |> logMgr.Flush
+        |> writeToLog logService
+        |> logService.Flush
 
-let newSystemRecovery fileMgr logMgr bufferPool catalogMgr =
-    { RecoverSystem = SystemRecovery.recoverSystem fileMgr logMgr bufferPool catalogMgr
-      OnCommit = SystemRecovery.onCommit logMgr
-      OnRollback = SystemRecovery.onRollback fileMgr logMgr catalogMgr
-      Checkpoint = SystemRecovery.checkpoint logMgr }
+let newRecoveryService fileService logService bufferPool catalogService =
+    { RecoverSystem = RecoveryService.recoverSystem fileService logService bufferPool catalogService
+      OnCommit = RecoveryService.onCommit logService
+      OnRollback = RecoveryService.onRollback fileService logService catalogService
+      Checkpoint = RecoveryService.checkpoint logService }

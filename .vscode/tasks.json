@@ -17,7 +17,8 @@
             "type": "shell",
             "args": [
                 "test",
-                "--collect:'XPlat Code Coverage'"
+                "--collect:'XPlat Code Coverage'",
+                "--logger:'console;verbosity=normal'"
             ],
             "group": "test",
             "problemMatcher": "$msCompile"

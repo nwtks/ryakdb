@@ -87,14 +87,14 @@ let newLogicalAbortRecordByLogRecord record =
 
     LogicalAbortRecord(txNo, logicalStartLogSeqNo, Some record.LogSeqNo)
 
-let newTableFileInsertEndRecord txNo tblName blockNo slotNo logicalStartLogSeqNo =
-    TableFileInsertEndRecord(txNo, tblName, blockNo, slotNo, logicalStartLogSeqNo, None)
+let newTableFileInsertEndRecord txNo tableName blockNo slotNo logicalStartLogSeqNo =
+    TableFileInsertEndRecord(txNo, tableName, blockNo, slotNo, logicalStartLogSeqNo, None)
 
 let newTableFileInsertEndRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let tblName =
+    let tableName =
         VarcharDbType 0
         |> record.NextVal
         |> DbConstant.toString
@@ -110,16 +110,16 @@ let newTableFileInsertEndRecordByLogRecord record =
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    TableFileInsertEndRecord(txNo, tblName, blockNo, slotNo, logicalStartLogSeqNo, Some record.LogSeqNo)
+    TableFileInsertEndRecord(txNo, tableName, blockNo, slotNo, logicalStartLogSeqNo, Some record.LogSeqNo)
 
-let newTableFileDeleteEndRecord txNo tblName blockNo slotNo logicalStartLogSeqNo =
-    TableFileDeleteEndRecord(txNo, tblName, blockNo, slotNo, logicalStartLogSeqNo, None)
+let newTableFileDeleteEndRecord txNo tableName blockNo slotNo logicalStartLogSeqNo =
+    TableFileDeleteEndRecord(txNo, tableName, blockNo, slotNo, logicalStartLogSeqNo, None)
 
 let newTableFileDeleteEndRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
-    let tblName =
+    let tableName =
         VarcharDbType 0
         |> record.NextVal
         |> DbConstant.toString
@@ -135,7 +135,7 @@ let newTableFileDeleteEndRecordByLogRecord record =
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    TableFileDeleteEndRecord(txNo, tblName, blockNo, slotNo, logicalStartLogSeqNo, Some record.LogSeqNo)
+    TableFileDeleteEndRecord(txNo, tableName, blockNo, slotNo, logicalStartLogSeqNo, Some record.LogSeqNo)
 
 let newIndexInsertEndRecord txNo indexName searchKey recordBlockNo recordSlotNo logicalStartLogSeqNo =
     IndexInsertEndRecord(txNo, indexName, searchKey, recordBlockNo, recordSlotNo, logicalStartLogSeqNo, None)
@@ -499,18 +499,16 @@ let buildRecord record =
     let txNo = transactionNo record |> BigIntDbConstant
 
     match record with
-    | CheckpointRecord(txNos = nums) ->
+    | CheckpointRecord(txNos = txNos) ->
         [ op
-          List.length nums |> IntDbConstant ]
-        @ (nums |> List.map BigIntDbConstant)
-    | LogicalAbortRecord (_, start, _) ->
-        let (LogSeqNo (startBlockNo, startOffset)) = start
+          List.length txNos |> IntDbConstant ]
+        @ (txNos |> List.map BigIntDbConstant)
+    | LogicalAbortRecord (_, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset ]
-    | TableFileInsertEndRecord (_, name, blockNo, slot, start, _) ->
-        let (LogSeqNo (startBlockNo, startOffset)) = start
+    | TableFileInsertEndRecord (_, name, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
@@ -518,8 +516,7 @@ let buildRecord record =
           IntDbConstant slot
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset ]
-    | TableFileDeleteEndRecord (_, name, blockNo, slot, start, _) ->
-        let (LogSeqNo (startBlockNo, startOffset)) = start
+    | TableFileDeleteEndRecord (_, name, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
@@ -527,9 +524,7 @@ let buildRecord record =
           IntDbConstant slot
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset ]
-    | IndexInsertEndRecord (_, name, sk, blockNo, slot, start, _) ->
-        let (LogSeqNo (startBlockNo, startOffset)) = start
-        let (SearchKey key) = sk
+    | IndexInsertEndRecord (_, name, SearchKey key, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
@@ -544,9 +539,7 @@ let buildRecord record =
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant
                  v ]))
-    | IndexDeleteEndRecord (_, name, sk, blockNo, slot, start, _) ->
-        let (LogSeqNo (startBlockNo, startOffset)) = start
-        let (SearchKey key) = sk
+    | IndexDeleteEndRecord (_, name, SearchKey key, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
@@ -561,9 +554,7 @@ let buildRecord record =
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant
                  v ]))
-    | IndexPageInsertRecord (_, bid, branch, kt, slot, _) ->
-        let (BlockId (fileName, blockNo)) = bid
-        let (SearchKeyType keyType) = kt
+    | IndexPageInsertRecord (_, BlockId (fileName, blockNo), branch, SearchKeyType keyType, slot, _) ->
         [ op
           txNo
           (if branch then 1 else 0) |> IntDbConstant
@@ -575,41 +566,13 @@ let buildRecord record =
            |> List.collect (fun t ->
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant ]))
-    | IndexPageInsertClear (_, bid, branch, kt, slot, undo, _) ->
-        let (BlockId (fileName, blockNo)) = bid
-        let (LogSeqNo (undoBlockNo, undoOffset)) = undo
-        let (SearchKeyType keyType) = kt
-        [ op
-          txNo
-          (if branch then 1 else 0) |> IntDbConstant
-          DbConstant.newVarchar fileName
-          BigIntDbConstant blockNo
-          IntDbConstant slot
-          BigIntDbConstant undoBlockNo
-          BigIntDbConstant undoOffset
-          List.length keyType |> IntDbConstant ]
-        @ (keyType
-           |> List.collect (fun t ->
-               [ DbType.toInt t |> IntDbConstant
-                 DbType.argument t |> IntDbConstant ]))
-    | IndexPageDeleteRecord (_, bid, branch, kt, slot, _) ->
-        let (BlockId (fileName, blockNo)) = bid
-        let (SearchKeyType keyType) = kt
-        [ op
-          txNo
-          (if branch then 1 else 0) |> IntDbConstant
-          DbConstant.newVarchar fileName
-          BigIntDbConstant blockNo
-          IntDbConstant slot
-          List.length keyType |> IntDbConstant ]
-        @ (keyType
-           |> List.collect (fun t ->
-               [ DbType.toInt t |> IntDbConstant
-                 DbType.argument t |> IntDbConstant ]))
-    | IndexPageDeleteClear (_, bid, branch, kt, slot, undo, _) ->
-        let (BlockId (fileName, blockNo)) = bid
-        let (LogSeqNo (undoBlockNo, undoOffset)) = undo
-        let (SearchKeyType keyType) = kt
+    | IndexPageInsertClear (_,
+                            BlockId (fileName, blockNo),
+                            branch,
+                            SearchKeyType keyType,
+                            slot,
+                            LogSeqNo (undoBlockNo, undoOffset),
+                            _) ->
         [ op
           txNo
           (if branch then 1 else 0) |> IntDbConstant
@@ -623,34 +586,70 @@ let buildRecord record =
            |> List.collect (fun t ->
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant ]))
-    | SetValueRecord (_, bid, off, t, v, nv, _) ->
-        let (BlockId (fileName, blockNo)) = bid
+    | IndexPageDeleteRecord (_, BlockId (fileName, blockNo), branch, SearchKeyType keyType, slot, _) ->
+        [ op
+          txNo
+          (if branch then 1 else 0) |> IntDbConstant
+          DbConstant.newVarchar fileName
+          BigIntDbConstant blockNo
+          IntDbConstant slot
+          List.length keyType |> IntDbConstant ]
+        @ (keyType
+           |> List.collect (fun t ->
+               [ DbType.toInt t |> IntDbConstant
+                 DbType.argument t |> IntDbConstant ]))
+    | IndexPageDeleteClear (_,
+                            BlockId (fileName, blockNo),
+                            branch,
+                            SearchKeyType keyType,
+                            slot,
+                            LogSeqNo (undoBlockNo, undoOffset),
+                            _) ->
+        [ op
+          txNo
+          (if branch then 1 else 0) |> IntDbConstant
+          DbConstant.newVarchar fileName
+          BigIntDbConstant blockNo
+          IntDbConstant slot
+          BigIntDbConstant undoBlockNo
+          BigIntDbConstant undoOffset
+          List.length keyType |> IntDbConstant ]
+        @ (keyType
+           |> List.collect (fun t ->
+               [ DbType.toInt t |> IntDbConstant
+                 DbType.argument t |> IntDbConstant ]))
+    | SetValueRecord (_, BlockId (fileName, blockNo), offset, dbType, oldValue, newValue, _) ->
         [ op
           txNo
           DbConstant.newVarchar fileName
           BigIntDbConstant blockNo
-          IntDbConstant off
-          DbType.toInt t |> IntDbConstant
-          DbType.argument t |> IntDbConstant
-          v
-          nv ]
-    | SetValueClear (_, bid, off, t, v, nv, undo, _) ->
-        let (BlockId (fileName, blockNo)) = bid
-        let (LogSeqNo (undoBlockNo, undoOffset)) = undo
+          IntDbConstant offset
+          DbType.toInt dbType |> IntDbConstant
+          DbType.argument dbType |> IntDbConstant
+          oldValue
+          newValue ]
+    | SetValueClear (_,
+                     BlockId (fileName, blockNo),
+                     offset,
+                     dbType,
+                     oldValue,
+                     newValue,
+                     LogSeqNo (undoBlockNo, undoOffset),
+                     _) ->
         [ op
           txNo
           DbConstant.newVarchar fileName
           BigIntDbConstant blockNo
-          IntDbConstant off
-          DbType.toInt t |> IntDbConstant
-          DbType.argument t |> IntDbConstant
-          v
-          nv
+          IntDbConstant offset
+          DbType.toInt dbType |> IntDbConstant
+          DbType.argument dbType |> IntDbConstant
+          oldValue
+          newValue
           BigIntDbConstant undoBlockNo
           BigIntDbConstant undoOffset ]
     | _ -> [ op; txNo ]
 
-let writeToLog logMgr record = buildRecord record |> logMgr.Append
+let writeToLog logService record = buildRecord record |> logService.Append
 
 let fromLogRecord record =
     let operation =

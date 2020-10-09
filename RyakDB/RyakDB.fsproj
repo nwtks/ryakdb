@@ -18,7 +18,7 @@
     <Compile Include="src/Buffer.Buffer.fs" />
     <Compile Include="src/Buffer.BufferPool.fs" />
     <Compile Include="src/Buffer.TransactionBuffer.fs" />
-    <Compile Include="src/Concurrency.LockTable.fs" />
+    <Compile Include="src/Concurrency.LockService.fs" />
     <Compile Include="src/Concurrency.TransactionConcurrency.fs" />
     <Compile Include="src/Recovery.RecoveryLog.fs" />
     <Compile Include="src/Recovery.TransactionRecovery.fs" />
@@ -31,12 +31,12 @@
     <Compile Include="src/Index.BTreeIndex.fs" />
     <Compile Include="src/Transaction.fs" />
     <Compile Include="src/Index.IndexFactory.fs" />
-    <Compile Include="src/Catalog.TableManager.fs" />
-    <Compile Include="src/Catalog.IndexManager.fs" />
-    <Compile Include="src/Catalog.ViewManager.fs" />
-    <Compile Include="src/Catalog.CatalogManager.fs" />
-    <Compile Include="src/Recovery.SystemRecovery.fs" />
-    <Compile Include="src/TransactionManager.fs" />
+    <Compile Include="src/Catalog.TableCatalogService.fs" />
+    <Compile Include="src/Catalog.IndexCatalogService.fs" />
+    <Compile Include="src/Catalog.ViewCatalogService.fs" />
+    <Compile Include="src/Catalog.CatalogService.fs" />
+    <Compile Include="src/Recovery.RecoveryService.fs" />
+    <Compile Include="src/TransactionService.fs" />
     <Compile Include="src/Recovery.CheckpointTask.fs" />
     <Compile Include="src/Execution.AggregationFnScan.fs" />
     <Compile Include="src/Execution.Scan.fs" />

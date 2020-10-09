@@ -26,7 +26,7 @@ let insert () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let filename = "_test_insert"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
@@ -75,7 +75,7 @@ let delete () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let filename = "_test_delete"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
@@ -129,7 +129,7 @@ let split () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let filename = "_test_split"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
@@ -196,7 +196,7 @@ let overflow () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let filename = "_test_overflow"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]

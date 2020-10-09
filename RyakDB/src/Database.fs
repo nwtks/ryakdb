@@ -4,22 +4,22 @@ open RyakDB.Task
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
 open RyakDB.Buffer.BufferPool
-open RyakDB.Concurrency.LockTable
+open RyakDB.Concurrency.LockService
 open RyakDB.Transaction
-open RyakDB.TransactionManager
-open RyakDB.Catalog.CatalogManager
-open RyakDB.Recovery.SystemRecovery
+open RyakDB.TransactionService
+open RyakDB.Catalog.CatalogService
+open RyakDB.Recovery.RecoveryService
 open RyakDB.Recovery.CheckpointTask
 open RyakDB.Execution.Planner
 
 type Database =
-    { FileMgr: FileManager
+    { File: FileService
       BufferPool: BufferPool
-      LogMgr: LogManager
-      TaskMgr: TaskManager
-      TxMgr: TransactionManager
-      CatalogMgr: CatalogManager
-      SystemRecovery: SystemRecovery
+      Log: LogService
+      Task: TaskService
+      Transaction: TransactionService
+      Catalog: CatalogService
+      Recovery: RecoveryService
       NewPlanner: unit -> Planner
       Shutdown: unit -> unit }
     interface System.IDisposable with
@@ -30,7 +30,7 @@ type DatabaseConfig =
       BlockSize: int32
       BufferPoolSize: int32
       BufferPoolWaitTime: int32
-      LockTableWaitTime: int32
+      LockWaitTime: int32
       CheckpointPeriod: int32
       CheckpointTxCount: int32 }
 
@@ -40,65 +40,70 @@ module Database =
           BlockSize = 8192
           BufferPoolSize = 4096
           BufferPoolWaitTime = 10000
-          LockTableWaitTime = 10000
+          LockWaitTime = 10000
           CheckpointPeriod = 300000
           CheckpointTxCount = 1000 }
 
-    let createPlanner fileMgr bufferPool catalogMgr =
+    let createPlanner fileService bufferPool catalogService =
         let queryPlanner =
-            newQueryPlanner fileMgr bufferPool catalogMgr
+            newQueryPlanner fileService bufferPool catalogService
 
-        let updatePlanner = newUpdatePlanner fileMgr catalogMgr
+        let updatePlanner =
+            newUpdatePlanner fileService catalogService
+
         newPlanner queryPlanner updatePlanner
 
-    let shutdown fileMgr bufferPool txMgr taskMgr =
-        taskMgr.CancelTasks()
-        txMgr.RollbackAll()
+    let shutdown fileService bufferPool transactionService taskService =
+        taskService.CancelTasks()
+        transactionService.RollbackAll()
         bufferPool.FlushAll()
-        fileMgr.CloseAll()
+        fileService.CloseAll()
 
 let newDatabase dbPath config =
-    let fileMgr =
-        newFileManager dbPath config.BlockSize config.InMemory
+    let fileService =
+        newFileService dbPath config.BlockSize config.InMemory
 
-    let logMgr = newLogManager fileMgr "database.log"
+    let logService = newLogService fileService "database.log"
 
     let bufferPool =
-        newBufferPool fileMgr logMgr config.BufferPoolSize config.BufferPoolWaitTime
+        newBufferPool fileService logService config.BufferPoolSize config.BufferPoolWaitTime
 
-    let catalogMgr = newCatalogManager fileMgr
+    let catalogService = newCatalogService fileService
 
-    let lockTable = newLockTable config.LockTableWaitTime
+    let lockService = newLockService config.LockWaitTime
 
-    let systemRecovery =
-        newSystemRecovery fileMgr logMgr bufferPool catalogMgr
+    let recoveryService =
+        newRecoveryService fileService logService bufferPool catalogService
 
-    let txMgr =
-        newTransactionManager logMgr bufferPool lockTable systemRecovery
+    let transactionService =
+        newTransactionService logService bufferPool lockService recoveryService
 
-    let initTx = txMgr.NewTransaction false Serializable
+    let initTx =
+        transactionService.NewTransaction false Serializable
 
-    if fileMgr.IsNew then catalogMgr.InitCatalogManager initTx else systemRecovery.RecoverSystem initTx
+    if fileService.IsNew
+    then catalogService.InitCatalogService initTx
+    else recoveryService.RecoverSystem initTx
 
-    txMgr.CreateCheckpoint()
+    transactionService.CreateCheckpoint()
 
     initTx.Commit()
 
-    let taskMgr = newTaskManager ()
+    let taskService = newTaskService ()
 
-    lockTable.LocktableNotifier() |> taskMgr.RunTask
+    lockService.LockNotifier() |> taskService.RunTask
 
     if config.CheckpointTxCount > 0
-    then newMonitorCheckpointTask txMgr config.CheckpointPeriod config.CheckpointTxCount
-    else newPeriodicCheckpointTask txMgr config.CheckpointPeriod
-    |> taskMgr.RunTask
+    then newMonitorCheckpointTask transactionService config.CheckpointPeriod config.CheckpointTxCount
+    else newPeriodicCheckpointTask transactionService config.CheckpointPeriod
+    |> taskService.RunTask
 
-    { FileMgr = fileMgr
+    { File = fileService
       BufferPool = bufferPool
-      LogMgr = logMgr
-      TaskMgr = taskMgr
-      TxMgr = txMgr
-      CatalogMgr = catalogMgr
-      SystemRecovery = systemRecovery
-      NewPlanner = fun () -> Database.createPlanner fileMgr bufferPool catalogMgr
-      Shutdown = fun () -> Database.shutdown fileMgr bufferPool txMgr taskMgr }
+      Log = logService
+      Task = taskService
+      Transaction = transactionService
+      Catalog = catalogService
+      Recovery = recoveryService
+      NewPlanner = fun () -> Database.createPlanner fileService bufferPool catalogService
+      Shutdown = fun () -> Database.shutdown fileService bufferPool transactionService taskService }

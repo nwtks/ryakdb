@@ -8,27 +8,28 @@ open RyakDB.Storage.Log
 
 [<Fact>]
 let ``append read`` () =
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 false
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 false
 
-    let logMgr = newLogManager fileMgr "test_log.log"
+    let logService = newLogService fileService "test_log.log"
 
-    logMgr.RemoveAndCreateNewLog()
+    logService.RemoveAndCreateNewLog()
 
     let lsn1 =
-        logMgr.Append [ IntDbConstant 1
-                        DbConstant.newVarchar "abc"
-                        IntDbConstant -2 ]
+        logService.Append [ IntDbConstant 1
+                            DbConstant.newVarchar "abc"
+                            IntDbConstant -2 ]
 
     let lsn2 =
-        logMgr.Append [ DbConstant.newVarchar "kool"
-                        BigIntDbConstant 123457890123L ]
+        logService.Append [ DbConstant.newVarchar "kool"
+                            BigIntDbConstant 123457890123L ]
 
-    let lsn3 = logMgr.Append [ DoubleDbConstant 3.3 ]
+    let lsn3 =
+        logService.Append [ DoubleDbConstant 3.3 ]
 
-    logMgr.Flush lsn3
+    logService.Flush lsn3
 
-    let seq1 = logMgr.Records()
+    let seq1 = logService.Records()
     Seq.head seq1
     |> (fun r ->
         r.LogSeqNo |> should equal lsn3

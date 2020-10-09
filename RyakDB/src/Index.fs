@@ -124,8 +124,7 @@ module SearchRange =
           IsSingleValue = fun () -> isSingleValue ranges
           ToSearchKey = fun () -> toSearchKey ranges }
 
-    let newSearchRangeBySearchKey searchKey =
-        let (SearchKey searchKeyConstants) = searchKey
+    let newSearchRangeBySearchKey (SearchKey searchKeyConstants) =
         searchKeyConstants
         |> List.map (fun c -> DbConstantRange.newConstantRange (Some c) true (Some c) true)
         |> newSearchRangeByRanges

@@ -33,19 +33,20 @@ module TempTable =
     let mutable nextTableNo = 0L
 
     let nextTableName () =
-        FileManager.TmpFilePrefix
+        FileService.TmpFilePrefix
         + System.Threading.Interlocked.Increment(&nextTableNo).ToString()
 
-    let openScan fileMgr tx tableInfo = Scan.newTableScan fileMgr tx tableInfo
+    let openScan fileService tx tableInfo =
+        Scan.newTableScan fileService tx tableInfo
 
-let newTempTable fileMgr tx schema =
+let newTempTable fileService tx schema =
     let ti =
         TableInfo.newTableInfo (TempTable.nextTableName ()) schema
 
     tx.Buffer.PinNew ti.FileName FileHeaderFormatter.format
     |> tx.Buffer.Unpin
 
-    { OpenScan = fun () -> TempTable.openScan fileMgr tx ti }
+    { OpenScan = fun () -> TempTable.openScan fileService tx ti }
 
 module TempSlottedPage =
     type TempSlottedPage =
@@ -133,7 +134,7 @@ module MergeSort =
     let newTempSlottedPage tx schema tblcount =
         let ti =
             TableInfo.newTableInfo
-                (FileManager.TmpFilePrefix
+                (FileService.TmpFilePrefix
                  + "TableFile"
                  + "-"
                  + tblcount.ToString()
@@ -159,7 +160,7 @@ module MergeSort =
         if tsp |> TempSlottedPage.copyToScan scan
         then loopCopyToScan scan tsp
 
-    let rec loopTempSlottedPage fileMgr tx schema src temps scan tblcount sortFields tsp =
+    let rec loopTempSlottedPage fileService tx schema src temps scan tblcount sortFields tsp =
         let flag = tsp |> loopInsertFromScan src
         tsp |> TempSlottedPage.sortBySelection sortFields
         tsp |> TempSlottedPage.moveToPageHead
@@ -167,19 +168,19 @@ module MergeSort =
         tsp |> TempSlottedPage.close
         scan.Close()
         if flag <> -1 then
-            let temp = newTempTable fileMgr tx schema
+            let temp = newTempTable fileService tx schema
             let nextTblcount = tblcount + 1
             newTempSlottedPage tx schema nextTblcount
-            |> loopTempSlottedPage fileMgr tx schema src (temp :: temps) (temp.OpenScan()) nextTblcount sortFields
+            |> loopTempSlottedPage fileService tx schema src (temp :: temps) (temp.OpenScan()) nextTblcount sortFields
         else
             List.rev temps
 
-    let splitIntoRuns fileMgr tx schema sortFields src =
+    let splitIntoRuns fileService tx schema sortFields src =
         src.BeforeFirst()
         if src.Next() then
-            let temp = newTempTable fileMgr tx schema
+            let temp = newTempTable fileService tx schema
             newTempSlottedPage tx schema 0
-            |> loopTempSlottedPage fileMgr tx schema src [ temp ] (temp.OpenScan()) 0 sortFields
+            |> loopTempSlottedPage fileService tx schema src [ temp ] (temp.OpenScan()) 0 sortFields
         else
             []
 
@@ -203,7 +204,7 @@ module MergeSort =
             |> List.mapi (fun i v -> if i = target then hasMore else v)
             |> loopMerge schema comparator dest (if hasMore then count else count - 1) srcs
 
-    let mergeTemps fileMgr tx schema comparator temps =
+    let mergeTemps fileService tx schema comparator temps =
         let srcs =
             temps
             |> List.map (fun tmp ->
@@ -211,7 +212,7 @@ module MergeSort =
                 s.BeforeFirst()
                 s)
 
-        let result = newTempTable fileMgr tx schema
+        let result = newTempTable fileService tx schema
         let dest = result.OpenScan()
         let hasMores = srcs |> List.map (fun s -> s.Next())
         let count = (hasMores |> List.filter id).Length
@@ -220,23 +221,23 @@ module MergeSort =
         srcs |> List.iter (fun s -> s.Close())
         result
 
-    let rec loopMergeRuns fileMgr tx schema comparator numofbuf (temps: TempTable list) results =
+    let rec loopMergeRuns fileService tx schema comparator numofbuf (temps: TempTable list) results =
         if temps.Length > numofbuf then
-            (mergeTemps fileMgr tx schema comparator temps.[..(numofbuf - 1)])
+            (mergeTemps fileService tx schema comparator temps.[..(numofbuf - 1)])
             :: results
-            |> loopMergeRuns fileMgr tx schema comparator numofbuf temps.[numofbuf..]
+            |> loopMergeRuns fileService tx schema comparator numofbuf temps.[numofbuf..]
         else
             temps, results
 
-    let mergeRuns fileMgr bufferPool tx schema comparator runs =
+    let mergeRuns fileService bufferPool tx schema comparator runs =
         let numofbuf =
             BufferNeeds.bestRoot bufferPool (List.length runs)
 
         let temps, results =
-            loopMergeRuns fileMgr tx schema comparator numofbuf runs []
+            loopMergeRuns fileService tx schema comparator numofbuf runs []
 
         if temps.Length > 1 then
-            (mergeTemps fileMgr tx schema comparator temps)
+            (mergeTemps fileService tx schema comparator temps)
             :: results
         elif temps.Length = 1 then
             temps.Head :: results
@@ -258,10 +259,10 @@ module MergeSort =
                 else None)
             |> Option.defaultValue 0
 
-    let newSortScan fileMgr bufferPool tx =
+    let newSortScan fileService bufferPool tx =
         fun schema sortFields scan ->
             let mutable runs =
-                splitIntoRuns fileMgr tx schema sortFields scan
+                splitIntoRuns fileService tx schema sortFields scan
 
             if runs.IsEmpty then
                 scan
@@ -271,7 +272,7 @@ module MergeSort =
                 let comparator = newRecordComparator sortFields
 
                 while runs.Length > 2 do
-                    runs <- mergeRuns fileMgr bufferPool tx schema comparator runs
+                    runs <- mergeRuns fileService bufferPool tx schema comparator runs
 
                 let scan1 = runs.Head.OpenScan()
 

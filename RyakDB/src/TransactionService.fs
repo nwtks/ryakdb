@@ -1,21 +1,21 @@
-module RyakDB.TransactionManager
+module RyakDB.TransactionService
 
 open RyakDB.Buffer.BufferPool
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
 open RyakDB.Transaction
-open RyakDB.Recovery.SystemRecovery
+open RyakDB.Recovery.RecoveryService
 
-type TransactionManager =
+type TransactionService =
     { NewTransaction: bool -> IsolationLevel -> Transaction
       GetNextTxNo: unit -> int64
       GetActiveTxCount: unit -> int32
       CreateCheckpoint: unit -> unit
       RollbackAll: unit -> unit }
 
-module TransactionManager =
-    type TransactionManagerState =
+module TransactionService =
+    type TransactionServiceState =
         { ActiveTxs: Transaction list
           NextTxNo: int64 }
 
@@ -31,26 +31,26 @@ module TransactionManager =
                   state.ActiveTxs
                   |> List.filter (fun atx -> atx.TransactionNo <> tx.TransactionNo) }
 
-    let createTransaction logMgr bufferPool lockTable systemRecovery txCommitListener txRollbackListener state =
+    let createTransaction logService bufferPool lockService recoveryService txCommitListener txRollbackListener state =
         fun readOnly isolationLevel ->
             let txBuffer = newTransactionBuffer bufferPool
 
             let txConcurrency =
                 match isolationLevel with
-                | ReadCommitted -> newReadCommitted state.NextTxNo lockTable
-                | RepeatableRead -> newRepeatableRead state.NextTxNo lockTable
-                | Serializable -> newSerializable state.NextTxNo lockTable
+                | ReadCommitted -> newReadCommitted state.NextTxNo lockService
+                | RepeatableRead -> newRepeatableRead state.NextTxNo lockService
+                | Serializable -> newSerializable state.NextTxNo lockService
 
             let txRecovery =
-                newTransactionRecovery logMgr state.NextTxNo readOnly
+                newTransactionRecovery logService state.NextTxNo readOnly
 
             let tx =
                 newTransaction
                     txCommitListener
                     txRollbackListener
                     txRecovery
-                    systemRecovery.OnCommit
-                    systemRecovery.OnRollback
+                    recoveryService.OnCommit
+                    recoveryService.OnRollback
                     txConcurrency
                     txBuffer
                     state.NextTxNo
@@ -61,27 +61,27 @@ module TransactionManager =
                   NextTxNo = state.NextTxNo + 1L },
             tx
 
-    let createCheckpoint bufferPool systemRecovery state =
+    let createCheckpoint bufferPool recoveryService state =
         bufferPool.FlushAll()
         state.ActiveTxs
         |> List.map (fun atx -> atx.TransactionNo)
-        |> systemRecovery.Checkpoint
+        |> recoveryService.Checkpoint
 
     let rollbackAll state =
         state.ActiveTxs
         |> List.iter (fun tx -> tx.Rollback())
 
-let newTransactionManager logMgr bufferPool lockTable systemRecovery =
-    let mutable state: TransactionManager.TransactionManagerState = { ActiveTxs = []; NextTxNo = 0L }
+let newTransactionService logService bufferPool lockService recoveryService =
+    let mutable state: TransactionService.TransactionServiceState = { ActiveTxs = []; NextTxNo = 0L }
     let txNoLock = obj ()
 
     { NewTransaction =
           fun readOnly isolationLevel ->
               lock txNoLock (fun () ->
                   let nextstate, tx =
-                      TransactionManager.createTransaction logMgr bufferPool lockTable systemRecovery (fun tx ->
-                          lock txNoLock (fun () -> state <- TransactionManager.onTxCommit state tx)) (fun tx ->
-                          lock txNoLock (fun () -> state <- TransactionManager.onTxRollback state tx)) state readOnly
+                      TransactionService.createTransaction logService bufferPool lockService recoveryService (fun tx ->
+                          lock txNoLock (fun () -> state <- TransactionService.onTxCommit state tx)) (fun tx ->
+                          lock txNoLock (fun () -> state <- TransactionService.onTxRollback state tx)) state readOnly
                           isolationLevel
 
                   state <- nextstate
@@ -89,5 +89,5 @@ let newTransactionManager logMgr bufferPool lockTable systemRecovery =
       GetNextTxNo = fun () -> lock txNoLock (fun () -> state.NextTxNo)
       GetActiveTxCount = fun () -> lock txNoLock (fun () -> state.ActiveTxs.Length)
       CreateCheckpoint =
-          fun () -> lock txNoLock (fun () -> TransactionManager.createCheckpoint bufferPool systemRecovery state)
-      RollbackAll = fun () -> lock txNoLock (fun () -> TransactionManager.rollbackAll state) }
+          fun () -> lock txNoLock (fun () -> TransactionService.createCheckpoint bufferPool recoveryService state)
+      RollbackAll = fun () -> lock txNoLock (fun () -> TransactionService.rollbackAll state) }

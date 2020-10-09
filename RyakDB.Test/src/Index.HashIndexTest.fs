@@ -11,23 +11,23 @@ open RyakDB.Database
 
 let createTable db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     Schema.newSchema ()
     |> (fun sch ->
         sch.AddField "cid" IntDbType
         sch.AddField "title" (VarcharDbType 100)
         sch.AddField "deptid" IntDbType
-        db.CatalogMgr.CreateTable tx "HITable" sch)
+        db.Catalog.CreateTable tx "HITable" sch)
     tx.Commit()
 
 let createIndex db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.CatalogMgr.CreateIndex tx "HITable_SI1" Hash "HITable" [ "cid" ]
-    db.CatalogMgr.CreateIndex tx "HITable_SI2" Hash "HITable" [ "title" ]
-    db.CatalogMgr.CreateIndex tx "HITable_MI1" Hash "HITable" [ "cid"; "deptid" ]
+    db.Catalog.CreateIndex tx "HITable_SI1" Hash "HITable" [ "cid" ]
+    db.Catalog.CreateIndex tx "HITable_SI2" Hash "HITable" [ "title" ]
+    db.Catalog.CreateIndex tx "HITable_MI1" Hash "HITable" [ "cid"; "deptid" ]
     tx.Commit()
 
 [<Fact>]
@@ -41,12 +41,12 @@ let ``single key`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByName tx "HITable_SI1"
+        db.Catalog.GetIndexInfoByName tx "HITable_SI1"
         |> Option.get
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "HITable.tbl" 0L
 
@@ -89,7 +89,7 @@ let ``single key`` () =
     index.Next() |> should be True
 
     index.Close()
-    db.CatalogMgr.DropTable tx "HITable"
+    db.Catalog.DropTable tx "HITable"
     tx.Commit()
 
 [<Fact>]
@@ -103,12 +103,12 @@ let ``varchar key`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByField tx "HITable" "title"
+        db.Catalog.GetIndexInfosByField tx "HITable" "title"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "HITable.tbl" 0L
 
@@ -177,7 +177,7 @@ let ``varchar key`` () =
     index.Next() |> should be True
 
     index.Close()
-    db.CatalogMgr.DropTable tx "HITable"
+    db.Catalog.DropTable tx "HITable"
     tx.Commit()
 
 [<Fact>]
@@ -191,12 +191,12 @@ let ``multi key`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByName tx "HITable_MI1"
+        db.Catalog.GetIndexInfoByName tx "HITable_MI1"
         |> Option.get
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let key11 =
         SearchKey.newSearchKey [ IntDbConstant 1
@@ -266,5 +266,5 @@ let ``multi key`` () =
     cnt |> should equal 24
 
     index.Close()
-    db.CatalogMgr.DropTable tx "HITable"
+    db.Catalog.DropTable tx "HITable"
     tx.Commit()

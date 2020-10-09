@@ -25,7 +25,7 @@ let insert () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
@@ -58,7 +58,7 @@ let delete () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
@@ -97,7 +97,7 @@ let ``transfer records`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]
@@ -165,7 +165,7 @@ let split () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let schema = createSchema ()
     newBTreePageFormatter schema [ 0L ]

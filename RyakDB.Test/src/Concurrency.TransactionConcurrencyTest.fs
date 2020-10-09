@@ -26,10 +26,10 @@ let ``serializable, read modify`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     tx1.Concurrency.ReadFile filename
     tx1.Concurrency.ReadBlock blocks.[0]
@@ -53,10 +53,10 @@ let ``serializable, read read`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     tx1.Concurrency.ReadFile filename
     tx2.Concurrency.ReadBlock blocks.[0]
@@ -79,10 +79,10 @@ let ``serializable, modify read`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     tx1.Concurrency.ModifyBlock blocks.[0]
     tx2.Concurrency.ReadBlock blocks.[1]
@@ -104,10 +104,10 @@ let ``serializable, phantom`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     tx1.Concurrency.ReadBlock blocks.[0]
     shouldFail (fun () -> tx2.Concurrency.InsertBlock blocks.[1])
@@ -130,10 +130,10 @@ let ``repeatable read, read modify`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false RepeatableRead
+        db.Transaction.NewTransaction false RepeatableRead
 
     let tx2 =
-        db.TxMgr.NewTransaction false RepeatableRead
+        db.Transaction.NewTransaction false RepeatableRead
 
     tx1.Concurrency.ReadBlock blocks.[0]
     shouldFail (fun () -> tx2.Concurrency.ModifyBlock blocks.[0])
@@ -156,10 +156,10 @@ let ``repeatable read, phantom`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false RepeatableRead
+        db.Transaction.NewTransaction false RepeatableRead
 
     let tx2 =
-        db.TxMgr.NewTransaction false RepeatableRead
+        db.Transaction.NewTransaction false RepeatableRead
 
     tx1.Concurrency.ReadFile filename
     tx1.Concurrency.ReadBlock blocks.[0]
@@ -183,10 +183,10 @@ let ``read committed, end statement`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx1 =
-        db.TxMgr.NewTransaction false ReadCommitted
+        db.Transaction.NewTransaction false ReadCommitted
 
     let tx2 =
-        db.TxMgr.NewTransaction false ReadCommitted
+        db.Transaction.NewTransaction false ReadCommitted
 
     tx1.Concurrency.ReadBlock blocks.[0]
     tx1.Concurrency.ReadBlock blocks.[1]
@@ -206,21 +206,21 @@ let ``serializable, serializable`` () =
     TestInit.setupStudentTable db
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.CatalogMgr.GetTableInfo tx1 "student"
+    db.Catalog.GetTableInfo tx1 "student"
     |> Option.get
     |> Plan.newTablePlan tx1
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan1 ->
         scan1.BeforeFirst()
-        db.CatalogMgr.GetTableInfo tx2 "student"
+        db.Catalog.GetTableInfo tx2 "student"
         |> Option.get
         |> Plan.newTablePlan tx2
-        |> Plan.openScan db.FileMgr
+        |> Plan.openScan db.File
         |> (fun scan2 ->
             scan2.BeforeFirst()
             scan1.Next() |> ignore
@@ -229,16 +229,16 @@ let ``serializable, serializable`` () =
             scan2.Close())
         scan1.Close())
 
-    db.CatalogMgr.GetTableInfo tx1 "student"
+    db.Catalog.GetTableInfo tx1 "student"
     |> Option.get
     |> Plan.newTablePlan tx1
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan1 ->
         shouldFail (fun () -> scan1.Insert()) |> ignore
-        db.CatalogMgr.GetTableInfo tx2 "student"
+        db.Catalog.GetTableInfo tx2 "student"
         |> Option.get
         |> Plan.newTablePlan tx2
-        |> Plan.openScan db.FileMgr
+        |> Plan.openScan db.File
         |> (fun scan2 ->
             shouldFail (fun () -> scan2.Insert()) |> ignore
             scan2.Close())
@@ -257,21 +257,21 @@ let ``serializable, repeatable read`` () =
     TestInit.setupStudentTable db
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false RepeatableRead
+        db.Transaction.NewTransaction false RepeatableRead
 
-    db.CatalogMgr.GetTableInfo tx2 "student"
+    db.Catalog.GetTableInfo tx2 "student"
     |> Option.get
     |> Plan.newTablePlan tx2
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan2 ->
         scan2.BeforeFirst()
-        db.CatalogMgr.GetTableInfo tx1 "student"
+        db.Catalog.GetTableInfo tx1 "student"
         |> Option.get
         |> Plan.newTablePlan tx1
-        |> Plan.openScan db.FileMgr
+        |> Plan.openScan db.File
         |> (fun scan1 ->
             scan1.BeforeFirst()
             scan2.Next() |> ignore
@@ -280,16 +280,16 @@ let ``serializable, repeatable read`` () =
             scan1.Close())
         scan2.Close())
 
-    db.CatalogMgr.GetTableInfo tx2 "student"
+    db.Catalog.GetTableInfo tx2 "student"
     |> Option.get
     |> Plan.newTablePlan tx2
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan2 ->
         scan2.BeforeFirst()
-        db.CatalogMgr.GetTableInfo tx1 "student"
+        db.Catalog.GetTableInfo tx1 "student"
         |> Option.get
         |> Plan.newTablePlan tx1
-        |> Plan.openScan db.FileMgr
+        |> Plan.openScan db.File
         |> (fun scan1 ->
             shouldFail (fun () ->
                 scan1.BeforeFirst()
@@ -313,21 +313,21 @@ let ``serializable, read committed`` () =
     TestInit.setupStudentTable db
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tx2 =
-        db.TxMgr.NewTransaction false ReadCommitted
+        db.Transaction.NewTransaction false ReadCommitted
 
-    db.CatalogMgr.GetTableInfo tx2 "student"
+    db.Catalog.GetTableInfo tx2 "student"
     |> Option.get
     |> Plan.newTablePlan tx2
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan2 ->
         scan2.BeforeFirst()
-        db.CatalogMgr.GetTableInfo tx1 "student"
+        db.Catalog.GetTableInfo tx1 "student"
         |> Option.get
         |> Plan.newTablePlan tx1
-        |> Plan.openScan db.FileMgr
+        |> Plan.openScan db.File
         |> (fun scan1 ->
             scan1.BeforeFirst()
             scan2.Next() |> ignore

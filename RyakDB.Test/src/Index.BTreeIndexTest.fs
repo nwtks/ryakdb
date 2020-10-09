@@ -11,7 +11,7 @@ open RyakDB.Database
 
 let createTable db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     Schema.newSchema ()
     |> (fun sch ->
@@ -19,18 +19,18 @@ let createTable db =
         sch.AddField "title" (VarcharDbType 100)
         sch.AddField "deptid" IntDbType
         sch.AddField "majorid" BigIntDbType
-        db.CatalogMgr.CreateTable tx "BITable" sch)
+        db.Catalog.CreateTable tx "BITable" sch)
     tx.Commit()
 
 let createIndex db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.CatalogMgr.CreateIndex tx "BITable_SI1" BTree "BITable" [ "cid" ]
-    db.CatalogMgr.CreateIndex tx "BITable_SI2" BTree "BITable" [ "title" ]
-    db.CatalogMgr.CreateIndex tx "BITable_SI3" BTree "BITable" [ "deptid" ]
-    db.CatalogMgr.CreateIndex tx "BITable_SI4" BTree "BITable" [ "majorid" ]
-    db.CatalogMgr.CreateIndex tx "BITable_MI1" BTree "BITable" [ "cid"; "deptid" ]
+    db.Catalog.CreateIndex tx "BITable_SI1" BTree "BITable" [ "cid" ]
+    db.Catalog.CreateIndex tx "BITable_SI2" BTree "BITable" [ "title" ]
+    db.Catalog.CreateIndex tx "BITable_SI3" BTree "BITable" [ "deptid" ]
+    db.Catalog.CreateIndex tx "BITable_SI4" BTree "BITable" [ "majorid" ]
+    db.Catalog.CreateIndex tx "BITable_MI1" BTree "BITable" [ "cid"; "deptid" ]
     tx.Commit()
 
 [<Fact>]
@@ -44,12 +44,12 @@ let ``single key`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByName tx "BITable_SI1"
+        db.Catalog.GetIndexInfoByName tx "BITable_SI1"
         |> Option.get
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "BITable.tbl" 0L
 
@@ -92,7 +92,7 @@ let ``single key`` () =
     index.Next() |> should be True
 
     index.Close()
-    db.CatalogMgr.DropTable tx "BITable"
+    db.Catalog.DropTable tx "BITable"
     tx.Commit()
 
 [<Fact>]
@@ -106,12 +106,12 @@ let ``varchar key`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByField tx "BITable" "title"
+        db.Catalog.GetIndexInfosByField tx "BITable" "title"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "BITable.tbl" 0L
 
@@ -180,7 +180,7 @@ let ``varchar key`` () =
     index.Next() |> should be True
 
     index.Close()
-    db.CatalogMgr.DropTable tx "BITable"
+    db.Catalog.DropTable tx "BITable"
     tx.Commit()
 
 [<Fact>]
@@ -194,12 +194,12 @@ let ``multi key`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByName tx "BITable_MI1"
+        db.Catalog.GetIndexInfoByName tx "BITable_MI1"
         |> Option.get
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let key11 =
         SearchKey.newSearchKey [ IntDbConstant 1
@@ -269,7 +269,7 @@ let ``multi key`` () =
     cnt |> should equal 24
 
     index.Close()
-    db.CatalogMgr.DropTable tx "BITable"
+    db.Catalog.DropTable tx "BITable"
     tx.Commit()
 
 [<Fact>]
@@ -284,12 +284,12 @@ let ``branch overflow`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByField tx "BITable" "majorid"
+        db.Catalog.GetIndexInfosByField tx "BITable" "majorid"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "BITable.tbl" 0L
 
@@ -316,7 +316,7 @@ let ``branch overflow`` () =
     index.Next() |> should be False
 
     index.Close()
-    db.CatalogMgr.DropTable tx "BITable"
+    db.Catalog.DropTable tx "BITable"
     tx.Commit()
 
 [<Fact>]
@@ -331,12 +331,12 @@ let ``search range`` () =
     createIndex db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index =
-        db.CatalogMgr.GetIndexInfoByName tx "BITable_SI3"
+        db.Catalog.GetIndexInfoByName tx "BITable_SI3"
         |> Option.get
-        |> IndexFactory.newIndex db.FileMgr tx
+        |> IndexFactory.newIndex db.File tx
 
     let blk0 = BlockId.newBlockId "BITable.tbl" 0L
     let blk23 = BlockId.newBlockId "BITable.tbl" 23L
@@ -461,5 +461,5 @@ let ``search range`` () =
     |> index.BeforeFirst
     index.Next() |> should be False
 
-    db.CatalogMgr.DropTable tx "BITable"
+    db.Catalog.DropTable tx "BITable"
     tx.Commit()

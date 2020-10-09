@@ -11,16 +11,17 @@ open RyakDB.Buffer.TransactionBuffer
 [<Fact>]
 let ``available buffers`` () =
     let filename =
-        FileManager.TmpFilePrefix
+        FileService.TmpFilePrefix
         + "_test_available_buffers"
 
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        newLogManager fileMgr "test_available_buffers.log"
+    let logService =
+        newLogService fileService "test_available_buffers.log"
 
-    let bufferPool = newBufferPool fileMgr logMgr 10 1000
+    let bufferPool =
+        newBufferPool fileService logService 10 1000
 
     let txBuffer = newTransactionBuffer bufferPool
 
@@ -57,16 +58,17 @@ let ``available buffers`` () =
 [<Fact>]
 let ``concurrent buffer manager pin`` () =
     let filename =
-        FileManager.TmpFilePrefix
+        FileService.TmpFilePrefix
         + "_test_concurrent_buffer_manager_pin"
 
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        newLogManager fileMgr "test_concurrent_buffer_manager_pin.log"
+    let logService =
+        newLogService fileService "test_concurrent_buffer_manager_pin.log"
 
-    let bufferPool = newBufferPool fileMgr logMgr 5 3000
+    let bufferPool =
+        newBufferPool fileService logService 5 3000
 
     let txBuffer1 = newTransactionBuffer bufferPool
 

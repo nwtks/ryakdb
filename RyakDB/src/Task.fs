@@ -2,11 +2,11 @@ module RyakDB.Task
 
 type Task = unit -> unit
 
-type TaskManager =
+type TaskService =
     { RunTask: Task -> unit
       CancelTasks: unit -> unit }
 
-module TaskManager =
+module TaskService =
     let tokenSource =
         new System.Threading.CancellationTokenSource()
 
@@ -16,6 +16,6 @@ module TaskManager =
 
     let cancelTasks () = tokenSource.Cancel()
 
-let newTaskManager () =
-    { RunTask = TaskManager.runTask
-      CancelTasks = TaskManager.cancelTasks }
+let newTaskService () =
+    { RunTask = TaskService.runTask
+      CancelTasks = TaskService.cancelTasks }

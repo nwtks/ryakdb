@@ -4,7 +4,7 @@ open RyakDB.Storage
 
 type FileBuffer = FileBuffer of buffer: byte []
 
-type FileManager =
+type FileService =
     { BlockSize: int32
       IsNew: bool
       Size: string -> int64
@@ -27,7 +27,7 @@ module FileBuffer =
 
 let inline newFileBuffer capacity = FileBuffer(Array.create capacity 0uy)
 
-module FileManager =
+module FileService =
     type Channel =
         { Stream: System.IO.Stream
           Lock: System.Threading.ReaderWriterLockSlim }
@@ -91,7 +91,7 @@ module FileManager =
 
     let inline isTempFile (fileName: string) = fileName.StartsWith(TmpFilePrefix)
 
-    type FileManagerState =
+    type FileServiceState =
         { OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, Channel>
           Anchors: obj [] }
 
@@ -144,7 +144,7 @@ module FileManager =
             (System.IO.Path.Join(dbDir, fileName)
              |> System.IO.FileInfo).Delete()
 
-let newFileManager dbPath blockSize inMemory =
+let newFileService dbPath blockSize inMemory =
     let dbDir, isNew =
         if inMemory then
             dbPath, true
@@ -154,21 +154,21 @@ let newFileManager dbPath blockSize inMemory =
 
             if dbPathNew then di.Create()
 
-            di.EnumerateFiles(FileManager.TmpFilePrefix + "*")
+            di.EnumerateFiles(FileService.TmpFilePrefix + "*")
             |> Seq.iter (fun fi -> fi.Delete())
 
             di.FullName, dbPathNew
 
-    let state: FileManager.FileManagerState =
+    let state: FileService.FileServiceState =
         { OpenFiles = System.Collections.Concurrent.ConcurrentDictionary()
           Anchors = Array.init 1019 (fun _ -> obj ()) }
 
     { BlockSize = blockSize
       IsNew = isNew
-      Size = FileManager.size blockSize dbDir inMemory state
-      Close = FileManager.close state
-      CloseAll = fun () -> FileManager.closeAll state
-      Delete = FileManager.delete dbDir inMemory state
-      Read = FileManager.read blockSize dbDir inMemory state
-      Write = FileManager.write blockSize dbDir inMemory state
-      Append = FileManager.append blockSize dbDir inMemory state }
+      Size = FileService.size blockSize dbDir inMemory state
+      Close = FileService.close state
+      CloseAll = fun () -> FileService.closeAll state
+      Delete = FileService.delete dbDir inMemory state
+      Read = FileService.read blockSize dbDir inMemory state
+      Write = FileService.write blockSize dbDir inMemory state
+      Append = FileService.append blockSize dbDir inMemory state }

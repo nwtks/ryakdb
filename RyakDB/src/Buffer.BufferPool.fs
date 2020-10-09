@@ -69,11 +69,11 @@ module BufferPool =
                 else
                     None
 
-            result
-            |> Option.orElseWith (fun () ->
-                if currBlk = lastReplacedBuff
-                then None
-                else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length))
+            if Option.isSome result
+            then result
+            elif currBlk = lastReplacedBuff
+            then None
+            else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length)
 
         let pinNew assignBuffer =
             fun (buffer: Buffer) ->
@@ -111,9 +111,9 @@ module BufferPool =
 
         lock (prepareAnchor state.Anchors fileName) (fun () -> pinNewBuffer state assignBuffer)
 
-let newBufferPool fileMgr logMgr size waitTime =
+let newBufferPool fileService logService size waitTime =
     let state: BufferPool.BufferPoolState =
-        { BufferPool = Array.init size (fun _ -> newBuffer fileMgr logMgr)
+        { BufferPool = Array.init size (fun _ -> newBuffer fileService logService)
           BlockMap = System.Collections.Concurrent.ConcurrentDictionary()
           LastReplacedBuff = 0
           Available = size

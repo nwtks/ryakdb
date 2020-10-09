@@ -1,35 +1,35 @@
-module RyakDB.Catalog.ViewManager
+module RyakDB.Catalog.ViewCatalogService
 
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Sql.Parse
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
-open RyakDB.Catalog.TableManager
+open RyakDB.Catalog.TableCatalogService
 
-type ViewManager =
+type ViewCatalogService =
     { CreateView: Transaction -> string -> string -> unit
       DropView: Transaction -> string -> unit
       GetViewDef: Transaction -> string -> string option
       GetViewNamesByTable: Transaction -> string -> string list
-      InitViewManager: Transaction -> unit }
+      InitViewCatalogService: Transaction -> unit }
 
-module ViewManager =
+module ViewCatalogService =
     let Vcat = "cat_view"
     let VcatVname = "view_name"
     let VcatVdef = "view_def"
     let MaxViewDef = 300
 
-    let createVcat tblMgr tx =
+    let createVcat tableService tx =
         let schema = Schema.newSchema ()
 
-        VarcharDbType TableManager.MaxName
+        VarcharDbType TableCatalogService.MaxName
         |> schema.AddField VcatVname
 
         VarcharDbType MaxViewDef
         |> schema.AddField VcatVdef
 
-        tblMgr.CreateTable tx Vcat schema
+        tableService.CreateTable tx Vcat schema
 
     let rec findVcatfileByViewName tf viewName =
         if tf.Next() then
@@ -41,9 +41,9 @@ module ViewManager =
         else
             None
 
-    let findViewDefByViewName fileMgr tblMgr tx viewName =
-        tblMgr.GetTableInfo tx Vcat
-        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let findViewDefByViewName fileService tableService tx viewName =
+        tableService.GetTableInfo tx Vcat
+        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.bind (fun tf ->
             tf.BeforeFirst()
             let viewDef = findVcatfileByViewName tf viewName
@@ -66,9 +66,9 @@ module ViewManager =
         else
             viewNames
 
-    let findViewNamestByTableName fileMgr tblMgr tx tableName =
-        tblMgr.GetTableInfo tx Vcat
-        |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let findViewNamestByTableName fileService tableService tx tableName =
+        tableService.GetTableInfo tx Vcat
+        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.map (fun tf ->
             tf.BeforeFirst()
             let viewNames = findVcatfileByTableName tf tableName []
@@ -76,10 +76,10 @@ module ViewManager =
             viewNames)
         |> Option.defaultValue []
 
-    let createView fileMgr tblMgr tx viewName viewDef =
-        let createVcatfile tblMgr =
-            tblMgr.GetTableInfo tx Vcat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let createView fileService tableService tx viewName viewDef =
+        let createVcatfile tableService =
+            tableService.GetTableInfo tx Vcat
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.Insert()
 
@@ -91,9 +91,9 @@ module ViewManager =
 
                 tf.Close())
 
-        createVcatfile tblMgr
+        createVcatfile tableService
 
-    let dropView fileMgr tblMgr tx viewName =
+    let dropView fileService tableService tx viewName =
         let rec deleteVcatfile tf viewName =
             if tf.Next() then
                 if tf.GetVal VcatVname
@@ -101,27 +101,27 @@ module ViewManager =
                     tf.Delete()
                 deleteVcatfile tf viewName
 
-        let dropVcat tblMgr =
-            tblMgr.GetTableInfo tx Vcat
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        let dropVcat tableService =
+            tableService.GetTableInfo tx Vcat
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf ->
                 tf.BeforeFirst()
                 deleteVcatfile tf viewName
                 tf.Close())
 
-        dropVcat tblMgr
+        dropVcat tableService
 
-    let getViewDef fileMgr tblMgr tx viewName =
-        findViewDefByViewName fileMgr tblMgr tx viewName
+    let getViewDef fileService tableService tx viewName =
+        findViewDefByViewName fileService tableService tx viewName
 
-    let getViewNamesByTable fileMgr tblMgr tx tableName =
-        findViewNamestByTableName fileMgr tblMgr tx tableName
+    let getViewNamesByTable fileService tableService tx tableName =
+        findViewNamestByTableName fileService tableService tx tableName
 
-    let initViewManager tblMgr tx = createVcat tblMgr tx
+    let initViewCatalogService tableService tx = createVcat tableService tx
 
-let newViewManager fileMgr tblMgr =
-    { CreateView = ViewManager.createView fileMgr tblMgr
-      DropView = ViewManager.dropView fileMgr tblMgr
-      GetViewDef = ViewManager.getViewDef fileMgr tblMgr
-      GetViewNamesByTable = ViewManager.getViewNamesByTable fileMgr tblMgr
-      InitViewManager = ViewManager.initViewManager tblMgr }
+let newViewCatalogService fileService tableService =
+    { CreateView = ViewCatalogService.createView fileService tableService
+      DropView = ViewCatalogService.dropView fileService tableService
+      GetViewDef = ViewCatalogService.getViewDef fileService tableService
+      GetViewNamesByTable = ViewCatalogService.getViewNamesByTable fileService tableService
+      InitViewCatalogService = ViewCatalogService.initViewCatalogService tableService }

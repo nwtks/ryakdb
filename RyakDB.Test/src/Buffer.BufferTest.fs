@@ -14,14 +14,16 @@ open RyakDB.Buffer.TransactionBuffer
 [<Fact>]
 let ``set get`` () =
     let filename =
-        FileManager.TmpFilePrefix + "_test_buffer"
+        FileService.TmpFilePrefix + "_test_buffer"
 
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr = newLogManager fileMgr "test_buffer.log"
+    let logService =
+        newLogService fileService "test_buffer.log"
 
-    let bufferPool = newBufferPool fileMgr logMgr 10 1000
+    let bufferPool =
+        newBufferPool fileService logService 10 1000
 
     let txBuffer = newTransactionBuffer bufferPool
 
@@ -62,17 +64,17 @@ let ``set get`` () =
 [<Fact>]
 let ``last LSN`` () =
     let filename =
-        FileManager.TmpFilePrefix + "_test_last_lsn"
+        FileService.TmpFilePrefix + "_test_last_lsn"
 
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        newLogManager fileMgr "test_last_lsn.log"
+    let logService =
+        newLogService fileService "test_last_lsn.log"
 
     let blk = BlockId.newBlockId filename 13L
 
-    let buff = newBuffer fileMgr logMgr
+    let buff = newBuffer fileService logService
     buff.AssignToBlock blk
     buff.SetVal 0 (IntDbConstant 123) (Some(newLogSeqNo 0L 0L))
     buff.SetVal 0 (DbConstant.newVarchar "abcde") (Some(newLogSeqNo 0L 1L))
@@ -83,7 +85,7 @@ let ``last LSN`` () =
     |> should equal (newLogSeqNo 0L 4L)
 
     buff.Flush()
-    let buff2 = newBuffer fileMgr logMgr
+    let buff2 = newBuffer fileService logService
     buff2.AssignToBlock blk
     buff2.LastLogSeqNo()
     |> should equal (newLogSeqNo 0L 4L)
@@ -91,14 +93,14 @@ let ``last LSN`` () =
 [<Fact>]
 let ``assign new buffer`` () =
     let filename =
-        FileManager.TmpFilePrefix
+        FileService.TmpFilePrefix
         + "_test_assign_new_buffer"
 
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        newLogManager fileMgr "test_assign_new_buffer.log"
+    let logService =
+        newLogService fileService "test_assign_new_buffer.log"
 
     let c1 = IntDbConstant 123
     let c2 = DbConstant.newVarchar "abcde"
@@ -118,7 +120,7 @@ let ``assign new buffer`` () =
         offset <- offset + Page.size c4
         buff.SetValue offset c5
 
-    let buff = newBuffer fileMgr logMgr
+    let buff = newBuffer fileService logService
     buff.AssignToNew filename format
 
     let mutable offset = 0
@@ -139,13 +141,13 @@ let ``assign new buffer`` () =
 
 [<Fact>]
 let ``concurrent buffer pin`` () =
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        newLogManager fileMgr "test_concurrent_buffer_pin.log"
+    let logService =
+        newLogService fileService "test_concurrent_buffer_pin.log"
 
-    let buff = newBuffer fileMgr logMgr
+    let buff = newBuffer fileService logService
 
     [ for _ in 0 .. 10 ->
         async {

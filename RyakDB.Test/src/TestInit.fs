@@ -15,16 +15,16 @@ module TestInit =
 
     let setupDeptTable db =
         let tx =
-            db.TxMgr.NewTransaction false Serializable
+            db.Transaction.NewTransaction false Serializable
 
         Schema.newSchema ()
         |> (fun sch ->
             sch.AddField "d_id" IntDbType
             sch.AddField "d_name" (VarcharDbType 20)
-            db.CatalogMgr.CreateTable tx "dept" sch)
+            db.Catalog.CreateTable tx "dept" sch)
 
-        db.CatalogMgr.GetTableInfo tx "dept"
-        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        db.Catalog.GetTableInfo tx "dept"
+        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. deptMax do
                 tf.Insert()
@@ -35,17 +35,17 @@ module TestInit =
 
     let setupCourseTable db =
         let tx =
-            db.TxMgr.NewTransaction false Serializable
+            db.Transaction.NewTransaction false Serializable
 
         Schema.newSchema ()
         |> (fun sch ->
             sch.AddField "c_id" IntDbType
             sch.AddField "title" (VarcharDbType 20)
             sch.AddField "dept_id" IntDbType
-            db.CatalogMgr.CreateTable tx "course" sch)
+            db.Catalog.CreateTable tx "course" sch)
 
-        db.CatalogMgr.GetTableInfo tx "course"
-        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        db.Catalog.GetTableInfo tx "course"
+        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. courseMax do
                 tf.Insert()
@@ -57,7 +57,7 @@ module TestInit =
 
     let setupStudentTable db =
         let tx =
-            db.TxMgr.NewTransaction false Serializable
+            db.Transaction.NewTransaction false Serializable
 
         Schema.newSchema ()
         |> (fun sch ->
@@ -65,10 +65,10 @@ module TestInit =
             sch.AddField "s_name" (VarcharDbType 20)
             sch.AddField "major_id" IntDbType
             sch.AddField "grad_year" IntDbType
-            db.CatalogMgr.CreateTable tx "student" sch)
+            db.Catalog.CreateTable tx "student" sch)
 
-        db.CatalogMgr.GetTableInfo tx "student"
-        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        db.Catalog.GetTableInfo tx "student"
+        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. studentMax do
                 tf.Insert()
@@ -81,7 +81,7 @@ module TestInit =
 
     let setupSelectionTable db =
         let tx =
-            db.TxMgr.NewTransaction false Serializable
+            db.Transaction.NewTransaction false Serializable
 
         Schema.newSchema ()
         |> (fun sch ->
@@ -89,10 +89,10 @@ module TestInit =
             sch.AddField "prof" (VarcharDbType 20)
             sch.AddField "course_id" IntDbType
             sch.AddField "year_offered" IntDbType
-            db.CatalogMgr.CreateTable tx "section" sch)
+            db.Catalog.CreateTable tx "section" sch)
 
-        db.CatalogMgr.GetTableInfo tx "section"
-        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        db.Catalog.GetTableInfo tx "section"
+        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             for i in 1 .. sectionMax do
                 tf.Insert()
@@ -105,7 +105,7 @@ module TestInit =
 
     let setupEnrollTable db =
         let tx =
-            db.TxMgr.NewTransaction false Serializable
+            db.Transaction.NewTransaction false Serializable
 
         Schema.newSchema ()
         |> (fun sch ->
@@ -113,10 +113,10 @@ module TestInit =
             sch.AddField "grade" (VarcharDbType 2)
             sch.AddField "student_id" IntDbType
             sch.AddField "section_id" IntDbType
-            db.CatalogMgr.CreateTable tx "enroll" sch)
+            db.Catalog.CreateTable tx "enroll" sch)
 
-        db.CatalogMgr.GetTableInfo tx "enroll"
-        |> Option.map (newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+        db.Catalog.GetTableInfo tx "enroll"
+        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
         |> Option.iter (fun tf ->
             let grades = [| "A+"; "A"; "B"; "C"; "D" |]
             for i in 1 .. enrollMax do

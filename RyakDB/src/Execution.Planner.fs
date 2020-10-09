@@ -6,7 +6,7 @@ open RyakDB.Index
 open RyakDB.Query.Predicate
 open RyakDB.Sql.Parse
 open RyakDB.Transaction
-open RyakDB.Catalog.CatalogManager
+open RyakDB.Catalog.CatalogService
 open RyakDB.Execution.Scan
 open RyakDB.Execution.Plan
 open RyakDB.Execution.MergeSort
@@ -53,41 +53,41 @@ let newPlanner queryPlanner updatePlanner =
       ExecuteUpdate = Planner.executeUpdate updatePlanner }
 
 module QueryPlanner =
-    let rec createPlan fileMgr
+    let rec createPlan fileService
                        bufferPool
-                       catalogMgr
+                       catalogService
                        tx
                        (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
                        =
         let newSortScan =
-            MergeSort.newSortScan fileMgr bufferPool tx
+            MergeSort.newSortScan fileService bufferPool tx
 
         tables
         |> List.map (fun tblname ->
-            match catalogMgr.GetViewDef tx tblname with
-            | Some (viewDef) ->
+            match catalogService.GetViewDef tx tblname with
+            | Some viewDef ->
                 Parser.queryCommand viewDef
-                |> createPlan fileMgr bufferPool catalogMgr tx
+                |> createPlan fileService bufferPool catalogService tx
             | _ ->
-                catalogMgr.GetTableInfo tx tblname
-                |> Option.get
-                |> Plan.newTablePlan tx)
+                match catalogService.GetTableInfo tx tblname with
+                | Some ti -> Plan.newTablePlan tx ti
+                | _ -> failwith ("Not found table" + tblname))
         |> List.reduce Plan.newProductPlan
         |> Plan.newSelectPlan predicate
         |> Plan.newGroupByPlan newSortScan groupFields aggregationFns
         |> Plan.newProjectPlan projectionFields
         |> Plan.newSortPlan newSortScan sortFields
 
-let newQueryPlanner fileMgr bufferPool catalogMgr =
-    { CreatePlan = QueryPlanner.createPlan fileMgr bufferPool catalogMgr }
+let newQueryPlanner fileService bufferPool catalogService =
+    { CreatePlan = QueryPlanner.createPlan fileService bufferPool catalogService }
 
 module UpdatePlanner =
-    let executeInsert fileMgr catalogMgr tx tableName fieldNames values =
+    let executeInsert fileService catalogService tx tableName fieldNames values =
         let scan =
-            catalogMgr.GetTableInfo tx tableName
-            |> Option.get
-            |> Plan.newTablePlan tx
-            |> Plan.openScan fileMgr
+            match catalogService.GetTableInfo tx tableName with
+            | Some ti -> Plan.newTablePlan tx ti
+            | _ -> failwith ("Not found table" + tableName)
+            |> Plan.openScan fileService
 
         scan.Insert()
         List.zip fieldNames values
@@ -95,13 +95,13 @@ module UpdatePlanner =
         scan.Close()
         1
 
-    let executeDelete fileMgr catalogMgr tx tableName predicate =
+    let executeDelete fileService catalogService tx tableName predicate =
         let scan =
-            catalogMgr.GetTableInfo tx tableName
-            |> Option.get
-            |> Plan.newTablePlan tx
+            match catalogService.GetTableInfo tx tableName with
+            | Some ti -> Plan.newTablePlan tx ti
+            | _ -> failwith ("Not found table" + tableName)
             |> Plan.newSelectPlan predicate
-            |> Plan.openScan fileMgr
+            |> Plan.openScan fileService
 
         let rec deleteAll i =
             if scan.Next() then
@@ -115,13 +115,13 @@ module UpdatePlanner =
         scan.Close()
         count
 
-    let executeModify fileMgr catalogMgr tx tableName predicate fieldValues =
+    let executeModify fileService catalogService tx tableName predicate fieldValues =
         let scan =
-            catalogMgr.GetTableInfo tx tableName
-            |> Option.get
-            |> Plan.newTablePlan tx
+            match catalogService.GetTableInfo tx tableName with
+            | Some ti -> Plan.newTablePlan tx ti
+            | _ -> failwith ("Not found table" + tableName)
             |> Plan.newSelectPlan predicate
-            |> Plan.openScan fileMgr
+            |> Plan.openScan fileService
 
         let rec modifyAll i =
             if scan.Next() then
@@ -136,37 +136,37 @@ module UpdatePlanner =
         scan.Close()
         count
 
-    let executeCreateTable catalogMgr tx tableName schema =
-        catalogMgr.CreateTable tx tableName schema
+    let executeCreateTable catalogService tx tableName schema =
+        catalogService.CreateTable tx tableName schema
         0
 
-    let executeDropTable catalogMgr tx tableName =
-        catalogMgr.DropTable tx tableName
+    let executeDropTable catalogService tx tableName =
+        catalogService.DropTable tx tableName
         0
 
-    let executeCreateIndex catalogMgr tx indexName indexType tableName fieldNames =
-        catalogMgr.CreateIndex tx indexName indexType tableName fieldNames
+    let executeCreateIndex catalogService tx indexName indexType tableName fieldNames =
+        catalogService.CreateIndex tx indexName indexType tableName fieldNames
         0
 
-    let executeDropIndex catalogMgr tx indexName =
-        catalogMgr.DropIndex tx indexName
+    let executeDropIndex catalogService tx indexName =
+        catalogService.DropIndex tx indexName
         0
 
-    let executeCreateView catalogMgr tx viewName viewDef =
-        catalogMgr.CreateView tx viewName viewDef
+    let executeCreateView catalogService tx viewName viewDef =
+        catalogService.CreateView tx viewName viewDef
         0
 
-    let executeDropView catalogMgr tx viewName =
-        catalogMgr.DropView tx viewName
+    let executeDropView catalogService tx viewName =
+        catalogService.DropView tx viewName
         0
 
-let newUpdatePlanner fileMgr catalogMgr =
-    { ExecuteInsert = UpdatePlanner.executeInsert fileMgr catalogMgr
-      ExecuteDelete = UpdatePlanner.executeDelete fileMgr catalogMgr
-      ExecuteModify = UpdatePlanner.executeModify fileMgr catalogMgr
-      ExecuteCreateTable = UpdatePlanner.executeCreateTable catalogMgr
-      ExecuteDropTable = UpdatePlanner.executeDropTable catalogMgr
-      ExecuteCreateIndex = UpdatePlanner.executeCreateIndex catalogMgr
-      ExecuteDropIndex = UpdatePlanner.executeDropIndex catalogMgr
-      ExecuteCreateView = UpdatePlanner.executeCreateView catalogMgr
-      ExecuteDropView = UpdatePlanner.executeDropView catalogMgr }
+let newUpdatePlanner fileService catalogService =
+    { ExecuteInsert = UpdatePlanner.executeInsert fileService catalogService
+      ExecuteDelete = UpdatePlanner.executeDelete fileService catalogService
+      ExecuteModify = UpdatePlanner.executeModify fileService catalogService
+      ExecuteCreateTable = UpdatePlanner.executeCreateTable catalogService
+      ExecuteDropTable = UpdatePlanner.executeDropTable catalogService
+      ExecuteCreateIndex = UpdatePlanner.executeCreateIndex catalogService
+      ExecuteDropIndex = UpdatePlanner.executeDropIndex catalogService
+      ExecuteCreateView = UpdatePlanner.executeCreateView catalogService
+      ExecuteDropView = UpdatePlanner.executeDropView catalogService }

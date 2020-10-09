@@ -25,7 +25,7 @@ let ``insert read delete`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff =
         newSlottedPageFormatter ti

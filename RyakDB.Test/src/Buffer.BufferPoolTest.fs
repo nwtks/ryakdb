@@ -12,17 +12,17 @@ let ``concurrent buffer pool pin`` () =
     let bufferCount = 10
 
     let filename =
-        FileManager.TmpFilePrefix
+        FileService.TmpFilePrefix
         + "_test_concurrent_buffer_pool_pin"
 
-    let fileMgr =
-        newFileManager ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
+    let fileService =
+        newFileService ("test_dbs_" + System.DateTime.Now.Ticks.ToString()) 1024 true
 
-    let logMgr =
-        newLogManager fileMgr "test_concurrent_buffer_pool_pin.log"
+    let logService =
+        newLogService fileService "test_concurrent_buffer_pool_pin.log"
 
     let bufferPool =
-        newBufferPool fileMgr logMgr bufferCount 1000
+        newBufferPool fileService logService bufferCount 1000
 
     let buffers =
         [ for i in 0 .. bufferCount - 1 ->

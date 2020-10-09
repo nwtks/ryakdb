@@ -1,17 +1,17 @@
-module RyakDB.Catalog.TableManager
+module RyakDB.Catalog.TableCatalogService
 
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
 
-type TableManager =
+type TableCatalogService =
     { CreateTable: Transaction -> string -> Schema -> unit
       DropTable: Transaction -> string -> unit
       GetTableInfo: Transaction -> string -> TableInfo option
-      InitTableManager: Transaction -> unit }
+      InitTableCatalogService: Transaction -> unit }
 
-module TableManager =
+module TableCatalogService =
     let Tcat = "cat_tbl"
     let TcatTableName = "tbl_name"
 
@@ -23,10 +23,10 @@ module TableManager =
 
     let MaxName = 30
 
-    let formatFileHeader fileMgr tx tableName =
+    let formatFileHeader fileService tx tableName =
         tableName
         + ".tbl"
-        |> TableFile.formatFileHeader fileMgr tx.Buffer tx.Concurrency
+        |> TableFile.formatFileHeader fileService tx.Buffer tx.Concurrency
 
     let newTcatInfo () =
         let tcatSchema = Schema.newSchema ()
@@ -51,7 +51,7 @@ module TableManager =
 
         TableInfo.newTableInfo Fcat fcatSchema
 
-    let getTableInfo fileMgr tx tableName =
+    let getTableInfo fileService tx tableName =
         let rec findTcatfile tcatfile =
             if tcatfile.Next() then
                 if tcatfile.GetVal TcatTableName
@@ -64,7 +64,7 @@ module TableManager =
 
         let findTcatInfo tcatInfo =
             let tcatfile =
-                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.BeforeFirst()
             let found = findTcatfile tcatfile
@@ -88,7 +88,7 @@ module TableManager =
 
         let createSchema fcatInfo =
             let fcatfile =
-                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             fcatfile.BeforeFirst()
             let schema = Schema.newSchema () |> addField fcatfile
@@ -104,10 +104,10 @@ module TableManager =
         else
             None
 
-    let createTable fileMgr tx tableName schema =
+    let createTable fileService tx tableName schema =
         let addTcatInfo tcatInfo =
             let tcatfile =
-                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.Insert()
 
@@ -136,7 +136,7 @@ module TableManager =
 
         let addFcatInfo fcatInfo =
             let fcatfile =
-                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             schema.Fields()
             |> List.iter (addFieldName fcatfile)
@@ -144,15 +144,15 @@ module TableManager =
             fcatfile.Close()
 
         if tableName <> Tcat && tableName <> Fcat
-        then formatFileHeader fileMgr tx tableName
+        then formatFileHeader fileService tx tableName
 
         newTcatInfo () |> addTcatInfo
         newFcatInfo () |> addFcatInfo
 
-    let dropTable fileMgr tx tableName =
-        let removeTableFile fileMgr =
-            getTableInfo fileMgr tx tableName
-            |> Option.map (newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
+    let dropTable fileService tx tableName =
+        let removeTableFile fileService =
+            getTableInfo fileService tx tableName
+            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
             |> Option.iter (fun tf -> tf.Remove())
 
         let rec deleteTcatfile tcatfile =
@@ -164,7 +164,7 @@ module TableManager =
 
         let deleteTcatInfo tcatInfo =
             let tcatfile =
-                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.BeforeFirst()
             deleteTcatfile tcatfile
@@ -179,25 +179,25 @@ module TableManager =
 
         let deleteFcatInfo fcatInfo =
             let fcatfile =
-                newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             fcatfile.BeforeFirst()
             deleteFcatfile fcatfile
             fcatfile.Close()
 
-        removeTableFile fileMgr
+        removeTableFile fileService
         newTcatInfo () |> deleteTcatInfo
         newFcatInfo () |> deleteFcatInfo
 
-    let initTableManager fileMgr tx =
-        formatFileHeader fileMgr tx Tcat
-        formatFileHeader fileMgr tx Fcat
+    let initTableCatalogService fileService tx =
+        formatFileHeader fileService tx Tcat
+        formatFileHeader fileService tx Fcat
 
-        createTable fileMgr tx Tcat (newTcatInfo ()).Schema
-        createTable fileMgr tx Fcat (newFcatInfo ()).Schema
+        createTable fileService tx Tcat (newTcatInfo ()).Schema
+        createTable fileService tx Fcat (newFcatInfo ()).Schema
 
-let newTableManager fileMgr =
-    { CreateTable = TableManager.createTable fileMgr
-      DropTable = TableManager.dropTable fileMgr
-      GetTableInfo = TableManager.getTableInfo fileMgr
-      InitTableManager = TableManager.initTableManager fileMgr }
+let newTableCatalogService fileService =
+    { CreateTable = TableCatalogService.createTable fileService
+      DropTable = TableCatalogService.dropTable fileService
+      GetTableInfo = TableCatalogService.getTableInfo fileService
+      InitTableCatalogService = TableCatalogService.initTableCatalogService fileService }

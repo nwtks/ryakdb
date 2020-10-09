@@ -1,11 +1,11 @@
-module RyakDB.Test.Catalog.TableManagerTest
+module RyakDB.Test.Catalog.TableCatalogServiceTest
 
 open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Transaction
-open RyakDB.Catalog.CatalogManager
+open RyakDB.Catalog.CatalogService
 open RyakDB.Database
 
 [<Fact>]
@@ -16,23 +16,23 @@ let ``create table`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let t1 = "test_create_table_T1"
-    db.CatalogMgr.DropTable tx t1
+    db.Catalog.DropTable tx t1
     let sch1 = Schema.newSchema ()
     sch1.AddField "AAA" IntDbType
     sch1.AddField "BBB" (VarcharDbType 30)
-    db.CatalogMgr.CreateTable tx t1 sch1
+    db.Catalog.CreateTable tx t1 sch1
 
     let t2 = "test_create_table_T2"
-    db.CatalogMgr.DropTable tx t2
+    db.Catalog.DropTable tx t2
     let sch2 = Schema.newSchema ()
     sch2.AddField "AAA" IntDbType
     sch2.AddField "CCC" (VarcharDbType 123)
-    db.CatalogMgr.CreateTable tx t2 sch2
+    db.Catalog.CreateTable tx t2 sch2
 
-    let ti1 = db.CatalogMgr.GetTableInfo tx t1
+    let ti1 = db.Catalog.GetTableInfo tx t1
     (ti1 |> Option.get).TableName |> should equal t1
     (ti1 |> Option.get).Schema.HasField "AAA"
     |> should be True
@@ -41,7 +41,7 @@ let ``create table`` () =
     (ti1 |> Option.get).Schema.HasField "CCC"
     |> should be False
 
-    let ti2 = db.CatalogMgr.GetTableInfo tx t2
+    let ti2 = db.Catalog.GetTableInfo tx t2
     (ti2 |> Option.get).TableName |> should equal t2
     (ti2 |> Option.get).Schema.HasField "AAA"
     |> should be True
@@ -50,7 +50,7 @@ let ``create table`` () =
     (ti2 |> Option.get).Schema.HasField "CCC"
     |> should be True
 
-    db.CatalogMgr.GetTableInfo tx "test_create_table_T3"
+    db.Catalog.GetTableInfo tx "test_create_table_T3"
     |> should equal None
 
     tx.Commit()

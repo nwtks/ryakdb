@@ -27,17 +27,17 @@ module Plan =
         | GroupByPlan(schema = sch) -> sch
         | SortPlan(schema = sch) -> sch
 
-    let rec openScan fileMgr plan =
+    let rec openScan fileService plan =
         match plan with
-        | TablePlan (tx, ti) -> Scan.newTableScan fileMgr tx ti
-        | SelectPlan (p, pred) -> Scan.newSelectScan (openScan fileMgr p) pred
-        | ProductPlan (p1, p2, _) -> Scan.newProductScan (openScan fileMgr p1) (openScan fileMgr p2)
+        | TablePlan (tx, ti) -> Scan.newTableScan fileService tx ti
+        | SelectPlan (p, pred) -> Scan.newSelectScan (openScan fileService p) pred
+        | ProductPlan (p1, p2, _) -> Scan.newProductScan (openScan fileService p1) (openScan fileService p2)
         | ProjectPlan (p, schema) ->
             schema.Fields()
-            |> Scan.newProjectScan (openScan fileMgr p)
-        | GroupByPlan (sp, _, groupFlds, aggFns) -> Scan.newGroupByScan (openScan fileMgr sp) groupFlds aggFns
+            |> Scan.newProjectScan (openScan fileService p)
+        | GroupByPlan (sp, _, groupFlds, aggFns) -> Scan.newGroupByScan (openScan fileService sp) groupFlds aggFns
         | SortPlan (plan, schema, sortFields, newSortScan) ->
-            openScan fileMgr plan
+            openScan fileService plan
             |> newSortScan schema sortFields
 
     let newTablePlan tx tableInfo = TablePlan(tx, tableInfo)

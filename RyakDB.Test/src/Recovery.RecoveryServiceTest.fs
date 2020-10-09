@@ -1,4 +1,4 @@
-module RyakDB.Test.Recovery.SystemRecoveryTest
+module RyakDB.Test.Recovery.RecoveryServiceTest
 
 open Xunit
 open FsUnit.Xunit
@@ -14,7 +14,7 @@ let blockId = BlockId.newBlockId "_test_recover" 13L
 
 let initBuffer db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx.Buffer.Pin blockId
     buff.SetVal 4 (IntDbConstant 9876) None
@@ -40,21 +40,21 @@ let initBuffer db =
 
 let createTable db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     Schema.newSchema ()
     |> (fun sch ->
         sch.AddField "cid" IntDbType
         sch.AddField "title" (VarcharDbType 100)
         sch.AddField "majorid" BigIntDbType
-        db.CatalogMgr.CreateTable tx "RecoveryTest" sch)
+        db.Catalog.CreateTable tx "RecoveryTest" sch)
     tx.Commit()
 
 let createIndex db =
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.CatalogMgr.CreateIndex tx "RecoveryTest_I1" BTree "RecoveryTest" [ "cid" ]
+    db.Catalog.CreateIndex tx "RecoveryTest_I1" BTree "RecoveryTest" [ "cid" ]
     tx.Commit()
 
 [<Fact>]
@@ -66,7 +66,7 @@ let rollback () =
     initBuffer db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx.Buffer.Pin blockId
     tx.Recovery.LogSetVal buff 4 (IntDbConstant 1234)
@@ -102,7 +102,7 @@ let recover () =
     initBuffer db
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx1.Buffer.Pin blockId
     tx1.Recovery.LogSetVal buff 104 (IntDbConstant 1234)
@@ -110,7 +110,7 @@ let recover () =
     tx1.Buffer.Unpin buff
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx2.Buffer.Pin blockId
     tx2.Recovery.LogSetVal buff 120 (DbConstant.newVarchar "xyz")
@@ -118,7 +118,7 @@ let recover () =
     tx2.Buffer.Unpin buff
 
     let tx3 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx3.Buffer.Pin blockId
     tx3.Recovery.LogSetVal buff 140 (DbConstant.newVarchar "rst")
@@ -128,7 +128,7 @@ let recover () =
     tx2.Commit()
 
     let tx4 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx4.Buffer.Pin blockId
     buff.GetVal 104 IntDbType
@@ -140,9 +140,9 @@ let recover () =
     tx4.Buffer.Unpin buff
 
     let tx5 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.SystemRecovery.RecoverSystem tx5
+    db.Recovery.RecoverSystem tx5
 
     let buff = tx5.Buffer.Pin blockId
     buff.GetVal 104 IntDbType
@@ -164,7 +164,7 @@ let checkpoint () =
     initBuffer db
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx1.Buffer.Pin blockId
     tx1.Recovery.LogSetVal buff 204 (IntDbConstant 3538)
@@ -172,7 +172,7 @@ let checkpoint () =
     tx1.Buffer.Unpin buff
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx2.Buffer.Pin blockId
     tx2.Recovery.LogSetVal buff 220 (DbConstant.newVarchar "twel")
@@ -180,7 +180,7 @@ let checkpoint () =
     tx2.Buffer.Unpin buff
 
     let tx3 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx3.Buffer.Pin blockId
     tx3.Recovery.LogSetVal buff 240 (DbConstant.newVarchar "tfth")
@@ -188,7 +188,7 @@ let checkpoint () =
     tx3.Buffer.Unpin buff
 
     let tx4 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx4.Buffer.Pin blockId
     tx4.Recovery.LogSetVal buff 304 (IntDbConstant 9323)
@@ -198,12 +198,12 @@ let checkpoint () =
     tx2.Commit()
     tx3.Rollback()
 
-    db.TxMgr.CreateCheckpoint()
+    db.Transaction.CreateCheckpoint()
 
     tx1.Commit()
 
     let tx5 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx5.Buffer.Pin blockId
     tx5.Recovery.LogSetVal buff 320 (DbConstant.newVarchar "sixt")
@@ -211,7 +211,7 @@ let checkpoint () =
     tx5.Buffer.Unpin buff
 
     let tx6 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff = tx6.Buffer.Pin blockId
     tx6.Recovery.LogSetVal buff 240 (DbConstant.newVarchar "eenth")
@@ -221,9 +221,9 @@ let checkpoint () =
     tx5.Commit()
 
     let tx7 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.SystemRecovery.RecoverSystem tx7
+    db.Recovery.RecoverSystem tx7
 
     let buff = tx7.Buffer.Pin blockId
     buff.GetVal 204 IntDbType
@@ -251,12 +251,12 @@ let ``table record`` () =
     createTable db
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tf1 =
-        db.CatalogMgr.GetTableInfo tx1 "RecoveryTest"
+        db.Catalog.GetTableInfo tx1 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.FileMgr tx1.Buffer tx1.Concurrency tx1.Recovery tx1.ReadOnly true
+        |> newTableFile db.File tx1.Buffer tx1.Concurrency tx1.Recovery tx1.ReadOnly true
 
     tf1.Insert()
     tf1.SetVal "cid" (IntDbConstant 1)
@@ -267,12 +267,12 @@ let ``table record`` () =
     tx1.Commit()
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tf2 =
-        db.CatalogMgr.GetTableInfo tx2 "RecoveryTest"
+        db.Catalog.GetTableInfo tx2 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.FileMgr tx2.Buffer tx2.Concurrency tx2.Recovery tx2.ReadOnly true
+        |> newTableFile db.File tx2.Buffer tx2.Concurrency tx2.Recovery tx2.ReadOnly true
 
     tf2.BeforeFirst()
     tf2.Next() |> should be True
@@ -285,12 +285,12 @@ let ``table record`` () =
     tx2.Rollback()
 
     let tx3 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tf3 =
-        db.CatalogMgr.GetTableInfo tx3 "RecoveryTest"
+        db.Catalog.GetTableInfo tx3 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.FileMgr tx3.Buffer tx3.Concurrency tx3.Recovery tx3.ReadOnly true
+        |> newTableFile db.File tx3.Buffer tx3.Concurrency tx3.Recovery tx3.ReadOnly true
 
     tf3.BeforeFirst()
     tf3.Next() |> should be True
@@ -308,12 +308,12 @@ let ``table record`` () =
     tx3.Rollback()
 
     let tx4 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let tf4 =
-        db.CatalogMgr.GetTableInfo tx4 "RecoveryTest"
+        db.Catalog.GetTableInfo tx4 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.FileMgr tx4.Buffer tx4.Concurrency tx4.Recovery tx4.ReadOnly true
+        |> newTableFile db.File tx4.Buffer tx4.Concurrency tx4.Recovery tx4.ReadOnly true
 
     tf4.BeforeFirst()
     tf4.Next() |> should be True
@@ -323,7 +323,7 @@ let ``table record`` () =
     tf4.Next() |> should be False
 
     tf4.Close()
-    db.CatalogMgr.DropTable tx4 "RecoveryTest"
+    db.Catalog.DropTable tx4 "RecoveryTest"
     tx4.Commit()
 
 [<Fact>]
@@ -354,12 +354,12 @@ let ``B-tree index`` () =
     let rid3 = RecordId.newRecordId 999 blk
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index1 =
-        db.CatalogMgr.GetIndexInfoByField tx1 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByField tx1 "RecoveryTest" "cid"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx1
+        |> IndexFactory.newIndex db.File tx1
 
     rids
     |> Array.iter (fun id -> index1.Insert true key5 id)
@@ -369,12 +369,12 @@ let ``B-tree index`` () =
     tx1.Commit()
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index2 =
-        db.CatalogMgr.GetIndexInfoByField tx2 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByField tx2 "RecoveryTest" "cid"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx2
+        |> IndexFactory.newIndex db.File tx2
 
     let mutable cnt = 0
     SearchRange.newSearchRangeBySearchKey key5
@@ -393,12 +393,12 @@ let ``B-tree index`` () =
     tx2.Commit()
 
     let tx3 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index3 =
-        db.CatalogMgr.GetIndexInfoByField tx3 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByField tx3 "RecoveryTest" "cid"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx3
+        |> IndexFactory.newIndex db.File tx3
 
     index3.Delete true key7 rid2
     index3.Insert true key777 rid3
@@ -407,12 +407,12 @@ let ``B-tree index`` () =
     tx3.Rollback()
 
     let tx4 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let index4 =
-        db.CatalogMgr.GetIndexInfoByField tx4 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByField tx4 "RecoveryTest" "cid"
         |> List.head
-        |> IndexFactory.newIndex db.FileMgr tx4
+        |> IndexFactory.newIndex db.File tx4
 
     SearchRange.newSearchRangeBySearchKey key7
     |> index4.BeforeFirst
@@ -424,5 +424,5 @@ let ``B-tree index`` () =
     index4.Next() |> should be False
 
     index4.Close()
-    db.CatalogMgr.DropTable tx4 "RecoveryTest"
+    db.Catalog.DropTable tx4 "RecoveryTest"
     tx4.Commit()

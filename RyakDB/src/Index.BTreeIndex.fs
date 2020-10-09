@@ -12,9 +12,9 @@ open RyakDB.Index.BTreeBranch
 open RyakDB.Index.BTreeLeaf
 
 module BTreeIndex =
-    let fileSize (fileMgr: FileManager) txConcurrency fileName =
+    let fileSize (fileService: FileService) txConcurrency fileName =
         txConcurrency.ReadFile fileName
-        fileMgr.Size fileName
+        fileService.Size fileName
 
     let getRoot txBuffer txConcurrency txRecovery keyType branchFileName =
         newBTreeBranch txBuffer txConcurrency txRecovery (BlockId.newBlockId branchFileName 0L) keyType
@@ -35,9 +35,9 @@ module BTreeIndex =
 
         leaf, branchesMayBeUpdated
 
-    let preLoadToMemory fileMgr txBuffer txConcurrency branchFileName leafFileName =
+    let preLoadToMemory fileService txBuffer txConcurrency branchFileName leafFileName =
         let branchSize =
-            fileSize fileMgr txConcurrency branchFileName
+            fileSize fileService txConcurrency branchFileName
 
         [ 0L .. branchSize - 1L ]
         |> List.iter (fun i ->
@@ -46,7 +46,7 @@ module BTreeIndex =
             |> ignore)
 
         let leafSize =
-            fileSize fileMgr txConcurrency leafFileName
+            fileSize fileService txConcurrency leafFileName
 
         [ 0L .. leafSize - 1L ]
         |> List.iter (fun i ->
@@ -150,13 +150,13 @@ module BTreeIndex =
 
     let close leaf = leaf |> Option.iter (fun l -> l.Close())
 
-    let initLeaf fileMgr txBuffer txConcurrency keyType leafFileName =
-        if fileSize fileMgr txConcurrency leafFileName = 0L then
+    let initLeaf fileService txBuffer txConcurrency keyType leafFileName =
+        if fileSize fileService txConcurrency leafFileName = 0L then
             BTreePage.appendBlock txBuffer txConcurrency (BTreeLeaf.keyTypeToSchema keyType) leafFileName [ -1L; -1L ]
             |> ignore
 
-    let initBranch fileMgr txBuffer txConcurrency keyType branchFileName =
-        if fileSize fileMgr txConcurrency branchFileName = 0L then
+    let initBranch fileService txBuffer txConcurrency keyType branchFileName =
+        if fileSize fileService txConcurrency branchFileName = 0L then
             BTreePage.appendBlock txBuffer txConcurrency (BTreeBranch.keyTypeToSchema keyType) branchFileName [ 0L ]
             |> ignore
 
@@ -171,15 +171,15 @@ module BTreeIndex =
 
         root.Close()
 
-let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType =
+let newBTreeIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType =
     let leafFileName =
         BTreeLeaf.getFileName indexInfo.IndexName
 
     let branchFileName =
         BTreeBranch.getFileName indexInfo.IndexName
 
-    BTreeIndex.initLeaf fileMgr txBuffer txConcurrency keyType leafFileName
-    BTreeIndex.initBranch fileMgr txBuffer txConcurrency keyType branchFileName
+    BTreeIndex.initLeaf fileService txBuffer txConcurrency keyType leafFileName
+    BTreeIndex.initBranch fileService txBuffer txConcurrency keyType branchFileName
     BTreeIndex.initRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
     let mutable leaf = None
@@ -234,4 +234,5 @@ let newBTreeIndex fileMgr txBuffer txConcurrency txRecovery txReadOnly indexInfo
           fun () ->
               BTreeIndex.close leaf
               leaf <- None
-      PreLoadToMemory = fun () -> BTreeIndex.preLoadToMemory fileMgr txBuffer txConcurrency branchFileName leafFileName }
+      PreLoadToMemory =
+          fun () -> BTreeIndex.preLoadToMemory fileService txBuffer txConcurrency branchFileName leafFileName }

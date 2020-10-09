@@ -1,4 +1,4 @@
-module RyakDB.Concurrency.LockTable
+module RyakDB.Concurrency.LockService
 
 open RyakDB.Storage
 open RyakDB.Table
@@ -8,7 +8,7 @@ type LockerKey =
     | BlockIdLockerKey of BlockId
     | RecordIdLockerKey of RecordId
 
-type LockTable =
+type LockService =
     { SLock: int64 -> LockerKey -> unit
       XLock: int64 -> LockerKey -> unit
       SIXLock: int64 -> LockerKey -> unit
@@ -20,9 +20,9 @@ type LockTable =
       ReleaseISLock: int64 -> LockerKey -> unit
       ReleaseIXLock: int64 -> LockerKey -> unit
       ReleaseAll: int64 -> bool -> unit
-      LocktableNotifier: unit -> unit -> unit }
+      LockNotifier: unit -> unit -> unit }
 
-module LockTable =
+module LockService =
     type LockType =
         | SLock
         | XLock
@@ -38,7 +38,7 @@ module LockTable =
           IXLockers: Set<int64>
           RequestSet: Set<int64> }
 
-    type LockTableState =
+    type LockServiceState =
         { LockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>
           LockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>
           TxnsToBeAborted: System.Collections.Concurrent.ConcurrentDictionary<int64, bool>
@@ -359,7 +359,7 @@ module LockTable =
         state.TxnsToBeAborted.TryRemove txNo |> ignore
         state.LockByTxMap.TryRemove txNo |> ignore
 
-    let locktableNotifier state =
+    let lockNotifier state =
         let rec notify () =
             let txNo = state.ToBeNotified.Take()
             let mutable anchor = Unchecked.defaultof<_>
@@ -369,8 +369,8 @@ module LockTable =
 
         notify
 
-let newLockTable waitTime =
-    let state: LockTable.LockTableState =
+let newLockService waitTime =
+    let state: LockService.LockServiceState =
         { LockerMap = System.Collections.Concurrent.ConcurrentDictionary()
           LockByTxMap = System.Collections.Concurrent.ConcurrentDictionary()
           TxnsToBeAborted = System.Collections.Concurrent.ConcurrentDictionary()
@@ -379,15 +379,15 @@ let newLockTable waitTime =
           Anchors = Array.init 1019 (fun _ -> obj ())
           WaitTime = waitTime }
 
-    { SLock = LockTable.sLock state
-      XLock = LockTable.xLock state
-      SIXLock = LockTable.sixLock state
-      ISLock = LockTable.isLock state
-      IXLock = LockTable.ixLock state
-      ReleaseSLock = LockTable.releaseSLock state
-      ReleaseXLock = LockTable.releaseXLock state
-      ReleaseSIXLock = LockTable.releaseSIXLock state
-      ReleaseISLock = LockTable.releaseISLock state
-      ReleaseIXLock = LockTable.releaseIXLock state
-      ReleaseAll = LockTable.releaseAll state
-      LocktableNotifier = fun () -> LockTable.locktableNotifier state }
+    { SLock = LockService.sLock state
+      XLock = LockService.xLock state
+      SIXLock = LockService.sixLock state
+      ISLock = LockService.isLock state
+      IXLock = LockService.ixLock state
+      ReleaseSLock = LockService.releaseSLock state
+      ReleaseXLock = LockService.releaseXLock state
+      ReleaseSIXLock = LockService.releaseSIXLock state
+      ReleaseISLock = LockService.releaseISLock state
+      ReleaseIXLock = LockService.releaseIXLock state
+      ReleaseAll = LockService.releaseAll state
+      LockNotifier = fun () -> LockService.lockNotifier state }

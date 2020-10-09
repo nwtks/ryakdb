@@ -25,14 +25,14 @@ let ``insert read delete`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     FileHeaderFormatter.format
     |> tx.Buffer.PinNew ti.FileName
     |> tx.Buffer.Unpin
 
     let tf =
-        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     for i in 0 .. 300 do
         tf.Insert()
@@ -90,12 +90,12 @@ let ``reuse slot`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    TableFile.formatFileHeader db.FileMgr tx.Buffer tx.Concurrency ti.FileName
+    TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency ti.FileName
 
     let tf =
-        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     tf.Insert()
     tf.SetVal "cid" (IntDbConstant 1)
@@ -137,12 +137,12 @@ let ``undo insert`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    TableFile.formatFileHeader db.FileMgr tx.Buffer tx.Concurrency ti.FileName
+    TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency ti.FileName
 
     let tf =
-        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     tf.Insert()
     tf.SetVal "cid" (IntDbConstant 1)
@@ -187,12 +187,12 @@ let ``undo delete`` () =
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    TableFile.formatFileHeader db.FileMgr tx.Buffer tx.Concurrency ti.FileName
+    TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency ti.FileName
 
     let tf =
-        newTableFile db.FileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     tf.Insert()
     tf.SetVal "cid" (IntDbConstant 1)

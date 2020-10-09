@@ -19,22 +19,22 @@ module TransactionBuffer =
         + 50L > (int64 waitTime)
 
     let rec waitUnpinningBuffer bufferPool pinBufferPool timestamp buffer =
-        buffer
-        |> Option.orElseWith (fun () ->
-            if waitingTooLong timestamp bufferPool.WaitTime then
-                None
-            else
-                lock bufferPool (fun () ->
-                    System.Threading.Monitor.Wait(bufferPool, bufferPool.WaitTime)
-                    |> ignore)
-                pinBufferPool ()
-                |> waitUnpinningBuffer bufferPool pinBufferPool timestamp)
+        if Option.isSome buffer then
+            buffer
+        elif waitingTooLong timestamp bufferPool.WaitTime then
+            None
+        else
+            lock bufferPool (fun () ->
+                System.Threading.Monitor.Wait(bufferPool, bufferPool.WaitTime)
+                |> ignore)
+            pinBufferPool ()
+            |> waitUnpinningBuffer bufferPool pinBufferPool timestamp
 
     let pinNewBuffer (bufferPool: BufferPool) (pinningBuffers: Map<BlockId, PinningBuffer>) pinBufferPool repinBuffer =
         if pinningBuffers.Count >= bufferPool.BufferPoolSize
         then failwith "Buffer pool full"
 
-        let nextBuffers, buffer =
+        let nextBuffers, newBuffer =
             match pinBufferPool ()
                   |> Option.orElseWith (fun () -> waitUnpinningBuffer bufferPool pinBufferPool System.DateTime.Now None) with
             | Some buff -> pinningBuffers.Add(buff.BlockId(), { Buffer = buff; PinCount = 1 }), buff
@@ -42,7 +42,7 @@ module TransactionBuffer =
 
         lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
 
-        nextBuffers, buffer
+        nextBuffers, newBuffer
 
     let pinExistBuffer (pinningBuffers: Map<BlockId, PinningBuffer>) blockId =
         let pinnedBuff = pinningBuffers.[blockId]

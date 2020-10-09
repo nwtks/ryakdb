@@ -20,7 +20,7 @@ let commit () =
     let c = IntDbConstant(123457)
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff1 = tx1.Buffer.Pin blk
     tx1.Concurrency.ModifyBlock blk
@@ -29,7 +29,7 @@ let commit () =
     tx1.Commit()
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff2 = tx2.Buffer.Pin blk
     tx2.Concurrency.ReadBlock blk
@@ -50,7 +50,7 @@ let rollback () =
     let c2 = IntDbConstant(999)
 
     let tx1 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff1 = tx1.Buffer.Pin blk
     tx1.Concurrency.ModifyBlock blk
@@ -59,7 +59,7 @@ let rollback () =
     tx1.Commit()
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff2 = tx2.Buffer.Pin blk
     tx2.Concurrency.ModifyBlock blk
@@ -68,7 +68,7 @@ let rollback () =
     tx2.Rollback()
 
     let tx3 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let buff3 = tx3.Buffer.Pin blk
     tx3.Concurrency.ReadBlock blk
@@ -87,7 +87,7 @@ let ``end statement`` () =
     let blk = BlockId.newBlockId filename 19L
 
     let tx1 =
-        db.TxMgr.NewTransaction false ReadCommitted
+        db.Transaction.NewTransaction false ReadCommitted
 
     let buff1 = tx1.Buffer.Pin blk
     tx1.Concurrency.ReadBlock blk
@@ -95,7 +95,7 @@ let ``end statement`` () =
     tx1.EndStatement()
 
     let tx2 =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     tx1.Buffer.Pin blk |> ignore
     tx2.Concurrency.ModifyBlock blk

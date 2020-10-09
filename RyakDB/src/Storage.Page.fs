@@ -37,7 +37,7 @@ module Page =
         |> FileBuffer.get off size
         |> DbConstant.fromBytes dbType
 
-    let setVal fileMgr contents offset value =
+    let setVal fileService contents offset value =
         let bytes = value |> DbConstant.toBytes
 
         let off =
@@ -46,7 +46,7 @@ module Page =
             else
                 if offset
                    + ValSizeSize
-                   + bytes.Length > fileMgr.BlockSize then
+                   + bytes.Length > fileService.BlockSize then
                     failwith
                         ("Page buffer overflow:offset="
                          + offset.ToString()
@@ -61,11 +61,11 @@ module Page =
 
         contents |> FileBuffer.put off bytes
 
-let newPage fileMgr =
-    let contents = newFileBuffer fileMgr.BlockSize
+let newPage fileService =
+    let contents = newFileBuffer fileService.BlockSize
 
     { GetVal = fun offset dbType -> lock contents (fun () -> Page.getVal contents offset dbType)
-      SetVal = fun offset value -> lock contents (fun () -> Page.setVal fileMgr contents offset value)
-      Read = fun blockId -> lock contents (fun () -> fileMgr.Read contents blockId)
-      Write = fun blockId -> lock contents (fun () -> fileMgr.Write contents blockId)
-      Append = fun fileName -> lock contents (fun () -> fileMgr.Append contents fileName) }
+      SetVal = fun offset value -> lock contents (fun () -> Page.setVal fileService contents offset value)
+      Read = fun blockId -> lock contents (fun () -> fileService.Read contents blockId)
+      Write = fun blockId -> lock contents (fun () -> fileService.Write contents blockId)
+      Append = fun fileName -> lock contents (fun () -> fileService.Append contents fileName) }

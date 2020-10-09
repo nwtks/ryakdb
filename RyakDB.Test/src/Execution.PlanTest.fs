@@ -21,12 +21,12 @@ let ``table plan`` () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -53,17 +53,17 @@ let ``select plan`` () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let pred =
         [ Term(EqualOperator, FieldNameExpression "major_id", IntDbConstant 20 |> ConstantExpression) ]
         |> Predicate
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newSelectPlan pred
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -86,14 +86,14 @@ let ``project plan`` () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newProjectPlan [ "grad_year"
                              "s_name" ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -121,21 +121,21 @@ let ``product plan`` () =
     TestInit.setupDeptTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let pred =
         [ Term(EqualOperator, FieldNameExpression "major_id", FieldNameExpression "d_id") ]
         |> Predicate
 
-    [ db.CatalogMgr.GetTableInfo tx "student"
+    [ db.Catalog.GetTableInfo tx "student"
       |> Option.get
       |> Plan.newTablePlan tx
-      db.CatalogMgr.GetTableInfo tx "dept"
+      db.Catalog.GetTableInfo tx "dept"
       |> Option.get
       |> Plan.newTablePlan tx ]
     |> List.reduce Plan.newProductPlan
     |> Plan.newSelectPlan pred
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -162,12 +162,12 @@ let ``group by plan`` () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newGroupByPlan
@@ -176,7 +176,7 @@ let ``group by plan`` () =
            [ CountFn("grad_year")
              MinFn("major_id")
              MaxFn("s_name") ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         scan.BeforeFirst()
@@ -199,19 +199,19 @@ let ``sort plan`` () =
     TestInit.setupStudentTable db
 
     let tx =
-        db.TxMgr.NewTransaction false Serializable
+        db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.FileMgr db.BufferPool tx
+        MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.CatalogMgr.GetTableInfo tx "student"
+    db.Catalog.GetTableInfo tx "student"
     |> Option.get
     |> Plan.newTablePlan tx
     |> Plan.newSortPlan
         newSortScan
            [ SortField("grad_year", SortAsc)
              SortField("s_id", SortDesc) ]
-    |> Plan.openScan db.FileMgr
+    |> Plan.openScan db.File
     |> (fun scan ->
         let mutable i = 0
         let mutable prevGradYear = 0

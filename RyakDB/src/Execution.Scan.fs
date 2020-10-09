@@ -22,9 +22,9 @@ type Scan =
       MoveToRecordId: RecordId -> unit }
 
 module Scan =
-    let newTableScan fileMgr tx tableInfo =
+    let newTableScan fileService tx tableInfo =
         let tableFile =
-            newTableFile fileMgr tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tableInfo
+            newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tableInfo
 
         let schema = tableInfo.Schema
 
@@ -169,11 +169,19 @@ module Scan =
             scan1.Close()
             scan2 |> Option.iter (fun s -> s.Close())
 
-        { GetVal = fun field -> (Option.get currentScan).GetVal field
+        { GetVal =
+              fun field ->
+                  match currentScan with
+                  | Some scan -> scan.GetVal field
+                  | _ -> failwith "Must call next()"
           BeforeFirst = fun () -> beforeFirst ()
           Close = fun () -> close ()
           Next = fun () -> next ()
-          HasField = fun field -> (Option.get currentScan).HasField field
+          HasField =
+              fun field ->
+                  match currentScan with
+                  | Some scan -> scan.HasField field
+                  | _ -> failwith "Must call next()"
           SetVal = fun _ _ -> ()
           Insert = fun () -> ()
           Delete = fun () -> ()
@@ -188,11 +196,9 @@ module Scan =
             if groupFields |> List.contains field then
                 groupVal.[field]
             else
-                aggFns
-                |> List.filter (fun fn -> fn.FieldName = field)
-                |> List.tryHead
-                |> Option.map (fun fn -> fn.Value())
-                |> Option.get
+                (aggFns
+                 |> List.filter (fun fn -> fn.FieldName = field)
+                 |> List.head).Value()
 
         let hasField field =
             groupFields
