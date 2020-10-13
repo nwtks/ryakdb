@@ -20,6 +20,8 @@ type Scan =
       Delete: unit -> unit
       GetRecordId: unit -> RecordId
       MoveToRecordId: RecordId -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 module Scan =
     let newTableScan fileService tx tableInfo =

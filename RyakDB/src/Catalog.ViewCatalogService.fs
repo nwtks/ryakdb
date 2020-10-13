@@ -43,12 +43,12 @@ module ViewCatalogService =
 
     let findViewDefByViewName fileService tableService tx viewName =
         tableService.GetTableInfo tx Vcat
-        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.bind (fun tf ->
+        |> Option.bind (fun ti ->
+            use tf =
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             tf.BeforeFirst()
-            let viewDef = findVcatfileByViewName tf viewName
-            tf.Close()
-            viewDef)
+            findVcatfileByViewName tf viewName)
 
     let rec findVcatfileByTableName tf tableName viewNames =
         if tf.Next() then
@@ -68,28 +68,28 @@ module ViewCatalogService =
 
     let findViewNamestByTableName fileService tableService tx tableName =
         tableService.GetTableInfo tx Vcat
-        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.map (fun tf ->
+        |> Option.map (fun ti ->
+            use tf =
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             tf.BeforeFirst()
-            let viewNames = findVcatfileByTableName tf tableName []
-            tf.Close()
-            viewNames)
+            findVcatfileByTableName tf tableName [])
         |> Option.defaultValue []
 
     let createView fileService tableService tx viewName viewDef =
         let createVcatfile tableService =
             tableService.GetTableInfo tx Vcat
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf ->
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
                 tf.Insert()
 
                 DbConstant.newVarchar viewName
                 |> tf.SetVal VcatVname
 
                 DbConstant.newVarchar viewDef
-                |> tf.SetVal VcatVdef
-
-                tf.Close())
+                |> tf.SetVal VcatVdef)
 
         createVcatfile tableService
 
@@ -103,11 +103,12 @@ module ViewCatalogService =
 
         let dropVcat tableService =
             tableService.GetTableInfo tx Vcat
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf ->
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
                 tf.BeforeFirst()
-                deleteVcatfile tf viewName
-                tf.Close())
+                deleteVcatfile tf viewName)
 
         dropVcat tableService
 

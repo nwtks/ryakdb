@@ -211,11 +211,10 @@ module MergeSort =
                 s)
 
         let result = newTempTable fileService tx schema
-        let dest = result.OpenScan()
+        use dest = result.OpenScan()
         let hasMores = srcs |> List.map (fun s -> s.Next())
         let count = (hasMores |> List.filter id).Length
         loopMerge schema comparator dest count srcs hasMores
-        dest.Close()
         srcs |> List.iter (fun s -> s.Close())
         result
 

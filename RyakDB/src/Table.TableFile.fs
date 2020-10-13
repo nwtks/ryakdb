@@ -25,6 +25,8 @@ type TableFile =
       FileSize: unit -> int64
       Close: unit -> unit
       Remove: unit -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 type FileHeaderPageState =
     { TxBuffer: TransactionBuffer
@@ -253,8 +255,9 @@ module TableFile =
                        state
                        (RecordId (slotNo, BlockId (_, blockNo)))
                        =
-        let newstate, _ =
+        let newstate =
             moveTo fileService txBuffer txConcurrency txRecovery doLog tableFileName schema state blockNo
+            |> fst
 
         match newstate.SlottedPage with
         | Some sp -> sp.MoveToSlotNo slotNo
@@ -298,7 +301,7 @@ module TableFile =
             | Some false ->
                 if atLastBlock state then appendBlock ()
 
-                let newstate, _ =
+                let newstate =
                     moveTo
                         fileService
                         txBuffer
@@ -309,6 +312,7 @@ module TableFile =
                         schema
                         state
                         (state.CurrentBlockNo + 1L)
+                    |> fst
 
                 appendSlot newstate
             | _ -> state
@@ -323,8 +327,9 @@ module TableFile =
                 else
                     appendBlock ()
 
-                    let newstate, _ =
+                    let newstate =
                         moveTo fileService txBuffer txConcurrency txRecovery doLog tableFileName schema state 1L
+                        |> fst
 
                     newstate.SlottedPage
                     |> Option.map (fun sp -> sp.InsertIntoNextEmptySlot())

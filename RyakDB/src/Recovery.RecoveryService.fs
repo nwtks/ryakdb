@@ -26,38 +26,34 @@ module RecoveryService =
     let insertBTreeBranchSlot tx keyType blockId slot =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
-        let page =
+        use page =
             BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
         page.Insert slot
-        page.Close()
 
     let deleteBTreeBranchSlot tx keyType blockId slot =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
-        let page =
+        use page =
             BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
         page.Delete slot
-        page.Close()
 
     let insertBTreeLeafSlot tx keyType blockId slot =
         let schema = BTreeLeaf.keyTypeToSchema keyType
 
-        let page =
+        use page =
             BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
         page.Insert slot
-        page.Close()
 
     let deleteBTreeLeafSlot tx keyType blockId slot =
         let schema = BTreeLeaf.keyTypeToSchema keyType
 
-        let page =
+        use page =
             BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
         page.Delete slot
-        page.Close()
 
     let logLogicalAbort logService txNo undoNextLogSeqNo =
         newLogicalAbortRecord txNo undoNextLogSeqNo
@@ -95,7 +91,7 @@ module RecoveryService =
         | TableFileInsertEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
             catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
-                let tf =
+                use tf =
                     newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
                 RecordId.newBlockRecordId slot (TableInfo.tableFileName ti) blockNo
@@ -104,7 +100,7 @@ module RecoveryService =
         | TableFileDeleteEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
             catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
-                let tf =
+                use tf =
                     newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
                 RecordId.newBlockRecordId slot (TableInfo.tableFileName ti) blockNo
@@ -113,18 +109,16 @@ module RecoveryService =
         | IndexInsertEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
             catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
-                let idx = IndexFactory.newIndex fileService tx ii
+                use idx = IndexFactory.newIndex fileService tx ii
                 RecordId.newBlockRecordId slot (IndexInfo.tableFileName ii) blockNo
-                |> idx.Delete false searchKey
-                idx.Close())
+                |> idx.Delete false searchKey)
             logLogicalAbort logService txNo startLsn
         | IndexDeleteEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
             catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
-                let idx = IndexFactory.newIndex fileService tx ii
+                use idx = IndexFactory.newIndex fileService tx ii
                 RecordId.newBlockRecordId slot (IndexInfo.tableFileName ii) blockNo
-                |> idx.Insert false searchKey
-                idx.Close())
+                |> idx.Insert false searchKey)
             logLogicalAbort logService txNo startLsn
         | IndexPageInsertRecord (txNo, blockId, branch, keyType, slot, lsn) ->
             let buffer = tx.Buffer.Pin blockId

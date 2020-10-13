@@ -31,6 +31,8 @@ type Index =
       Delete: bool -> SearchKey -> RecordId -> unit
       Close: unit -> unit
       PreLoadToMemory: unit -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 module SearchKey =
     let compare (SearchKey key1) (SearchKey key2) =

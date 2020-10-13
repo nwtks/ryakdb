@@ -43,7 +43,7 @@ let ``single key`` () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    let index =
+    use index =
         db.Catalog.GetIndexInfoByName tx "HITable_SI1"
         |> Option.get
         |> IndexFactory.newIndex db.File tx
@@ -88,7 +88,6 @@ let ``single key`` () =
     |> index.BeforeFirst
     index.Next() |> should be True
 
-    index.Close()
     db.Catalog.DropTable tx "HITable"
     tx.Commit()
 
@@ -105,7 +104,7 @@ let ``varchar key`` () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    let index =
+    use index =
         db.Catalog.GetIndexInfosByField tx "HITable" "title"
         |> List.head
         |> IndexFactory.newIndex db.File tx
@@ -176,7 +175,6 @@ let ``varchar key`` () =
     |> index.BeforeFirst
     index.Next() |> should be True
 
-    index.Close()
     db.Catalog.DropTable tx "HITable"
     tx.Commit()
 
@@ -193,7 +191,7 @@ let ``multi key`` () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    let index =
+    use index =
         db.Catalog.GetIndexInfoByName tx "HITable_MI1"
         |> Option.get
         |> IndexFactory.newIndex db.File tx
@@ -265,6 +263,5 @@ let ``multi key`` () =
         cnt <- cnt + 1
     cnt |> should equal 24
 
-    index.Close()
     db.Catalog.DropTable tx "HITable"
     tx.Commit()

@@ -31,7 +31,7 @@ let ``insert read delete`` () =
     |> tx.Buffer.PinNew(TableInfo.tableFileName ti)
     |> tx.Buffer.Unpin
 
-    let tf =
+    use tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     for i in 0 .. 300 do
@@ -77,7 +77,6 @@ let ``insert read delete`` () =
         tf.SetVal "title" (DbConstant.newVarchar ("course" + i.ToString()))
         tf.SetVal "deptid" (BigIntDbConstant(int64 (i % 3 + 1) * 1000L))
 
-    tf.Close()
     tx.Commit()
 
 [<Fact>]
@@ -95,7 +94,7 @@ let ``reuse slot`` () =
     TableInfo.tableFileName ti
     |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
 
-    let tf =
+    use tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     tf.Insert()
@@ -125,7 +124,6 @@ let ``reuse slot`` () =
     |> should equal "course2"
     tf.Next() |> should be False
 
-    tf.Close()
     tx.Commit()
 
 [<Fact>]
@@ -143,7 +141,7 @@ let ``undo insert`` () =
     TableInfo.tableFileName ti
     |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
 
-    let tf =
+    use tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     tf.Insert()
@@ -176,7 +174,6 @@ let ``undo insert`` () =
     |> should equal "course2"
     tf.Next() |> should be False
 
-    tf.Close()
     tx.Commit()
 
 [<Fact>]
@@ -194,7 +191,7 @@ let ``undo delete`` () =
     TableInfo.tableFileName ti
     |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
 
-    let tf =
+    use tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
     tf.Insert()
@@ -234,5 +231,4 @@ let ``undo delete`` () =
     |> should equal "course2"
     tf.Next() |> should be False
 
-    tf.Close()
     tx.Commit()

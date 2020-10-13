@@ -24,6 +24,8 @@ type SlottedPage =
       BlockId: BlockId
       GetDeletedRecordId: unit -> RecordId
       SetDeletedRecordId: RecordId -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 module SlottedPage =
     let DeletedSlotSize =

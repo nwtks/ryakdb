@@ -47,6 +47,8 @@ type BTreePage =
       CopyRecord: int32 -> int32 -> unit
       SetValueUnchecked: int32 -> string -> DbConstant -> unit
       Close: unit -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 module BTreePage =
     let appendBlock txBuffer txConcurrency schema fileName flags =
@@ -230,7 +232,7 @@ module BTreePage =
         let newBlockId =
             appendBlock txBuffer txConcurrency schema (BlockId.fileName blockId) flags
 
-        let newPage =
+        use newPage =
             newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (List.length flags)
 
         transferRecords
@@ -244,7 +246,6 @@ module BTreePage =
             newPage
             0
             (countOfRecords - splitSlot)
-        newPage.Close()
         BlockId.blockNo newBlockId
 
     let close txBuffer currentBuffer =

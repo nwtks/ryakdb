@@ -63,14 +63,11 @@ module TableCatalogService =
                 false
 
         let findTcatInfo tcatInfo =
-            let tcatfile =
+            use tcatfile =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.BeforeFirst()
-            let found = findTcatfile tcatfile
-            tcatfile.Close()
-
-            found
+            findTcatfile tcatfile
 
         let rec addField fcatfile schema =
             if fcatfile.Next() then
@@ -87,14 +84,11 @@ module TableCatalogService =
                 schema
 
         let createSchema fcatInfo =
-            let fcatfile =
+            use fcatfile =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             fcatfile.BeforeFirst()
-            let schema = Schema.newSchema () |> addField fcatfile
-            fcatfile.Close()
-
-            schema
+            Schema.newSchema () |> addField fcatfile
 
         if newTcatInfo () |> findTcatInfo then
             newFcatInfo ()
@@ -106,15 +100,13 @@ module TableCatalogService =
 
     let createTable fileService tx tableName schema =
         let addTcatInfo tcatInfo =
-            let tcatfile =
+            use tcatfile =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.Insert()
 
             DbConstant.newVarchar tableName
             |> tcatfile.SetVal TcatTableName
-
-            tcatfile.Close()
 
         let addFieldName fcatfile fieldName =
             fcatfile.Insert()
@@ -135,13 +127,11 @@ module TableCatalogService =
             |> fcatfile.SetVal FcatTypeArg
 
         let addFcatInfo fcatInfo =
-            let fcatfile =
+            use fcatfile =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             schema.Fields()
             |> List.iter (addFieldName fcatfile)
-
-            fcatfile.Close()
 
         if tableName <> Tcat && tableName <> Fcat
         then formatFileHeader fileService tx tableName
@@ -152,8 +142,11 @@ module TableCatalogService =
     let dropTable fileService tx tableName =
         let removeTableFile fileService =
             getTableInfo fileService tx tableName
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf -> tf.Remove())
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
+                tf.Remove())
 
         let rec deleteTcatfile tcatfile =
             if tcatfile.Next() then
@@ -163,12 +156,11 @@ module TableCatalogService =
                 deleteTcatfile tcatfile
 
         let deleteTcatInfo tcatInfo =
-            let tcatfile =
+            use tcatfile =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
 
             tcatfile.BeforeFirst()
             deleteTcatfile tcatfile
-            tcatfile.Close()
 
         let rec deleteFcatfile fcatfile =
             if fcatfile.Next() then
@@ -178,12 +170,11 @@ module TableCatalogService =
                 deleteFcatfile fcatfile
 
         let deleteFcatInfo fcatInfo =
-            let fcatfile =
+            use fcatfile =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
 
             fcatfile.BeforeFirst()
             deleteFcatfile fcatfile
-            fcatfile.Close()
 
         removeTableFile fileService
         newTcatInfo () |> deleteTcatInfo

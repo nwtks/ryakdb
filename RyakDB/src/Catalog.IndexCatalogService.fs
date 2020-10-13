@@ -89,16 +89,12 @@ module IndexCatalogService =
 
     let findIcatByIndexName fileService tableService tx indexName =
         tableService.GetTableInfo tx Icat
-        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.bind (fun tf ->
+        |> Option.bind (fun ti ->
+            use tf =
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             tf.BeforeFirst()
-
-            let index =
-                findIcatfileByIndexName tableService tx tf indexName
-
-            tf.Close()
-
-            index)
+            findIcatfileByIndexName tableService tx tf indexName)
 
     let rec findIcatfileByTableName tableService tx (tf: TableFile) tableName indexes =
         if tf.Next() then
@@ -115,16 +111,12 @@ module IndexCatalogService =
 
     let findIcatByTableName fileService tableService tx tableName =
         tableService.GetTableInfo tx Icat
-        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.map (fun tf ->
+        |> Option.map (fun ti ->
+            use tf =
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             tf.BeforeFirst()
-
-            let indexes =
-                findIcatfileByTableName tableService tx tf tableName []
-
-            tf.Close()
-
-            indexes)
+            findIcatfileByTableName tableService tx tf tableName [])
         |> Option.defaultValue []
 
     let rec findKcatfile (tf: TableFile) indexName fields =
@@ -141,20 +133,21 @@ module IndexCatalogService =
 
     let findFields fileService tableService tx indexName =
         tableService.GetTableInfo tx Kcat
-        |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.map (fun tf ->
-            tf.BeforeFirst()
-            let fields = findKcatfile tf indexName []
-            tf.Close()
+        |> Option.map (fun ti ->
+            use tf =
+                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            fields)
+            tf.BeforeFirst()
+            findKcatfile tf indexName [])
         |> Option.defaultValue []
 
     let createIndex fileService tableService tx indexName indexType tableName fields =
         let createIcatfile tableService =
             tableService.GetTableInfo tx Icat
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf ->
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
                 tf.Insert()
 
                 DbConstant.newVarchar indexName
@@ -167,14 +160,14 @@ module IndexCatalogService =
                 | Hash -> 1
                 | BTree -> 2
                 |> IntDbConstant
-                |> tf.SetVal IcatIdxType
-
-                tf.Close())
+                |> tf.SetVal IcatIdxType)
 
         let createKcatfile tableService =
             tableService.GetTableInfo tx Kcat
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf ->
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
                 fields
                 |> List.iter (fun field ->
                     tf.Insert()
@@ -183,9 +176,7 @@ module IndexCatalogService =
                     |> tf.SetVal KcatIdxName
 
                     DbConstant.newVarchar field
-                    |> tf.SetVal KcatKeyName
-
-                    tf.Close()))
+                    |> tf.SetVal KcatKeyName))
 
         createIcatfile tableService
         createKcatfile tableService
@@ -200,11 +191,12 @@ module IndexCatalogService =
 
         let dropIcat tableService =
             tableService.GetTableInfo tx Icat
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf ->
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
                 tf.BeforeFirst()
-                deleteIcatfile tf indexName
-                tf.Close())
+                deleteIcatfile tf indexName)
 
         let rec deleteKcatfile (tf: TableFile) indexName =
             if tf.Next() then
@@ -215,11 +207,12 @@ module IndexCatalogService =
 
         let dropKcat tableService =
             tableService.GetTableInfo tx Kcat
-            |> Option.map (newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-            |> Option.iter (fun tf ->
+            |> Option.iter (fun ti ->
+                use tf =
+                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
                 tf.BeforeFirst()
-                deleteKcatfile tf indexName
-                tf.Close())
+                deleteKcatfile tf indexName)
 
         dropIcat tableService
         dropKcat tableService

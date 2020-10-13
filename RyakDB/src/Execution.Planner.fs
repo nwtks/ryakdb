@@ -83,7 +83,7 @@ let newQueryPlanner fileService bufferPool catalogService =
 
 module UpdatePlanner =
     let executeInsert fileService catalogService tx tableName fieldNames values =
-        let scan =
+        use scan =
             match catalogService.GetTableInfo tx tableName with
             | Some ti -> Plan.newTablePlan tx ti
             | _ -> failwith ("Not found table" + tableName)
@@ -92,11 +92,10 @@ module UpdatePlanner =
         scan.Insert()
         List.zip fieldNames values
         |> List.iter (fun (field, value) -> scan.SetVal field value)
-        scan.Close()
         1
 
     let executeDelete fileService catalogService tx tableName predicate =
-        let scan =
+        use scan =
             match catalogService.GetTableInfo tx tableName with
             | Some ti -> Plan.newTablePlan tx ti
             | _ -> failwith ("Not found table" + tableName)
@@ -111,12 +110,10 @@ module UpdatePlanner =
                 i
 
         scan.BeforeFirst()
-        let count = deleteAll 0
-        scan.Close()
-        count
+        deleteAll 0
 
     let executeModify fileService catalogService tx tableName predicate fieldValues =
-        let scan =
+        use scan =
             match catalogService.GetTableInfo tx tableName with
             | Some ti -> Plan.newTablePlan tx ti
             | _ -> failwith ("Not found table" + tableName)
@@ -132,9 +129,7 @@ module UpdatePlanner =
                 i
 
         scan.BeforeFirst()
-        let count = modifyAll 0
-        scan.Close()
-        count
+        modifyAll 0
 
     let executeCreateTable catalogService tx tableName schema =
         catalogService.CreateTable tx tableName schema

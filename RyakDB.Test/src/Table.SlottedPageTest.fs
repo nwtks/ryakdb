@@ -33,7 +33,7 @@ let ``insert read delete`` () =
 
     tx.Buffer.Unpin buff
 
-    let sp1 =
+    use sp1 =
         newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable count = 0
@@ -44,9 +44,8 @@ let ``insert read delete`` () =
         sp1.SetVal "title" (DbConstant.newVarchar ("course" + insertId.ToString()))
         insertId <- insertId + 1
         count <- count + 1
-    sp1.Close()
 
-    let sp2 =
+    use sp2 =
         newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable readId = 0
@@ -64,10 +63,9 @@ let ``insert read delete`` () =
         |> should equal readId
 
         readId <- readId + 1
-    sp2.Close()
     readId |> should equal count
 
-    let sp3 =
+    use sp3 =
         newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable deletedCount = 0
@@ -76,15 +74,13 @@ let ``insert read delete`` () =
             RecordId.newBlockRecordId -1 "SlottedPageTest.tbl" -1L
             |> sp3.Delete
             deletedCount <- deletedCount + 1
-    sp3.Close()
     deletedCount |> should equal (count / 3)
 
-    let sp4 =
+    use sp4 =
         newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     while sp4.Next() do
         sp4.GetVal "deptid"
         |> should not' (equal (BigIntDbConstant 3000L))
-    sp4.Close()
 
     tx.Commit()

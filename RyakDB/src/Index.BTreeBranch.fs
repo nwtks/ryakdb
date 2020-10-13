@@ -24,6 +24,8 @@ type BTreeBranch =
       Insert: BTreeBranchEntry -> BTreeBranchEntry option
       MakeNewRoot: BTreeBranchEntry -> unit
       Close: unit -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 module BTreeBranch =
     let ChildBlockNo = "child"

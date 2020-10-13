@@ -34,7 +34,7 @@ let insert () =
     |> ignore
     let blockId = BlockId.newBlockId filename 0L
     for i in 0 .. 20 do
-        let leaf =
+        use leaf =
             SearchKey.newSearchKey [ IntDbConstant i ]
             |> SearchRange.newSearchRangeBySearchKey
             |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
@@ -42,9 +42,8 @@ let insert () =
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert
         |> ignore
-        leaf.Close()
 
-    let leaf =
+    use leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
                                                  (IntDbConstant 0 |> Some)
                                                  true
@@ -57,7 +56,6 @@ let insert () =
         leaf.Next() |> should be True
         leaf.GetDataRecordId()
         |> should equal (RecordId.newRecordId i indexBlockId)
-    leaf.Close()
 
     tx.Commit()
 
@@ -83,7 +81,7 @@ let delete () =
     |> ignore
     let blockId = BlockId.newBlockId filename 0L
     for i in 0 .. 20 do
-        let leaf =
+        use leaf =
             SearchKey.newSearchKey [ IntDbConstant i ]
             |> SearchRange.newSearchRangeBySearchKey
             |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
@@ -91,18 +89,16 @@ let delete () =
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert
         |> ignore
-        leaf.Close()
 
     for i in 0 .. 20 do
-        let leaf =
+        use leaf =
             SearchKey.newSearchKey [ IntDbConstant i ]
             |> SearchRange.newSearchRangeBySearchKey
             |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId |> leaf.Delete
-        leaf.Close()
 
-    let leaf =
+    use leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
                                                  (IntDbConstant 0 |> Some)
                                                  true
@@ -111,7 +107,6 @@ let delete () =
         |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
     leaf.GetCountOfRecords() |> should equal 0
-    leaf.Close()
 
     tx.Commit()
 
@@ -146,7 +141,7 @@ let split () =
 
     let mutable newEntry = None
     for i in 0 .. count do
-        let leaf =
+        use leaf =
             SearchKey.newSearchKey [ IntDbConstant i ]
             |> SearchRange.newSearchRangeBySearchKey
             |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
@@ -154,10 +149,10 @@ let split () =
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert
         |> Option.iter (fun e -> newEntry <- Some(e))
-        leaf.Close()
+
     if Option.isNone newEntry then failwith "Not split"
 
-    let leaf =
+    use leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
                                                  (IntDbConstant 0 |> Some)
                                                  true
@@ -168,17 +163,15 @@ let split () =
     let mutable cnt = 0
     while leaf.Next() do
         cnt <- cnt + 1
-    leaf.Close()
     cnt |> should equal (count + 1)
 
     for i in 0 .. count do
-        let leaf =
+        use leaf =
             SearchKey.newSearchKey [ IntDbConstant i ]
             |> SearchRange.newSearchRangeBySearchKey
             |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId |> leaf.Delete
-        leaf.Close()
 
     tx.Commit()
 
@@ -216,15 +209,14 @@ let overflow () =
         |> SearchRange.newSearchRangeBySearchKey
 
     for i in 0 .. count do
-        let leaf =
+        use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType insertRange
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert
         |> ignore
-        leaf.Close()
 
-    let leaf =
+    use leaf =
         SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
                                                  (IntDbConstant 0 |> Some)
                                                  true
@@ -235,14 +227,12 @@ let overflow () =
     let mutable cnt = 0
     while leaf.Next() do
         cnt <- cnt + 1
-    leaf.Close()
     cnt |> should equal (count + 1)
 
     for i in 0 .. count do
-        let leaf =
+        use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType insertRange
 
         RecordId.newRecordId i indexBlockId |> leaf.Delete
-        leaf.Close()
 
     tx.Commit()

@@ -16,6 +16,8 @@ type BTreeLeaf =
       Insert: RecordId -> BTreeBranchEntry option
       Delete: RecordId -> unit
       Close: unit -> unit }
+    interface System.IDisposable with
+        member this.Dispose() = this.Close()
 
 module BTreeLeaf =
     type BTreeLeafState =
@@ -243,7 +245,7 @@ module BTreeLeaf =
                 false, newstate
 
         let recoverOverflowFlag page moveFrom =
-            let fromPage =
+            use fromPage =
                 BlockId.newBlockId (BlockId.fileName page.BlockId) moveFrom
                 |> initBTreePage txBuffer txConcurrency txRecovery schema
 
@@ -252,8 +254,6 @@ module BTreeLeaf =
             then -1L
             else overflow
             |> setOverflowBlockNo fromPage
-
-            fromPage.Close()
 
         if not (searchRange.IsSingleValue()) then failwith "Not supported"
 

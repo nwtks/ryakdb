@@ -24,8 +24,10 @@ module TestInit =
             db.Catalog.CreateTable tx "dept" sch)
 
         db.Catalog.GetTableInfo tx "dept"
-        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.iter (fun tf ->
+        |> Option.iter (fun ti ->
+            use tf =
+                newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             for i in 1 .. deptMax do
                 tf.Insert()
                 tf.SetVal "d_id" (IntDbConstant i)
@@ -45,8 +47,10 @@ module TestInit =
             db.Catalog.CreateTable tx "course" sch)
 
         db.Catalog.GetTableInfo tx "course"
-        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.iter (fun tf ->
+        |> Option.iter (fun ti ->
+            use tf =
+                newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             for i in 1 .. courseMax do
                 tf.Insert()
                 tf.SetVal "c_id" (IntDbConstant i)
@@ -68,8 +72,10 @@ module TestInit =
             db.Catalog.CreateTable tx "student" sch)
 
         db.Catalog.GetTableInfo tx "student"
-        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.iter (fun tf ->
+        |> Option.iter (fun ti ->
+            use tf =
+                newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             for i in 1 .. studentMax do
                 tf.Insert()
                 tf.SetVal "s_id" (IntDbConstant i)
@@ -92,8 +98,10 @@ module TestInit =
             db.Catalog.CreateTable tx "section" sch)
 
         db.Catalog.GetTableInfo tx "section"
-        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.iter (fun tf ->
+        |> Option.iter (fun ti ->
+            use tf =
+                newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             for i in 1 .. sectionMax do
                 tf.Insert()
                 tf.SetVal "sec_id" (IntDbConstant i)
@@ -116,8 +124,10 @@ module TestInit =
             db.Catalog.CreateTable tx "enroll" sch)
 
         db.Catalog.GetTableInfo tx "enroll"
-        |> Option.map (newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true)
-        |> Option.iter (fun tf ->
+        |> Option.iter (fun ti ->
+            use tf =
+                newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+
             let grades = [| "A+"; "A"; "B"; "C"; "D" |]
             for i in 1 .. enrollMax do
                 tf.Insert()

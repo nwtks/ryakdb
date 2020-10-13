@@ -253,7 +253,7 @@ let ``table record`` () =
     let tx1 =
         db.Transaction.NewTransaction false Serializable
 
-    let tf1 =
+    use tf1 =
         db.Catalog.GetTableInfo tx1 "RecoveryTest"
         |> Option.get
         |> newTableFile db.File tx1.Buffer tx1.Concurrency tx1.Recovery tx1.ReadOnly true
@@ -263,13 +263,12 @@ let ``table record`` () =
     tf1.SetVal "title" (DbConstant.newVarchar "course1")
     tf1.SetVal "majorid" (BigIntDbConstant 1001L)
 
-    tf1.Close()
     tx1.Commit()
 
     let tx2 =
         db.Transaction.NewTransaction false Serializable
 
-    let tf2 =
+    use tf2 =
         db.Catalog.GetTableInfo tx2 "RecoveryTest"
         |> Option.get
         |> newTableFile db.File tx2.Buffer tx2.Concurrency tx2.Recovery tx2.ReadOnly true
@@ -281,13 +280,12 @@ let ``table record`` () =
     |> should equal "course1"
     tf2.Delete()
 
-    tf2.Close()
     tx2.Rollback()
 
     let tx3 =
         db.Transaction.NewTransaction false Serializable
 
-    let tf3 =
+    use tf3 =
         db.Catalog.GetTableInfo tx3 "RecoveryTest"
         |> Option.get
         |> newTableFile db.File tx3.Buffer tx3.Concurrency tx3.Recovery tx3.ReadOnly true
@@ -304,13 +302,12 @@ let ``table record`` () =
     tf3.SetVal "title" (DbConstant.newVarchar "course2")
     tf3.SetVal "majorid" (BigIntDbConstant 1002L)
 
-    tf3.Close()
     tx3.Rollback()
 
     let tx4 =
         db.Transaction.NewTransaction false Serializable
 
-    let tf4 =
+    use tf4 =
         db.Catalog.GetTableInfo tx4 "RecoveryTest"
         |> Option.get
         |> newTableFile db.File tx4.Buffer tx4.Concurrency tx4.Recovery tx4.ReadOnly true
@@ -322,7 +319,6 @@ let ``table record`` () =
     |> should equal "course1"
     tf4.Next() |> should be False
 
-    tf4.Close()
     db.Catalog.DropTable tx4 "RecoveryTest"
     tx4.Commit()
 
@@ -356,7 +352,7 @@ let ``B-tree index`` () =
     let tx1 =
         db.Transaction.NewTransaction false Serializable
 
-    let index1 =
+    use index1 =
         db.Catalog.GetIndexInfosByField tx1 "RecoveryTest" "cid"
         |> List.head
         |> IndexFactory.newIndex db.File tx1
@@ -365,13 +361,12 @@ let ``B-tree index`` () =
     |> Array.iter (fun id -> index1.Insert true key5 id)
     index1.Insert true key7 rid2
 
-    index1.Close()
     tx1.Commit()
 
     let tx2 =
         db.Transaction.NewTransaction false Serializable
 
-    let index2 =
+    use index2 =
         db.Catalog.GetIndexInfosByField tx2 "RecoveryTest" "cid"
         |> List.head
         |> IndexFactory.newIndex db.File tx2
@@ -389,13 +384,12 @@ let ``B-tree index`` () =
     index2.GetDataRecordId() |> should equal rid2
     index2.Next() |> should be False
 
-    index2.Close()
     tx2.Commit()
 
     let tx3 =
         db.Transaction.NewTransaction false Serializable
 
-    let index3 =
+    use index3 =
         db.Catalog.GetIndexInfosByField tx3 "RecoveryTest" "cid"
         |> List.head
         |> IndexFactory.newIndex db.File tx3
@@ -403,13 +397,12 @@ let ``B-tree index`` () =
     index3.Delete true key7 rid2
     index3.Insert true key777 rid3
 
-    index3.Close()
     tx3.Rollback()
 
     let tx4 =
         db.Transaction.NewTransaction false Serializable
 
-    let index4 =
+    use index4 =
         db.Catalog.GetIndexInfosByField tx4 "RecoveryTest" "cid"
         |> List.head
         |> IndexFactory.newIndex db.File tx4
@@ -423,6 +416,5 @@ let ``B-tree index`` () =
     |> index4.BeforeFirst
     index4.Next() |> should be False
 
-    index4.Close()
     db.Catalog.DropTable tx4 "RecoveryTest"
     tx4.Commit()
