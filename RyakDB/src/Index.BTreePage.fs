@@ -226,10 +226,9 @@ module BTreePage =
               flags
               =
         let countOfRecords = getCountOfRecords buffer
-        let (BlockId (filename, _)) = blockId
 
         let newBlockId =
-            appendBlock txBuffer txConcurrency schema filename flags
+            appendBlock txBuffer txConcurrency schema (BlockId.fileName blockId) flags
 
         let newPage =
             newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (List.length flags)
@@ -246,8 +245,7 @@ module BTreePage =
             0
             (countOfRecords - splitSlot)
         newPage.Close()
-        let (BlockId (_, blockNo)) = newBlockId
-        blockNo
+        BlockId.blockNo newBlockId
 
     let close txBuffer currentBuffer =
         currentBuffer |> Option.iter txBuffer.Unpin

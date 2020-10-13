@@ -95,8 +95,9 @@ module BTreeBranch =
     let searchForInsert txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
         let rec searchChild branchesMayBeUpdated page childBlockNo =
             if getLevel page > 0L then
-                let (BlockId (pagefile, _)) = page.BlockId
-                let childBlockId = BlockId.newBlockId pagefile childBlockNo
+                let childBlockId =
+                    BlockId.newBlockId (BlockId.fileName page.BlockId) childBlockNo
+
                 txConcurrency.CrabDownBranchBlockForModification childBlockId
 
                 let childPage =
@@ -132,8 +133,9 @@ module BTreeBranch =
     let searchForDelete txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
         let rec searchChild page childBlockNo =
             if getLevel page > 0L then
-                let (BlockId (pagefile, _)) = page.BlockId
-                let childBlockId = BlockId.newBlockId pagefile childBlockNo
+                let childBlockId =
+                    BlockId.newBlockId (BlockId.fileName page.BlockId) childBlockNo
+
                 txConcurrency.CrabDownBranchBlockForRead childBlockId
 
                 let childPage =
@@ -165,8 +167,9 @@ module BTreeBranch =
     let searchForRead txBuffer txConcurrency txRecovery schema keyType page leafFileName searchKey =
         let rec searchChild page childBlockNo =
             if getLevel page > 0L then
-                let (BlockId (pagefile, _)) = page.BlockId
-                let childBlockId = BlockId.newBlockId pagefile childBlockNo
+                let childBlockId =
+                    BlockId.newBlockId (BlockId.fileName page.BlockId) childBlockNo
+
                 txConcurrency.CrabDownBranchBlockForRead childBlockId
 
                 let childPage =
@@ -216,14 +219,12 @@ module BTreeBranch =
             None
 
     let makeNewRoot txBuffer txConcurrency txRecovery schema keyType page entry =
-        let (BlockId (fileName, blockNo)) = page.BlockId
-
         let rootPage =
-            if blockNo = 0L then
+            if BlockId.blockNo page.BlockId = 0L then
                 page
             else
                 page.Close()
-                BlockId.newBlockId fileName 0L
+                BlockId.newBlockId (BlockId.fileName page.BlockId) 0L
                 |> initBTreePage txBuffer txConcurrency txRecovery schema
 
         let firstKey = getKey rootPage 0 keyType

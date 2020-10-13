@@ -63,7 +63,7 @@ module BufferPool =
                         else
                             System.Threading.Interlocked.Exchange(&state.LastReplacedBuff, currBlk)
                             |> ignore
-                            Some(pin buffer)
+                            pin buffer |> Some
                     finally
                         System.Threading.Monitor.Exit buffer
                 else
@@ -100,11 +100,10 @@ module BufferPool =
 
         let assignBuffer buffer = buffer.AssignToBlock blockId
 
-        let (BlockId (fileName, _)) = blockId
-        lock (prepareAnchor state.Anchors fileName) (fun () ->
+        lock (prepareAnchor state.Anchors (BlockId.fileName blockId)) (fun () ->
             match findExistingBuffer state blockId with
             | Some buffer -> pinExistBuffer buffer
-            | None -> pinNewBuffer state assignBuffer)
+            | _ -> pinNewBuffer state assignBuffer)
 
     let pinNew state fileName formatter =
         let assignBuffer buffer = buffer.AssignToNew fileName formatter

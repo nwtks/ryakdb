@@ -33,21 +33,27 @@ let ``create table`` () =
     db.Catalog.CreateTable tx t2 sch2
 
     let ti1 = db.Catalog.GetTableInfo tx t1
-    (ti1 |> Option.get).TableName |> should equal t1
-    (ti1 |> Option.get).Schema.HasField "AAA"
+    ti1
+    |> Option.get
+    |> TableInfo.tableName
+    |> should equal t1
+    (ti1 |> Option.get |> TableInfo.schema).HasField "AAA"
     |> should be True
-    (ti1 |> Option.get).Schema.HasField "BBB"
+    (ti1 |> Option.get |> TableInfo.schema).HasField "BBB"
     |> should be True
-    (ti1 |> Option.get).Schema.HasField "CCC"
+    (ti1 |> Option.get |> TableInfo.schema).HasField "CCC"
     |> should be False
 
     let ti2 = db.Catalog.GetTableInfo tx t2
-    (ti2 |> Option.get).TableName |> should equal t2
-    (ti2 |> Option.get).Schema.HasField "AAA"
+    ti2
+    |> Option.get
+    |> TableInfo.tableName
+    |> should equal t2
+    (ti2 |> Option.get |> TableInfo.schema).HasField "AAA"
     |> should be True
-    (ti2 |> Option.get).Schema.HasField "BBB"
+    (ti2 |> Option.get |> TableInfo.schema).HasField "BBB"
     |> should be False
-    (ti2 |> Option.get).Schema.HasField "CCC"
+    (ti2 |> Option.get |> TableInfo.schema).HasField "CCC"
     |> should be True
 
     db.Catalog.GetTableInfo tx "test_create_table_T3"

@@ -40,21 +40,33 @@ let ``create index`` () =
     db.Catalog.CreateIndex tx i3 Hash tbl [ "CCC" ]
 
     let index1 = db.Catalog.GetIndexInfoByName tx i1
-    (index1 |> Option.get).IndexName
+    index1
+    |> Option.get
+    |> IndexInfo.indexName
     |> should equal i1
-    (index1 |> Option.get).FieldNames
+    index1
+    |> Option.get
+    |> IndexInfo.fieldNames
     |> should equal [ "AAA" ]
 
     let index2 = db.Catalog.GetIndexInfoByName tx i2
-    (index2 |> Option.get).IndexName
+    index2
+    |> Option.get
+    |> IndexInfo.indexName
     |> should equal i2
-    (index2 |> Option.get).FieldNames
+    index2
+    |> Option.get
+    |> IndexInfo.fieldNames
     |> should equal [ "BBB" ]
 
     let index3 = db.Catalog.GetIndexInfoByName tx i3
-    (index3 |> Option.get).IndexName
+    index3
+    |> Option.get
+    |> IndexInfo.indexName
     |> should equal i3
-    (index3 |> Option.get).FieldNames
+    index3
+    |> Option.get
+    |> IndexInfo.fieldNames
     |> should equal [ "CCC" ]
 
     db.Catalog.GetIndexInfoByName tx "test_create_index_I4"
@@ -63,20 +75,32 @@ let ``create index`` () =
     let indexes1 =
         db.Catalog.GetIndexInfosByField tx tbl "AAA"
 
-    indexes1.Head.IndexName |> should equal i1
-    indexes1.Head.FieldNames |> should equal [ "AAA" ]
+    indexes1.Head
+    |> IndexInfo.indexName
+    |> should equal i1
+    indexes1.Head
+    |> IndexInfo.fieldNames
+    |> should equal [ "AAA" ]
 
     let indexes2 =
         db.Catalog.GetIndexInfosByField tx tbl "BBB"
 
-    indexes2.Head.IndexName |> should equal i2
-    indexes2.Head.FieldNames |> should equal [ "BBB" ]
+    indexes2.Head
+    |> IndexInfo.indexName
+    |> should equal i2
+    indexes2.Head
+    |> IndexInfo.fieldNames
+    |> should equal [ "BBB" ]
 
     let indexes3 =
         db.Catalog.GetIndexInfosByField tx tbl "CCC"
 
-    indexes3.Head.IndexName |> should equal i3
-    indexes3.Head.FieldNames |> should equal [ "CCC" ]
+    indexes3.Head
+    |> IndexInfo.indexName
+    |> should equal i3
+    indexes3.Head
+    |> IndexInfo.fieldNames
+    |> should equal [ "CCC" ]
 
     db.Catalog.GetIndexedFields tx tbl
     |> should equal [ "AAA"; "BBB"; "CCC" ]

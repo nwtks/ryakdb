@@ -36,9 +36,9 @@ module HashIndex =
         |> List.mapi (fun i _ -> tableFile.GetVal(KeyPrefix + i.ToString()))
         |> SearchKey.newSearchKey
 
-    let preLoadToMemory fileService txBuffer txConcurrency indexInfo bucketsCount =
+    let preLoadToMemory fileService txBuffer txConcurrency indexName bucketsCount =
         [ 0 .. bucketsCount - 1 ]
-        |> List.map (fun i -> indexInfo.IndexName + i.ToString() + ".tbl")
+        |> List.map (fun i -> indexName + i.ToString() + ".tbl")
         |> List.iter (fun tblName ->
             [ 0L .. (fileSize fileService txConcurrency tblName) - 1L ]
             |> List.iter (fun j ->
@@ -46,11 +46,11 @@ module HashIndex =
                 |> txBuffer.Pin
                 |> ignore))
 
-    let beforeFirst fileService txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType bucketsCount searchRange =
+    let beforeFirst fileService txBuffer txConcurrency txRecovery txReadOnly indexName keyType bucketsCount searchRange =
         if not (searchRange.IsSingleValue()) then failwith "Not supported"
         let searchKey = searchRange.ToSearchKey()
         let bucket = searchKey.GetHashCode() % bucketsCount
-        let tblName = indexInfo.IndexName + bucket.ToString()
+        let tblName = indexName + bucket.ToString()
 
         let ti =
             keyTypeToSchema keyType
@@ -60,7 +60,7 @@ module HashIndex =
             newTableFile fileService txBuffer txConcurrency txRecovery txReadOnly false ti
 
         if tf.FileSize() = 0L
-        then TableFile.formatFileHeader fileService txBuffer txConcurrency ti.FileName
+        then TableFile.formatFileHeader fileService txBuffer txConcurrency (TableInfo.tableFileName ti)
 
         tf.BeforeFirst()
         { SearchKey = searchKey
@@ -79,7 +79,7 @@ module HashIndex =
         | Some { SearchKey = searchKey; TableFile = tf } -> searchNext keyType tf searchKey
         | _ -> false
 
-    let getDataRecordId indexInfo state =
+    let getDataRecordId tableFileName state =
         match state with
         | Some { TableFile = tf } ->
             let blockNo =
@@ -88,11 +88,11 @@ module HashIndex =
             let slotNo =
                 tf.GetVal FieldSlotNo |> DbConstant.toInt
 
-            RecordId.newBlockRecordId slotNo indexInfo.TableInfo.FileName blockNo
+            RecordId.newBlockRecordId slotNo tableFileName blockNo
         | _ -> failwith "Must call beforeFirst()"
 
     let insert txRecovery
-               indexInfo
+               indexName
                (tableFile: TableFile)
                doLogicalLogging
                key
@@ -113,10 +113,10 @@ module HashIndex =
         |> List.iteri (fun i t -> tableFile.SetVal (KeyPrefix + i.ToString()) t)
 
         if doLogicalLogging then
-            txRecovery.LogIndexInsertionEnd indexInfo.IndexName key blockNo slotNo
+            txRecovery.LogIndexInsertionEnd indexName key blockNo slotNo
             |> ignore
 
-    let delete txRecovery indexInfo tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
+    let delete txRecovery indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
         let rec searchDelete (tableFile: TableFile) blockNo slotNo =
             if tableFile.Next() then
                 let tfBlockNo =
@@ -135,7 +135,7 @@ module HashIndex =
         searchDelete tableFile blockNo slotNo
 
         if doLogicalLogging then
-            txRecovery.LogIndexDeletionEnd indexInfo.IndexName key blockNo slotNo
+            txRecovery.LogIndexDeletionEnd indexName key blockNo slotNo
             |> ignore
 
     let close state =
@@ -143,7 +143,10 @@ module HashIndex =
         |> Option.iter (fun s -> s.TableFile.Close())
 
 let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType bucketsCount =
+    let indexName = IndexInfo.indexName indexInfo
+    let tableFileName = IndexInfo.tableFileName indexInfo
     let mutable state = None
+
     { BeforeFirst =
           fun searchRange ->
               HashIndex.close state
@@ -154,13 +157,13 @@ let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexI
                       txConcurrency
                       txRecovery
                       txReadOnly
-                      indexInfo
+                      indexName
                       keyType
                       bucketsCount
                       searchRange
                   |> Some
       Next = fun () -> HashIndex.next keyType state
-      GetDataRecordId = fun () -> HashIndex.getDataRecordId indexInfo state
+      GetDataRecordId = fun () -> HashIndex.getDataRecordId tableFileName state
       Insert =
           fun doLogicalLogging key dataRecordId ->
               HashIndex.close state
@@ -174,11 +177,11 @@ let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexI
                          txConcurrency
                          txRecovery
                          txReadOnly
-                         indexInfo
+                         indexName
                          keyType
                          bucketsCount
 
-              HashIndex.insert txRecovery indexInfo st.TableFile doLogicalLogging key dataRecordId
+              HashIndex.insert txRecovery indexName st.TableFile doLogicalLogging key dataRecordId
       Delete =
           fun doLogicalLogging key dataRecordId ->
               HashIndex.close state
@@ -192,13 +195,13 @@ let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexI
                          txConcurrency
                          txRecovery
                          txReadOnly
-                         indexInfo
+                         indexName
                          keyType
                          bucketsCount
 
-              HashIndex.delete txRecovery indexInfo st.TableFile doLogicalLogging key dataRecordId
+              HashIndex.delete txRecovery indexName st.TableFile doLogicalLogging key dataRecordId
       Close =
           fun () ->
               HashIndex.close state
               state <- None
-      PreLoadToMemory = fun () -> HashIndex.preLoadToMemory fileService txBuffer txConcurrency indexInfo bucketsCount }
+      PreLoadToMemory = fun () -> HashIndex.preLoadToMemory fileService txBuffer txConcurrency indexName bucketsCount }

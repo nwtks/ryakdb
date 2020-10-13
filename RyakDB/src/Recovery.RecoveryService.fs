@@ -76,8 +76,7 @@ module RecoveryService =
 
     let logSetValClear logService compTxNo (buffer: Buffer) offset newValue undoNextLogSeqNo =
         let blockId = buffer.BlockId()
-        let (BlockId (fileName, _)) = blockId
-        if not (FileService.isTempFile fileName) then
+        if not (BlockId.fileName blockId |> FileService.isTempFile) then
             newSetValueClear
                 compTxNo
                 blockId
@@ -99,7 +98,7 @@ module RecoveryService =
                 let tf =
                     newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-                RecordId.newBlockRecordId slot ti.FileName blockNo
+                RecordId.newBlockRecordId slot (TableInfo.tableFileName ti) blockNo
                 |> tf.UndoInsert)
             logLogicalAbort logService txNo startLsn
         | TableFileDeleteEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
@@ -108,14 +107,14 @@ module RecoveryService =
                 let tf =
                     newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-                RecordId.newBlockRecordId slot ti.FileName blockNo
+                RecordId.newBlockRecordId slot (TableInfo.tableFileName ti) blockNo
                 |> tf.UndoDelete)
             logLogicalAbort logService txNo startLsn
         | IndexInsertEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
             catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
                 let idx = IndexFactory.newIndex fileService tx ii
-                RecordId.newBlockRecordId slot ii.TableInfo.FileName blockNo
+                RecordId.newBlockRecordId slot (IndexInfo.tableFileName ii) blockNo
                 |> idx.Delete false searchKey
                 idx.Close())
             logLogicalAbort logService txNo startLsn
@@ -123,7 +122,7 @@ module RecoveryService =
             catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
                 let idx = IndexFactory.newIndex fileService tx ii
-                RecordId.newBlockRecordId slot ii.TableInfo.FileName blockNo
+                RecordId.newBlockRecordId slot (IndexInfo.tableFileName ii) blockNo
                 |> idx.Insert false searchKey
                 idx.Close())
             logLogicalAbort logService txNo startLsn

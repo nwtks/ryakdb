@@ -193,8 +193,12 @@ module TableCatalogService =
         formatFileHeader fileService tx Tcat
         formatFileHeader fileService tx Fcat
 
-        createTable fileService tx Tcat (newTcatInfo ()).Schema
-        createTable fileService tx Fcat (newFcatInfo ()).Schema
+        newTcatInfo ()
+        |> TableInfo.schema
+        |> createTable fileService tx Tcat
+        newFcatInfo ()
+        |> TableInfo.schema
+        |> createTable fileService tx Fcat
 
 let newTableCatalogService fileService =
     { CreateTable = TableCatalogService.createTable fileService

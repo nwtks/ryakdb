@@ -31,7 +31,14 @@ module BTreeIndex =
         root.Close()
 
         let leaf =
-            newBTreeLeaf txBuffer txConcurrency txRecovery indexInfo.TableInfo.FileName leafBlockId keyType searchRange
+            newBTreeLeaf
+                txBuffer
+                txConcurrency
+                txRecovery
+                (IndexInfo.tableFileName indexInfo)
+                leafBlockId
+                keyType
+                searchRange
 
         leaf, branchesMayBeUpdated
 
@@ -116,8 +123,11 @@ module BTreeIndex =
                 root.Close())
 
         if doLogicalLogging then
-            let (RecordId (slotNo, BlockId (_, blockNo))) = dataRecordId
-            txRecovery.LogIndexInsertionEnd indexInfo.IndexName key blockNo slotNo
+            txRecovery.LogIndexInsertionEnd
+                (IndexInfo.indexName indexInfo)
+                key
+                (RecordId.blockNo dataRecordId)
+                (RecordId.slotNo dataRecordId)
             |> ignore
 
     let delete txBuffer
@@ -144,8 +154,11 @@ module BTreeIndex =
         leaf.Close()
 
         if doLogicalLogging then
-            let (RecordId (slotNo, BlockId (_, blockNo))) = dataRecordId
-            txRecovery.LogIndexDeletionEnd indexInfo.IndexName key blockNo slotNo
+            txRecovery.LogIndexDeletionEnd
+                (IndexInfo.indexName indexInfo)
+                key
+                (RecordId.blockNo dataRecordId)
+                (RecordId.slotNo dataRecordId)
             |> ignore
 
     let close leaf = leaf |> Option.iter (fun l -> l.Close())
@@ -173,10 +186,12 @@ module BTreeIndex =
 
 let newBTreeIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType =
     let leafFileName =
-        BTreeLeaf.getFileName indexInfo.IndexName
+        IndexInfo.indexName indexInfo
+        |> BTreeLeaf.getFileName
 
     let branchFileName =
-        BTreeBranch.getFileName indexInfo.IndexName
+        IndexInfo.indexName indexInfo
+        |> BTreeBranch.getFileName
 
     BTreeIndex.initLeaf fileService txBuffer txConcurrency keyType leafFileName
     BTreeIndex.initBranch fileService txBuffer txConcurrency keyType branchFileName

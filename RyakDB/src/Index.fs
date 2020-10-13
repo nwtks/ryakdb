@@ -21,11 +21,7 @@ type IndexType =
     | Hash
     | BTree
 
-type IndexInfo =
-    { IndexName: string
-      IndexType: IndexType
-      TableInfo: TableInfo
-      FieldNames: string list }
+type IndexInfo = IndexInfo of indexName: string * indexType: IndexType * tableInfo: TableInfo * fieldNames: string list
 
 type Index =
     { BeforeFirst: SearchRange -> unit
@@ -130,8 +126,17 @@ module SearchRange =
         |> newSearchRangeByRanges
 
 module IndexInfo =
+    let inline indexName (IndexInfo (indexName, _, _, _)) = indexName
+
+    let inline indexType (IndexInfo (_, indexType, _, _)) = indexType
+
+    let inline fieldNames (IndexInfo (_, _, _, fieldNames)) = fieldNames
+
+    let inline tableName (IndexInfo (_, _, TableInfo (tableName, _, _), _)) = tableName
+
+    let inline schema (IndexInfo (_, _, TableInfo (_, schema, _), _)) = schema
+
+    let inline tableFileName (IndexInfo (_, _, TableInfo (_, _, tableFileName), _)) = tableFileName
+
     let inline newIndexInfo indexName indexType tableInfo fieldNames =
-        { IndexName = indexName
-          IndexType = indexType
-          TableInfo = tableInfo
-          FieldNames = fieldNames }
+        IndexInfo(indexName, indexType, tableInfo, fieldNames)

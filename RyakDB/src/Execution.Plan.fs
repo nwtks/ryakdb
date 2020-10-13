@@ -20,7 +20,7 @@ type Plan =
 module Plan =
     let rec schema plan =
         match plan with
-        | TablePlan(tableInfo = ti) -> ti.Schema
+        | TablePlan(tableInfo = ti) -> TableInfo.schema ti
         | SelectPlan(plan = p) -> schema p
         | ProductPlan(schema = sch) -> sch
         | ProjectPlan(schema = sch) -> sch

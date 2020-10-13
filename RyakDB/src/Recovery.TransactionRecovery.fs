@@ -61,8 +61,7 @@ module TransactionRecovery =
 
     let logSetVal logService txNo buffer offset newValue =
         let blockId = buffer.BlockId()
-        let (BlockId (fileName, _)) = blockId
-        if FileService.isTempFile fileName then
+        if BlockId.fileName blockId |> FileService.isTempFile then
             None
         else
             newSetValueRecord txNo blockId offset (buffer.GetVal offset (DbConstant.dbType newValue)) newValue

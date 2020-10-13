@@ -26,13 +26,11 @@ module Scan =
         let tableFile =
             newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tableInfo
 
-        let schema = tableInfo.Schema
-
         { GetVal = fun field -> tableFile.GetVal field
           BeforeFirst = fun () -> tableFile.BeforeFirst()
           Close = fun () -> tableFile.Close()
           Next = fun () -> tableFile.Next()
-          HasField = schema.HasField
+          HasField = (TableInfo.schema tableInfo).HasField
           SetVal = tableFile.SetVal
           Insert = fun () -> tableFile.Insert()
           Delete = fun () -> tableFile.Delete()

@@ -43,7 +43,7 @@ let newTempTable fileService tx schema =
     let ti =
         TableInfo.newTableInfo (TempTable.nextTableName ()) schema
 
-    tx.Buffer.PinNew ti.FileName FileHeaderFormatter.format
+    tx.Buffer.PinNew (TableInfo.tableFileName ti) FileHeaderFormatter.format
     |> tx.Buffer.Unpin
 
     { OpenScan = fun () -> TempTable.openScan fileService tx ti }
@@ -126,26 +126,24 @@ module TempSlottedPage =
 
     let close tsp = tsp.SlottedPage.Close()
 
-    let newTempSlottedPage tx blockId tableInfo =
-        { SlottedPage = newSlottedPage tx.Buffer tx.Concurrency tx.Recovery blockId tableInfo false
-          Schema = tableInfo.Schema }
+    let newTempSlottedPage tx blockId schema =
+        { SlottedPage = newSlottedPage tx.Buffer tx.Concurrency tx.Recovery blockId schema false
+          Schema = schema }
 
 module MergeSort =
     let newTempSlottedPage tx schema tblcount =
-        let ti =
-            TableInfo.newTableInfo
-                (FileService.TmpFilePrefix
-                 + "TableFile"
-                 + "-"
-                 + tblcount.ToString()
-                 + "-"
-                 + tx.TransactionNo.ToString())
-                schema
+        let tableName =
+            FileService.TmpFilePrefix
+            + "TableFile"
+            + "-"
+            + tblcount.ToString()
+            + "-"
+            + tx.TransactionNo.ToString()
 
         let tsp =
-            newSlottedPageFormatter ti
-            |> tx.Buffer.PinNew ti.TableName
-            |> fun buff -> TempSlottedPage.newTempSlottedPage tx (buff.BlockId()) ti
+            newSlottedPageFormatter schema
+            |> tx.Buffer.PinNew tableName
+            |> fun buff -> TempSlottedPage.newTempSlottedPage tx (buff.BlockId()) schema
 
         tsp |> TempSlottedPage.moveToPageHead
         tsp

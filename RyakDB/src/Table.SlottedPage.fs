@@ -58,16 +58,16 @@ module SlottedPage =
         + offsetMap.[fieldName]
 
     let getValue txConcurrency (currentBuffer: Buffer) blockId currentSlotNo offset dbType =
-        let (BlockId (fileName, _)) = blockId
-        if not (FileService.isTempFile fileName) then
+        if not (BlockId.fileName blockId |> FileService.isTempFile) then
             RecordId.newRecordId currentSlotNo blockId
             |> txConcurrency.ReadRecord
 
         currentBuffer.GetVal offset dbType
 
     let setValue txConcurrency txRecovery doLog currentBuffer blockId offset value =
-        let (BlockId (fileName, _)) = blockId
-        if not (FileService.isTempFile fileName) then txConcurrency.ModifyFile fileName
+        if not (BlockId.fileName blockId |> FileService.isTempFile) then
+            BlockId.fileName blockId
+            |> txConcurrency.ModifyFile
 
         if doLog
         then txRecovery.LogSetVal currentBuffer offset value
@@ -117,11 +117,10 @@ module SlottedPage =
             (currentPosition slotSize currentSlotNo)
             + FlagSize
 
-        let (BlockId (fileName, _)) = blockId
         RecordId.newBlockRecordId
             (getValue txConcurrency currentBuffer blockId currentSlotNo (position + BlockId.BlockNoSize) IntDbType
              |> DbConstant.toInt)
-            fileName
+            (BlockId.fileName blockId)
             (getValue txConcurrency currentBuffer blockId currentSlotNo position BigIntDbType
              |> DbConstant.toLong)
 
@@ -215,9 +214,9 @@ module SlottedPage =
 
     let close txBuffer currentBuffer = currentBuffer |> txBuffer.Unpin
 
-let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
-    let slotSize = SlottedPage.slotSize tableInfo.Schema
-    let offsetMap = SlottedPage.offsetMap tableInfo.Schema
+let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
+    let slotSize = SlottedPage.slotSize schema
+    let offsetMap = SlottedPage.offsetMap schema
     let currentBuffer = txBuffer.Pin blockId
 
     let mutable currentSlotNo = Some -1
@@ -241,15 +240,7 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
           fun fieldName ->
               match currentSlotNo with
               | Some slotNo ->
-                  SlottedPage.getVal
-                      txConcurrency
-                      tableInfo.Schema
-                      currentBuffer
-                      blockId
-                      offsetMap
-                      slotSize
-                      slotNo
-                      fieldName
+                  SlottedPage.getVal txConcurrency schema currentBuffer blockId offsetMap slotSize slotNo fieldName
               | _ -> failwith "Closed page"
       SetVal =
           fun fieldName value ->
@@ -338,18 +329,18 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId tableInfo doLog =
               | _ -> failwith "Closed page" }
 
 module SlottedPageFormatter =
-    let makeDefaultSlottedPage tableInfo (offsetMap: Map<string, int32>) buffer position =
-        tableInfo.Schema.Fields()
+    let makeDefaultSlottedPage schema (offsetMap: Map<string, int32>) buffer position =
+        schema.Fields()
         |> List.iter (fun field ->
-            tableInfo.Schema.DbType field
+            schema.DbType field
             |> DbConstant.defaultConstant
             |> buffer.SetValue(position + 4 + offsetMap.[field]))
 
-let newSlottedPageFormatter tableInfo =
-    let offsetMap = SlottedPage.offsetMap tableInfo.Schema
-    let slotSize = SlottedPage.slotSize tableInfo.Schema
+let newSlottedPageFormatter schema =
+    let offsetMap = SlottedPage.offsetMap schema
+    let slotSize = SlottedPage.slotSize schema
     fun buffer ->
         [ 0 .. slotSize .. buffer.BufferSize - slotSize - 1 ]
         |> List.iter (fun position ->
             buffer.SetValue position SlottedPage.EmptyConst
-            SlottedPageFormatter.makeDefaultSlottedPage tableInfo offsetMap buffer position)
+            SlottedPageFormatter.makeDefaultSlottedPage schema offsetMap buffer position)

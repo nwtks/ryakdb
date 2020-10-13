@@ -28,7 +28,7 @@ let ``insert read delete`` () =
         db.Transaction.NewTransaction false Serializable
 
     FileHeaderFormatter.format
-    |> tx.Buffer.PinNew ti.FileName
+    |> tx.Buffer.PinNew(TableInfo.tableFileName ti)
     |> tx.Buffer.Unpin
 
     let tf =
@@ -92,7 +92,8 @@ let ``reuse slot`` () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency ti.FileName
+    TableInfo.tableFileName ti
+    |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
 
     let tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
@@ -139,7 +140,8 @@ let ``undo insert`` () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency ti.FileName
+    TableInfo.tableFileName ti
+    |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
 
     let tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
@@ -164,7 +166,7 @@ let ``undo insert`` () =
     |> DbConstant.toString
     |> should equal "course2"
 
-    RecordId.newBlockRecordId 0 ti.FileName 1L
+    RecordId.newBlockRecordId 0 (TableInfo.tableFileName ti) 1L
     |> tf.UndoInsert
 
     tf.BeforeFirst()
@@ -189,7 +191,8 @@ let ``undo delete`` () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency ti.FileName
+    TableInfo.tableFileName ti
+    |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
 
     let tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
@@ -215,9 +218,9 @@ let ``undo delete`` () =
     |> should equal "course2"
     tf.Delete()
 
-    RecordId.newBlockRecordId 0 ti.FileName 1L
+    RecordId.newBlockRecordId 0 (TableInfo.tableFileName ti) 1L
     |> tf.UndoDelete
-    RecordId.newBlockRecordId 1 ti.FileName 1L
+    RecordId.newBlockRecordId 1 (TableInfo.tableFileName ti) 1L
     |> tf.UndoDelete
 
     tf.BeforeFirst()

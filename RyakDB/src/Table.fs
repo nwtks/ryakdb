@@ -11,10 +11,7 @@ type Schema =
       HasField: string -> bool
       DbType: string -> DbType }
 
-type TableInfo =
-    { TableName: string
-      Schema: Schema
-      FileName: string }
+type TableInfo = TableInfo of tableName: string * schema: Schema * fileName: string
 
 type RecordId = RecordId of slotNo: int32 * blockId: BlockId
 
@@ -45,13 +42,25 @@ module Schema =
           DbType = fun fieldName -> dbType fieldTypes fieldName }
 
 module TableInfo =
+    let inline tableName (TableInfo (tableName, _, _)) = tableName
+
+    let inline schema (TableInfo (_, schema, _)) = schema
+
+    let inline tableFileName (TableInfo (_, _, tableFileName)) = tableFileName
+
     let inline newTableInfo tableName schema =
-        { TableName = tableName
-          Schema = schema
-          FileName = tableName + ".tbl" }
+        TableInfo(tableName, schema, tableName + ".tbl")
 
 module RecordId =
     let SlotNoSize = 4
+
+    let inline blockId (RecordId (_, blockId)) = blockId
+
+    let inline slotNo (RecordId (slotNo, _)) = slotNo
+
+    let inline fileName (RecordId (_, BlockId (fileName, _))) = fileName
+
+    let inline blockNo (RecordId (_, BlockId (_, blockNo))) = blockNo
 
     let inline newRecordId slotNo blockId = RecordId(slotNo, blockId)
 

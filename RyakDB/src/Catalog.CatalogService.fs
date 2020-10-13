@@ -36,7 +36,8 @@ let newCatalogService fileService =
           fun tx tableName ->
               indexService.GetIndexedFields tx tableName
               |> List.collect (indexService.GetIndexInfosByField tx tableName)
-              |> List.iter (fun ii -> indexService.DropIndex tx ii.IndexName)
+              |> List.map (IndexInfo.indexName)
+              |> List.iter (indexService.DropIndex tx)
               viewService.GetViewNamesByTable tx tableName
               |> List.iter (viewService.DropView tx)
               tableService.DropTable tx tableName

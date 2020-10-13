@@ -41,22 +41,23 @@ let newReadCommitted txNo lockService =
               |> lockService.ReleaseISLock txNo
       InsertBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.XLock txNo
               BlockIdLockerKey blockId |> lockService.XLock txNo
       ModifyBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.IXLock txNo
               BlockIdLockerKey blockId |> lockService.XLock txNo
       ReadBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.ISLock txNo
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.ReleaseISLock txNo
               BlockIdLockerKey blockId |> lockService.SLock txNo
               toReleaseSLockAtEndStatement <-
@@ -64,25 +65,27 @@ let newReadCommitted txNo lockService =
                   :: toReleaseSLockAtEndStatement
       ModifyRecord =
           fun recordId ->
-              let (RecordId (_, blockId)) = recordId
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.IXLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.IXLock txNo
               RecordIdLockerKey recordId
               |> lockService.XLock txNo
       ReadRecord =
           fun recordId ->
-              let (RecordId (_, blockId)) = recordId
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.ISLock txNo
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.ReleaseISLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.ISLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.ReleaseISLock txNo
               RecordIdLockerKey recordId
               |> lockService.SLock txNo
@@ -143,45 +146,48 @@ let newRepeatableRead txNo lockService =
               |> lockService.ReleaseISLock txNo
       InsertBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.XLock txNo
               BlockIdLockerKey blockId |> lockService.XLock txNo
       ModifyBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.IXLock txNo
               BlockIdLockerKey blockId |> lockService.XLock txNo
       ReadBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.ISLock txNo
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.ReleaseISLock txNo
               BlockIdLockerKey blockId |> lockService.SLock txNo
       ModifyRecord =
           fun recordId ->
-              let (RecordId (_, blockId)) = recordId
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.IXLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.IXLock txNo
               RecordIdLockerKey recordId
               |> lockService.XLock txNo
       ReadRecord =
           fun recordId ->
-              let (RecordId (_, blockId)) = recordId
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.ISLock txNo
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.ReleaseISLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.ISLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.ReleaseISLock txNo
               RecordIdLockerKey recordId
               |> lockService.SLock txNo
@@ -236,39 +242,39 @@ let newSerializable txNo lockService =
               |> lockService.ISLock txNo
       InsertBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.XLock txNo
               BlockIdLockerKey blockId |> lockService.XLock txNo
       ModifyBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.IXLock txNo
               BlockIdLockerKey blockId |> lockService.XLock txNo
       ReadBlock =
           fun blockId ->
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              BlockId.fileName blockId
+              |> FileNameLockerKey
               |> lockService.ISLock txNo
               BlockIdLockerKey blockId |> lockService.SLock txNo
       ModifyRecord =
           fun recordId ->
-              let (RecordId (_, blockId)) = recordId
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.IXLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.IXLock txNo
               RecordIdLockerKey recordId
               |> lockService.XLock txNo
       ReadRecord =
           fun recordId ->
-              let (RecordId (_, blockId)) = recordId
-              let (BlockId (fileName, _)) = blockId
-              FileNameLockerKey fileName
+              RecordId.fileName recordId
+              |> FileNameLockerKey
               |> lockService.ISLock txNo
-              BlockIdLockerKey blockId
+              RecordId.blockId recordId
+              |> BlockIdLockerKey
               |> lockService.ISLock txNo
               RecordIdLockerKey recordId
               |> lockService.SLock txNo

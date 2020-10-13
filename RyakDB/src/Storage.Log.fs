@@ -92,18 +92,17 @@ module LogService =
 
         nextstate,
         Seq.unfold (fun (blockId, position) ->
-            let (BlockId (_, blockNo)) = blockId
-            if position > 0 || blockNo > 0L then
+            if position > 0 || BlockId.blockNo blockId > 0L then
                 let blockId1, position1 =
                     if position = 0 then prevBlockRecordPosition readPage blockId else blockId, position
-
-                let (BlockId (_, blockNo1)) = blockId1
 
                 let prevPosition =
                     readPage.GetVal position1 IntDbType
                     |> DbConstant.toInt
 
-                Some(newLogRecord blockNo1 (prevPosition + PointerSize) readPage, (blockId1, prevPosition))
+                Some
+                    (newLogRecord (BlockId.blockNo blockId1) (prevPosition + PointerSize) readPage,
+                     (blockId1, prevPosition))
             else
                 None) (nextstate.CurrentBlockId, readLastRecordPosition readPage nextstate.CurrentBlockId)
 
@@ -137,9 +136,8 @@ module LogService =
         |> List.fold (appendVal logPage) (position + PointerSize)
         |> finalizeRecord logPage position
 
-        let (BlockId (_, blockNo)) = nextstate.CurrentBlockId
         { nextstate with
-              LastLogSeqNo = newLogSeqNo blockNo (int64 (position + PointerSize)) }
+              LastLogSeqNo = newLogSeqNo (BlockId.blockNo nextstate.CurrentBlockId) (int64 (position + PointerSize)) }
 
     let flush logPage state lsn =
         if lsn >= state.LastFlushedLogSeqNo then flushLog logPage state else state

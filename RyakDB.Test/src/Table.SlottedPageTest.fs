@@ -8,16 +8,16 @@ open RyakDB.Table.SlottedPage
 open RyakDB.Transaction
 open RyakDB.Database
 
-let createTableInfo () =
+let createSchema () =
     let schema = Schema.newSchema ()
     schema.AddField "cid" IntDbType
     schema.AddField "title" (VarcharDbType 20)
     schema.AddField "deptid" BigIntDbType
-    TableInfo.newTableInfo "SlottedPageTest" schema
+    schema
 
 [<Fact>]
 let ``insert read delete`` () =
-    let ti = createTableInfo ()
+    let schema = createSchema ()
 
     use db =
         { Database.defaultConfig () with
@@ -28,13 +28,13 @@ let ``insert read delete`` () =
         db.Transaction.NewTransaction false Serializable
 
     let buff =
-        newSlottedPageFormatter ti
-        |> tx.Buffer.PinNew ti.FileName
+        newSlottedPageFormatter schema
+        |> tx.Buffer.PinNew "SlottedPageTest.tbl"
 
     tx.Buffer.Unpin buff
 
     let sp1 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable count = 0
     let mutable insertId = 0
@@ -47,7 +47,7 @@ let ``insert read delete`` () =
     sp1.Close()
 
     let sp2 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable readId = 0
     while sp2.Next() do
@@ -68,19 +68,19 @@ let ``insert read delete`` () =
     readId |> should equal count
 
     let sp3 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable deletedCount = 0
     while sp3.Next() do
         if sp3.GetVal "deptid" = BigIntDbConstant 3000L then
-            RecordId.newBlockRecordId -1 ti.FileName -1L
+            RecordId.newBlockRecordId -1 "SlottedPageTest.tbl" -1L
             |> sp3.Delete
             deletedCount <- deletedCount + 1
     sp3.Close()
     deletedCount |> should equal (count / 3)
 
     let sp4 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) ti true
+        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     while sp4.Next() do
         sp4.GetVal "deptid"
