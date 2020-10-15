@@ -11,7 +11,6 @@ open RyakDB.Index.BTreeLeaf
 open RyakDB.Transaction
 open RyakDB.Database
 
-
 [<Fact>]
 let insert () =
     let indexFilename = "_test_insert_index"
@@ -35,23 +34,21 @@ let insert () =
     let blockId = BlockId.newBlockId filename 0L
     for i in 0 .. 20 do
         use leaf =
-            SearchKey.newSearchKey [ IntDbConstant i ]
-            |> SearchRange.newSearchRangeBySearchKey
-            |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Insert
+        |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
         |> ignore
 
     use leaf =
-        SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 (IntDbConstant 0 |> Some)
-                                                 true
-                                                 (IntDbConstant 20 |> Some)
-                                                 true ]
-        |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
-    leaf.GetCountOfRecords() |> should equal 21
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (IntDbConstant 0 |> Some)
+                                             true
+                                             (IntDbConstant 20 |> Some)
+                                             true ]
+    |> leaf.BeforeFirst
     for i in 0 .. 20 do
         leaf.Next() |> should be True
         leaf.GetDataRecordId()
@@ -82,37 +79,35 @@ let delete () =
     let blockId = BlockId.newBlockId filename 0L
     for i in 0 .. 20 do
         use leaf =
-            SearchKey.newSearchKey [ IntDbConstant i ]
-            |> SearchRange.newSearchRangeBySearchKey
-            |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Insert
+        |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
         |> ignore
 
     for i in 0 .. 20 do
         use leaf =
-            SearchKey.newSearchKey [ IntDbConstant i ]
-            |> SearchRange.newSearchRangeBySearchKey
-            |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
-        RecordId.newRecordId i indexBlockId |> leaf.Delete
+        RecordId.newRecordId i indexBlockId
+        |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ])
 
     use leaf =
-        SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 (IntDbConstant 0 |> Some)
-                                                 true
-                                                 (IntDbConstant 20 |> Some)
-                                                 true ]
-        |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
-    leaf.GetCountOfRecords() |> should equal 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (IntDbConstant 0 |> Some)
+                                             true
+                                             (IntDbConstant 20 |> Some)
+                                             true ]
+    |> leaf.BeforeFirst
+    leaf.Next() |> should be False
 
     tx.Commit()
 
 [<Fact>]
-let split () =
-    let indexFilename = "_test_split_index"
+let ``split sibling`` () =
+    let indexFilename = "_test_sibling_index"
     let indexBlockId = BlockId.newBlockId indexFilename 0L
 
     let keyType =
@@ -126,7 +121,7 @@ let split () =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    let filename = "_test_split"
+    let filename = "_test_sibling"
     newBTreePageFormatter (BTreeLeaf.keyTypeToSchema keyType) [ -1L; -1L ]
     |> tx.Buffer.PinNew filename
     |> ignore
@@ -134,7 +129,7 @@ let split () =
     let buffer = tx.Buffer.Pin blockId
 
     let maxCount =
-        (buffer.BufferSize - 8)
+        (buffer.BufferSize - 20)
         / (BTreePage.slotSize (BTreeLeaf.keyTypeToSchema keyType) buffer)
 
     let count = maxCount * 2
@@ -142,41 +137,39 @@ let split () =
     let mutable newEntry = None
     for i in 0 .. count do
         use leaf =
-            SearchKey.newSearchKey [ IntDbConstant i ]
-            |> SearchRange.newSearchRangeBySearchKey
-            |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Insert
+        |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
         |> Option.iter (fun e -> newEntry <- Some(e))
 
     if Option.isNone newEntry then failwith "Not split"
 
     use leaf =
-        SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 (IntDbConstant 0 |> Some)
-                                                 true
-                                                 (IntDbConstant count |> Some)
-                                                 true ]
-        |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
     let mutable cnt = 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (IntDbConstant 0 |> Some)
+                                             true
+                                             (IntDbConstant count |> Some)
+                                             true ]
+    |> leaf.BeforeFirst
     while leaf.Next() do
         cnt <- cnt + 1
     cnt |> should equal (count + 1)
 
     for i in 0 .. count do
         use leaf =
-            SearchKey.newSearchKey [ IntDbConstant i ]
-            |> SearchRange.newSearchRangeBySearchKey
-            |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
-        RecordId.newRecordId i indexBlockId |> leaf.Delete
+        RecordId.newRecordId i indexBlockId
+        |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ])
 
     tx.Commit()
 
 [<Fact>]
-let overflow () =
+let ``split overflow`` () =
     let indexFilename = "_test_overflow_index"
     let indexBlockId = BlockId.newBlockId indexFilename 0L
 
@@ -199,40 +192,41 @@ let overflow () =
     let buffer = tx.Buffer.Pin blockId
 
     let maxCount =
-        (buffer.BufferSize - 8)
+        (buffer.BufferSize - 20)
         / (BTreePage.slotSize (BTreeLeaf.keyTypeToSchema keyType) buffer)
 
     let count = maxCount * 2
 
-    let insertRange =
+    let insertkey =
         SearchKey.newSearchKey [ IntDbConstant 0 ]
-        |> SearchRange.newSearchRangeBySearchKey
 
     for i in 0 .. count do
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType insertRange
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Insert
+        |> leaf.Insert insertkey
         |> ignore
 
     use leaf =
-        SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
-                                                 (IntDbConstant 0 |> Some)
-                                                 true
-                                                 (IntDbConstant count |> Some)
-                                                 true ]
-        |> newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
     let mutable cnt = 0
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
+                                             (IntDbConstant 0 |> Some)
+                                             true
+                                             (IntDbConstant count |> Some)
+                                             true ]
+    |> leaf.BeforeFirst
     while leaf.Next() do
         cnt <- cnt + 1
     cnt |> should equal (count + 1)
 
     for i in 0 .. count do
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType insertRange
+            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
-        RecordId.newRecordId i indexBlockId |> leaf.Delete
+        RecordId.newRecordId i indexBlockId
+        |> leaf.Delete insertkey
 
     tx.Commit()

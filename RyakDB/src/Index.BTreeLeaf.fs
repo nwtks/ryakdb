@@ -10,11 +10,11 @@ open RyakDB.Index.BTreePage
 open RyakDB.Index.BTreeBranch
 
 type BTreeLeaf =
-    { Next: unit -> bool
+    { BeforeFirst: SearchRange -> unit
+      Next: unit -> bool
       GetDataRecordId: unit -> RecordId
-      GetCountOfRecords: unit -> int32
-      Insert: RecordId -> BTreeBranchEntry option
-      Delete: RecordId -> unit
+      Insert: SearchKey -> RecordId -> BTreeBranchEntry option
+      Delete: SearchKey -> RecordId -> unit
       Close: unit -> unit }
     interface System.IDisposable with
         member this.Dispose() = this.Close()
@@ -24,8 +24,8 @@ module BTreeLeaf =
         { CurrentPage: BTreePage
           CurrentSlot: int32
           MoveFrom: int64
-          IsOverflowing: bool
-          OverflowFrom: int64 }
+          OverflowFrom: int64
+          SearchRange: SearchRange }
 
     let FieldBlockNo = "block_no"
     let FieldSlotNo = "slot_no"
@@ -85,16 +85,16 @@ module BTreeLeaf =
     let setSiblingBlockNo page = page.SetFlag 1
 
     let moveSlotBefore keyType searchRange page =
-        let rec binarySearch startSlot endSlot taret =
+        let rec binarySearch startSlot endSlot target =
             if startSlot < endSlot then
                 let middleSlot = startSlot + (endSlot - startSlot) / 2
 
                 let comp =
-                    SearchKey.compare (getKey page middleSlot keyType) taret
+                    SearchKey.compare (getKey page middleSlot keyType) target
 
                 if comp < 0
-                then binarySearch (middleSlot + 1) endSlot taret
-                else binarySearch startSlot middleSlot taret
+                then binarySearch (middleSlot + 1) endSlot target
+                else binarySearch startSlot middleSlot target
             else
                 startSlot
 
@@ -115,7 +115,17 @@ module BTreeLeaf =
                         slot
             | _ -> -1
 
-    let next txBuffer txConcurrency txRecovery schema keyType searchRange state =
+    let beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType searchRange =
+        let page =
+            initBTreePage txBuffer txConcurrency txRecovery schema blockId
+
+        { CurrentPage = page
+          CurrentSlot = moveSlotBefore keyType searchRange page
+          MoveFrom = -1L
+          OverflowFrom = -1L
+          SearchRange = searchRange }
+
+    let next txBuffer txConcurrency txRecovery schema keyType state =
         let moveTo txBuffer txConcurrency txRecovery schema currentPage blockNo =
             let blockId =
                 BlockId.newBlockId (BlockId.fileName currentPage.BlockId) blockNo
@@ -128,112 +138,141 @@ module BTreeLeaf =
 
         let rec searchNext state =
             let nextSlot = state.CurrentSlot + 1
-            if state.IsOverflowing then
+
+            let fromBlockNo =
+                BlockId.blockNo state.CurrentPage.BlockId
+
+            if state.OverflowFrom >= 0L then
                 true,
                 (if nextSlot >= state.CurrentPage.GetCountOfRecords() then
-                    let nextPage =
-                        getOverflowBlockNo state.CurrentPage
-                        |> moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage
+                    let nextBlockNo = getOverflowBlockNo state.CurrentPage
 
-                    if BlockId.blockNo nextPage.BlockId = state.OverflowFrom then
-                        { CurrentPage = nextPage
-                          CurrentSlot = 0
-                          MoveFrom = BlockId.blockNo state.CurrentPage.BlockId
-                          IsOverflowing = false
-                          OverflowFrom = -1L }
+                    let nextPage =
+                        moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage nextBlockNo
+
+                    if nextBlockNo = state.OverflowFrom then
+                        { state with
+                              CurrentPage = nextPage
+                              CurrentSlot = 0
+                              MoveFrom = fromBlockNo
+                              OverflowFrom = -1L }
                     else
                         { state with
                               CurrentPage = nextPage
                               CurrentSlot = 0
-                              MoveFrom = BlockId.blockNo state.CurrentPage.BlockId }
+                              MoveFrom = fromBlockNo }
                  else
                      { state with CurrentSlot = nextSlot })
             elif nextSlot >= state.CurrentPage.GetCountOfRecords() then
-                if getSiblingBlockNo state.CurrentPage >= 0L then
+                let siblingBlockNo = getSiblingBlockNo state.CurrentPage
+                if siblingBlockNo >= 0L then
                     searchNext
                         { state with
                               CurrentPage =
-                                  getSiblingBlockNo state.CurrentPage
-                                  |> moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage
+                                  moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage siblingBlockNo
                               CurrentSlot = -1
-                              MoveFrom = BlockId.blockNo state.CurrentPage.BlockId }
+                              MoveFrom = fromBlockNo }
                 else
                     false, { state with CurrentSlot = nextSlot }
             elif getKey state.CurrentPage nextSlot keyType
-                 |> searchRange.MatchsKey then
+                 |> state.SearchRange.MatchsKey then
+                let overflowBlockNo = getOverflowBlockNo state.CurrentPage
                 true,
-                (if nextSlot = 0
-                    && getOverflowBlockNo state.CurrentPage >= 0L then
-                    { CurrentPage =
-                          getOverflowBlockNo state.CurrentPage
-                          |> moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage
-                      CurrentSlot = 0
-                      MoveFrom = BlockId.blockNo state.CurrentPage.BlockId
-                      IsOverflowing = true
-                      OverflowFrom = BlockId.blockNo state.CurrentPage.BlockId }
+                (if nextSlot = 0 && overflowBlockNo >= 0L then
+                    { state with
+                          CurrentPage =
+                              moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage overflowBlockNo
+                          CurrentSlot = 0
+                          MoveFrom = fromBlockNo
+                          OverflowFrom = fromBlockNo }
                  else
                      { state with CurrentSlot = nextSlot })
             elif getKey state.CurrentPage nextSlot keyType
-                 |> searchRange.BetweenMinAndMax then
+                 |> state.SearchRange.BetweenMinAndMax then
                 searchNext { state with CurrentSlot = nextSlot }
             else
                 false, { state with CurrentSlot = nextSlot }
 
         searchNext state
 
-    let insert txRecovery keyType searchRange page slot recordId =
+    let insert txBuffer txConcurrency txRecovery schema blockId keyType key recordId =
+        let getSlot keyType searchKey page =
+            let rec binarySearch startSlot endSlot target =
+                if startSlot < endSlot then
+                    let middleSlot = startSlot + (endSlot - startSlot) / 2
+
+                    let comp =
+                        SearchKey.compare (getKey page middleSlot keyType) target
+
+                    if comp > 0
+                    then binarySearch startSlot middleSlot target
+                    else binarySearch (middleSlot + 1) endSlot target
+                else
+                    endSlot - 1
+
+            let countOfRecords = page.GetCountOfRecords()
+            if countOfRecords = 0 then
+                0
+            elif SearchKey.compare (getKey page 0 keyType) searchKey > 0 then
+                0
+            else
+                let slot = binarySearch 0 countOfRecords searchKey
+                if SearchKey.compare (getKey page slot keyType) searchKey
+                   <= 0 then
+                    slot + 1
+                else
+                    slot
+
         let splitOverflow page =
-            let overflow = getOverflowBlockNo page
+            let overflowBlockNo = getOverflowBlockNo page
 
-            let splitOverflow =
-                if overflow >= 0L then overflow else BlockId.blockNo page.BlockId
+            let overflowFrom =
+                if overflowBlockNo >= 0L then overflowBlockNo else BlockId.blockNo page.BlockId
 
-            page.Split 1 [ splitOverflow; -1L ]
+            page.Split 1 [ overflowFrom; -1L ]
             |> setOverflowBlockNo page
 
-        let splitSibling (page: BTreePage) firstKey =
-            let mutable splitPos = page.GetCountOfRecords() / 2
-
-            let splitKey = getKey page splitPos keyType
-
-            let newSplitKey =
-                if SearchKey.compare splitKey firstKey = 0 then
-                    while SearchKey.compare splitKey (getKey page splitPos keyType) = 0 do
-                        splitPos <- splitPos + 1
-                    getKey page splitPos keyType
+        let splitSibling (page: BTreePage) =
+            let searchSibling (page: BTreePage) =
+                let mutable slot = page.GetCountOfRecords() / 2
+                let key = getKey page slot keyType
+                if SearchKey.compare key (getKey page 0 keyType) = 0 then
+                    while SearchKey.compare key (getKey page slot keyType) = 0 do
+                        slot <- slot + 1
                 else
-                    while SearchKey.compare splitKey (getKey page (splitPos - 1) keyType) = 0 do
-                        splitPos <- splitPos - 1
-                    splitKey
+                    while SearchKey.compare key (getKey page (slot - 1) keyType) = 0 do
+                        slot <- slot - 1
+                slot
+
+            let siblingSlot = searchSibling page
+            let siblingKey = getKey page siblingSlot keyType
 
             let siblingBlockNo =
-                page.Split splitPos [ -1L; getSiblingBlockNo page ]
+                page.Split siblingSlot [ -1L; getSiblingBlockNo page ]
 
             setSiblingBlockNo page siblingBlockNo
 
-            newBTreeBranchEntry newSplitKey siblingBlockNo
+            newBTreeBranchEntry siblingKey siblingBlockNo
 
-        if not (searchRange.IsSingleValue()) then failwith "Not supported"
+        let page =
+            initBTreePage txBuffer txConcurrency txRecovery schema blockId
 
-        insertSlot txRecovery keyType page (searchRange.ToSearchKey()) recordId slot
+        getSlot keyType key page
+        |> insertSlot txRecovery keyType page key recordId
+
         if page.IsFull() then
-            let firstKey = getKey page 0 keyType
-
-            let lastKey =
-                getKey page (page.GetCountOfRecords() - 1) keyType
-
-            if SearchKey.compare firstKey lastKey = 0 then
+            if SearchKey.compare (getKey page 0 keyType) (getKey page (page.GetCountOfRecords() - 1) keyType) = 0 then
                 splitOverflow page
                 None
             else
-                splitSibling page firstKey |> Some
+                splitSibling page |> Some
         else
             None
 
-    let delete txBuffer txConcurrency txRecovery dataFileName schema keyType searchRange state recordId =
+    let delete txBuffer txConcurrency txRecovery dataFileName schema blockId keyType key recordId =
         let rec searchDelete state =
             let result, newstate =
-                next txBuffer txConcurrency txRecovery schema keyType searchRange state
+                next txBuffer txConcurrency txRecovery schema keyType state
 
             if result then
                 if recordId = getDataRecordId dataFileName newstate.CurrentPage newstate.CurrentSlot then
@@ -244,47 +283,41 @@ module BTreeLeaf =
             else
                 false, newstate
 
-        let recoverOverflowFlag page moveFrom =
+        let fixOverflowFlag page fromBlockNo =
             use fromPage =
-                BlockId.newBlockId (BlockId.fileName page.BlockId) moveFrom
+                BlockId.newBlockId (BlockId.fileName page.BlockId) fromBlockNo
                 |> initBTreePage txBuffer txConcurrency txRecovery schema
 
-            let overflow = getOverflowBlockNo page
-            if overflow = BlockId.blockNo fromPage.BlockId
-            then -1L
-            else overflow
+            let overflowBlockNo = getOverflowBlockNo page
+            if overflowBlockNo = fromBlockNo then -1L else overflowBlockNo
             |> setOverflowBlockNo fromPage
 
-        if not (searchRange.IsSingleValue()) then failwith "Not supported"
+        let deleted, state =
+            SearchRange.newSearchRangeBySearchKey key
+            |> beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType
+            |> searchDelete
 
-        let deleted, newstate = searchDelete state
-        if deleted then
-            if newstate.IsOverflowing then
-                if newstate.CurrentPage.GetCountOfRecords() = 0
-                then recoverOverflowFlag newstate.CurrentPage newstate.MoveFrom
+        if deleted
+           && state.OverflowFrom
+           >= 0L
+           && state.CurrentPage.GetCountOfRecords() = 0 then
+            fixOverflowFlag state.CurrentPage state.MoveFrom
 
-        newstate
-
-let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType searchRange =
+let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType =
     let schema = BTreeLeaf.keyTypeToSchema keyType
+    let mutable state: BTreeLeaf.BTreeLeafState option = None
 
-    let page =
-        BTreeLeaf.initBTreePage txBuffer txConcurrency txRecovery schema blockId
-
-    let mutable state: BTreeLeaf.BTreeLeafState option =
-        Some
-            { CurrentPage = page
-              CurrentSlot = BTreeLeaf.moveSlotBefore keyType searchRange page
-              MoveFrom = -1L
-              IsOverflowing = false
-              OverflowFrom = -1L }
-
-    { Next =
+    { BeforeFirst =
+          fun searchRange ->
+              state <-
+                  BTreeLeaf.beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType searchRange
+                  |> Some
+      Next =
           fun () ->
               match state with
               | Some st ->
                   let result, newstate =
-                      BTreeLeaf.next txBuffer txConcurrency txRecovery schema keyType searchRange st
+                      BTreeLeaf.next txBuffer txConcurrency txRecovery schema keyType st
 
                   state <- Some newstate
                   result
@@ -294,37 +327,11 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
               match state with
               | Some st -> BTreeLeaf.getDataRecordId dataFileName st.CurrentPage st.CurrentSlot
               | _ -> failwith "Closed leaf"
-      GetCountOfRecords =
-          fun () ->
-              match state with
-              | Some st -> st.CurrentPage.GetCountOfRecords()
-              | _ -> failwith "Closed leaf"
       Insert =
-          fun recordId ->
-              match state with
-              | Some st ->
-                  let result =
-                      BTreeLeaf.insert txRecovery keyType searchRange st.CurrentPage (st.CurrentSlot + 1) recordId
-
-                  result
-              | _ -> failwith "Closed leaf"
+          fun key recordId -> BTreeLeaf.insert txBuffer txConcurrency txRecovery schema blockId keyType key recordId
       Delete =
-          fun recordId ->
-              match state with
-              | Some st ->
-                  state <-
-                      BTreeLeaf.delete
-                          txBuffer
-                          txConcurrency
-                          txRecovery
-                          dataFileName
-                          schema
-                          keyType
-                          searchRange
-                          st
-                          recordId
-                      |> Some
-              | _ -> failwith "Closed leaf"
+          fun key recordId ->
+              BTreeLeaf.delete txBuffer txConcurrency txRecovery dataFileName schema blockId keyType key recordId
       Close =
           fun () ->
               state

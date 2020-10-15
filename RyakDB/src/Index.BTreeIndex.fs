@@ -19,25 +19,17 @@ module BTreeIndex =
     let getRoot txBuffer txConcurrency txRecovery keyType branchFileName =
         newBTreeBranch txBuffer txConcurrency txRecovery (BlockId.newBlockId branchFileName 0L) keyType
 
-    let search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName purpose leafFileName searchRange =
+    let search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName purpose leafFileName searchKey =
         use root =
             getRoot txBuffer txConcurrency txRecovery keyType branchFileName
 
         let leafBlockId =
-            searchRange.GetMin()
-            |> root.Search purpose leafFileName
+            root.Search purpose leafFileName searchKey
 
         let branchesMayBeUpdated = root.BranchesMayBeUpdated()
 
         let leaf =
-            newBTreeLeaf
-                txBuffer
-                txConcurrency
-                txRecovery
-                (IndexInfo.tableFileName indexInfo)
-                leafBlockId
-                keyType
-                searchRange
+            newBTreeLeaf txBuffer txConcurrency txRecovery (IndexInfo.tableFileName indexInfo) leafBlockId keyType
 
         leaf, branchesMayBeUpdated
 
@@ -62,9 +54,13 @@ module BTreeIndex =
 
     let beforeFirst txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange =
         if searchRange.IsValid() then
-            search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Read leafFileName searchRange
-            |> fst
-            |> Some
+            let leaf =
+                searchRange.GetMin()
+                |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Read leafFileName
+                |> fst
+
+            leaf.BeforeFirst searchRange
+            Some leaf
         else
             None
 
@@ -95,10 +91,10 @@ module BTreeIndex =
         if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
         let leaf, branchesMayBeUpdated =
-            SearchRange.newSearchRangeBySearchKey key
+            Some key
             |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Insert leafFileName
 
-        let splitedLeaf = leaf.Insert dataRecordId
+        let splitedLeaf = leaf.Insert key dataRecordId
         leaf.Close()
 
         if Option.isSome splitedLeaf then
@@ -143,11 +139,11 @@ module BTreeIndex =
         if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
         use leaf =
-            SearchRange.newSearchRangeBySearchKey key
+            Some key
             |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Delete leafFileName
             |> fst
 
-        leaf.Delete dataRecordId
+        leaf.Delete key dataRecordId
 
         if doLogicalLogging then
             txRecovery.LogIndexDeletionEnd
