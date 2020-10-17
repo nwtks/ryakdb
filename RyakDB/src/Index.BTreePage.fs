@@ -73,16 +73,16 @@ module BTreePage =
 
     let getValue (buffer: Buffer) = buffer.GetVal
 
-    let setValue txRecovery (buffer: Buffer) offset value =
+    let setValue txRecovery buffer offset value =
         txRecovery.LogSetVal buffer offset value
         |> buffer.SetVal offset value
 
     let setValueWithoutLogging (buffer: Buffer) offset value = buffer.SetVal offset value None
 
-    let slotPosition headerSize slotSize slot = headerSize + slot * slotSize
+    let slotPosition headerSize slotSize slotNo = headerSize + slotNo * slotSize
 
-    let fieldPosition headerSize slotSize (offsetMap: Map<string, int32>) slot fieldName =
-        (slotPosition headerSize slotSize slot)
+    let fieldPosition headerSize slotSize (offsetMap: Map<string, int32>) slotNo fieldName =
+        (slotPosition headerSize slotSize slotNo)
         + offsetMap.[fieldName]
 
     let setValueUnchecked txRecovery
@@ -91,12 +91,12 @@ module BTreePage =
                           headerSize
                           slotSize
                           (offsetMap: Map<string, int32>)
-                          slot
+                          slotNo
                           fieldName
                           value
                           =
         DbConstant.castTo (schema.DbType fieldName) value
-        |> setValue txRecovery buffer (fieldPosition headerSize slotSize offsetMap slot fieldName)
+        |> setValue txRecovery buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
     let getCountOfRecords buffer =
         getValue buffer 0 IntDbType |> DbConstant.toInt
@@ -109,12 +109,12 @@ module BTreePage =
         IntDbConstant value
         |> setValueWithoutLogging buffer 0
 
-    let getVal schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slot fieldName =
-        if slot >= getCountOfRecords buffer
-        then failwith ("Slot overflow:" + slot.ToString())
+    let getVal schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slotNo fieldName =
+        if slotNo >= getCountOfRecords buffer
+        then failwith ("Slot overflow:" + slotNo.ToString())
 
         schema.DbType fieldName
-        |> getValue buffer (fieldPosition headerSize slotSize offsetMap slot fieldName)
+        |> getValue buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
     let setVal txRecovery
                schema
@@ -123,21 +123,21 @@ module BTreePage =
                slotSize
                countOfSlots
                (offsetMap: Map<string, int32>)
-               slot
+               slotNo
                fieldName
                value
                =
-        if slot >= countOfSlots
-        then failwith ("Slot overflow:" + slot.ToString())
+        if slotNo >= countOfSlots
+        then failwith ("Slot overflow:" + slotNo.ToString())
 
-        if slot >= getCountOfRecords buffer
-        then failwith ("Slot overflow:" + slot.ToString())
+        if slotNo >= getCountOfRecords buffer
+        then failwith ("Slot overflow:" + slotNo.ToString())
 
-        setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slot fieldName value
+        setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slotNo fieldName value
 
-    let setValWithoutLogging schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slot fieldName value =
+    let setValWithoutLogging schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slotNo fieldName value =
         DbConstant.castTo (schema.DbType fieldName) value
-        |> setValueWithoutLogging buffer (fieldPosition headerSize slotSize offsetMap slot fieldName)
+        |> setValueWithoutLogging buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
     let getFlag buffer no =
         getValue buffer (4 + 8 * no) BigIntDbType
@@ -159,56 +159,66 @@ module BTreePage =
         |> slotPosition headerSize slotSize
         >= buffer.BufferSize
 
-    let copyRecord txRecovery schema buffer headerSize slotSize offsetMap fromSlot toSlot =
+    let copyRecord txRecovery schema buffer headerSize slotSize offsetMap fromSlotNo toSlotNo =
         schema.Fields()
         |> List.iter (fun field ->
-            getVal schema buffer headerSize slotSize offsetMap fromSlot field
-            |> setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap toSlot field)
+            getVal schema buffer headerSize slotSize offsetMap fromSlotNo field
+            |> setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap toSlotNo field)
 
-    let copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap fromSlot toSlot =
+    let copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap fromSlotNo toSlotNo =
         schema.Fields()
         |> List.iter (fun field ->
-            getVal schema buffer headerSize slotSize offsetMap fromSlot field
-            |> setValWithoutLogging schema buffer headerSize slotSize offsetMap toSlot field)
+            getVal schema buffer headerSize slotSize offsetMap fromSlotNo field
+            |> setValWithoutLogging schema buffer headerSize slotSize offsetMap toSlotNo field)
 
-    let insert schema buffer headerSize slotSize offsetMap countOfSlots slot =
+    let insert schema buffer headerSize slotSize offsetMap countOfSlots slotNo =
         buffer.LockFlushing(fun () ->
-            if slot >= countOfSlots
-            then failwith ("Slot overflow:" + slot.ToString())
+            if slotNo >= countOfSlots
+            then failwith ("Slot overflow:" + slotNo.ToString())
 
             let countOfRecords = getCountOfRecords buffer
             if countOfRecords + 1 > countOfSlots
-            then failwith ("Slot overflow:" + slot.ToString())
+            then failwith ("Slot overflow:" + slotNo.ToString())
 
-            [ countOfRecords .. -1 .. slot + 1 ]
+            [ countOfRecords .. -1 .. slotNo + 1 ]
             |> List.iter (fun i -> copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap (i - 1) i)
             setCountOfRecordsWithoutLogging buffer (countOfRecords + 1))
 
-    let delete schema buffer headerSize slotSize offsetMap slot =
+    let delete schema buffer headerSize slotSize offsetMap slotNo =
         buffer.LockFlushing(fun () ->
             let countOfRecords = getCountOfRecords buffer
-            [ slot + 1 .. countOfRecords - 1 ]
+            [ slotNo + 1 .. countOfRecords - 1 ]
             |> List.iter (fun i -> copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap i (i - 1))
             setCountOfRecordsWithoutLogging buffer (countOfRecords - 1))
 
-    let transferRecords txRecovery schema buffer headerSize slotSize offsetMap start destPage destStart count =
+    let transferRecords txRecovery
+                        schema
+                        buffer
+                        headerSize
+                        slotSize
+                        offsetMap
+                        startSlotNo
+                        destPage
+                        destStartSlotNo
+                        count
+                        =
         let countOfRecords = getCountOfRecords buffer
         let destCountOfRecords = destPage.GetCountOfRecords()
 
         let minCount =
-            System.Math.Min(count, countOfRecords - start)
+            System.Math.Min(count, countOfRecords - startSlotNo)
 
-        [ destCountOfRecords - 1 .. -1 .. destStart ]
+        [ destCountOfRecords - 1 .. -1 .. destStartSlotNo ]
         |> List.iter (fun i -> destPage.CopyRecord i (i + minCount))
 
         [ 0 .. minCount - 1 ]
         |> List.iter (fun i ->
             schema.Fields()
             |> List.iter (fun field ->
-                getVal schema buffer headerSize slotSize offsetMap (start + i) field
-                |> destPage.SetValueUnchecked (destStart + i) field))
+                getVal schema buffer headerSize slotSize offsetMap (startSlotNo + i) field
+                |> destPage.SetValueUnchecked (destStartSlotNo + i) field))
 
-        [ start + minCount .. countOfRecords - 1 ]
+        [ startSlotNo + minCount .. countOfRecords - 1 ]
         |> List.iter (fun i -> copyRecord txRecovery schema buffer headerSize slotSize offsetMap i (i - minCount))
 
         setCountOfRecords txRecovery buffer (countOfRecords - minCount)
@@ -224,7 +234,7 @@ module BTreePage =
               slotSize
               offsetMap
               newBTreePage
-              splitSlot
+              splitSlotNo
               flags
               =
         let countOfRecords = getCountOfRecords buffer
@@ -242,10 +252,10 @@ module BTreePage =
             headerSize
             slotSize
             offsetMap
-            splitSlot
+            splitSlotNo
             newPage
             0
-            (countOfRecords - splitSlot)
+            (countOfRecords - splitSlotNo)
         BlockId.blockNo newBlockId
 
     let close txBuffer currentBuffer =
@@ -273,12 +283,12 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
               | _ -> failwith "Closed page"
       BlockId = blockId
       GetVal =
-          fun slot fieldName ->
+          fun slotNo fieldName ->
               match currentBuffer with
-              | Some buffer -> BTreePage.getVal schema buffer headerSize slotSize offsetMap slot fieldName
+              | Some buffer -> BTreePage.getVal schema buffer headerSize slotSize offsetMap slotNo fieldName
               | _ -> failwith "Closed page"
       SetVal =
-          fun slot fieldName value ->
+          fun slotNo fieldName value ->
               match currentBuffer with
               | Some buffer ->
                   BTreePage.setVal
@@ -289,7 +299,7 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
                       slotSize
                       countOfSlots
                       offsetMap
-                      slot
+                      slotNo
                       fieldName
                       value
               | _ -> failwith "Closed page"
@@ -314,17 +324,17 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
               | Some buffer -> BTreePage.willFull buffer headerSize slotSize
               | _ -> failwith "Closed page"
       Insert =
-          fun slot ->
+          fun slotNo ->
               match currentBuffer with
-              | Some buffer -> BTreePage.insert schema buffer headerSize slotSize offsetMap countOfSlots slot
+              | Some buffer -> BTreePage.insert schema buffer headerSize slotSize offsetMap countOfSlots slotNo
               | _ -> failwith "Closed page"
       Delete =
-          fun slot ->
+          fun slotNo ->
               match currentBuffer with
-              | Some buffer -> BTreePage.delete schema buffer headerSize slotSize offsetMap slot
+              | Some buffer -> BTreePage.delete schema buffer headerSize slotSize offsetMap slotNo
               | _ -> failwith "Closed page"
       TransferRecords =
-          fun start destPage destStart count ->
+          fun startSlotNo destPage destStartSlotNo count ->
               match currentBuffer with
               | Some buffer ->
                   BTreePage.transferRecords
@@ -334,13 +344,13 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
                       headerSize
                       slotSize
                       offsetMap
-                      start
+                      startSlotNo
                       destPage
-                      destStart
+                      destStartSlotNo
                       count
               | _ -> failwith "Closed page"
       Split =
-          fun splitSlot flags ->
+          fun splitSlotNo flags ->
               match currentBuffer with
               | Some buffer ->
                   BTreePage.split
@@ -354,17 +364,17 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
                       slotSize
                       offsetMap
                       newBTreePage
-                      splitSlot
+                      splitSlotNo
                       flags
               | _ -> failwith "Closed page"
       CopyRecord =
-          fun fromSlot toSlot ->
+          fun fromSlotNo toSlotNo ->
               match currentBuffer with
               | Some buffer ->
-                  BTreePage.copyRecord txRecovery schema buffer headerSize slotSize offsetMap fromSlot toSlot
+                  BTreePage.copyRecord txRecovery schema buffer headerSize slotSize offsetMap fromSlotNo toSlotNo
               | _ -> failwith "Closed page"
       SetValueUnchecked =
-          fun slot fieldName value ->
+          fun slotNo fieldName value ->
               match currentBuffer with
               | Some buffer ->
                   BTreePage.setValueUnchecked
@@ -374,7 +384,7 @@ let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFla
                       headerSize
                       slotSize
                       offsetMap
-                      slot
+                      slotNo
                       fieldName
                       value
               | _ -> failwith "Closed page"

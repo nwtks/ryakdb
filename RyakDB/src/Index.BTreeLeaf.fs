@@ -44,37 +44,38 @@ module BTreeLeaf =
         |> List.iteri (fun i t -> sch.AddField (KeyPrefix + i.ToString()) t)
         sch
 
-    let getKey page slot (SearchKeyType (keys)) =
+    let getKey page slotNo (SearchKeyType keys) =
         keys
-        |> List.mapi (fun i _ -> page.GetVal slot (KeyPrefix + i.ToString()))
+        |> List.mapi (fun i _ -> page.GetVal slotNo (KeyPrefix + i.ToString()))
         |> SearchKey.newSearchKey
 
-    let getDataRecordId filename page slot =
+    let getDataRecordId filename page slotNo =
         RecordId.newBlockRecordId
-            (page.GetVal slot FieldSlotNo |> DbConstant.toInt)
+            (page.GetVal slotNo FieldSlotNo |> DbConstant.toInt)
             filename
-            (page.GetVal slot FieldBlockNo |> DbConstant.toLong)
+            (page.GetVal slotNo FieldBlockNo
+             |> DbConstant.toLong)
 
-    let insertSlot txRecovery keyType page (SearchKey keys) (RecordId (slotNo, BlockId (_, blockNo))) slot =
-        txRecovery.LogIndexPageInsertion false page.BlockId keyType slot
+    let insertSlot txRecovery keyType page (SearchKey keys) (RecordId (recordSlotNo, BlockId (_, recordBlockNo))) slotNo =
+        txRecovery.LogIndexPageInsertion false keyType page.BlockId slotNo
         |> ignore
 
-        page.Insert slot
+        page.Insert slotNo
 
-        BigIntDbConstant blockNo
-        |> page.SetVal slot FieldBlockNo
+        BigIntDbConstant recordBlockNo
+        |> page.SetVal slotNo FieldBlockNo
 
-        IntDbConstant slotNo
-        |> page.SetVal slot FieldSlotNo
+        IntDbConstant recordSlotNo
+        |> page.SetVal slotNo FieldSlotNo
 
         keys
-        |> List.iteri (fun i k -> page.SetVal slot (KeyPrefix + i.ToString()) k)
+        |> List.iteri (fun i k -> page.SetVal slotNo (KeyPrefix + i.ToString()) k)
 
-    let deleteSlot txRecovery keyType page slot =
-        txRecovery.LogIndexPageDeletion false page.BlockId keyType slot
+    let deleteSlot txRecovery keyType page slotNo =
+        txRecovery.LogIndexPageDeletion false keyType page.BlockId slotNo
         |> ignore
 
-        page.Delete slot
+        page.Delete slotNo
 
     let getOverflowBlockNo page = page.GetFlag 0
 
@@ -107,12 +108,12 @@ module BTreeLeaf =
                 if SearchKey.compare (getKey page (countOfRecords - 1) keyType) searchMin < 0 then
                     countOfRecords - 1
                 else
-                    let slot = binarySearch 0 countOfRecords searchMin
-                    if SearchKey.compare (getKey page slot keyType) searchMin
+                    let slotNo = binarySearch 0 countOfRecords searchMin
+                    if SearchKey.compare (getKey page slotNo keyType) searchMin
                        >= 0 then
-                        slot - 1
+                        slotNo - 1
                     else
-                        slot
+                        slotNo
             | _ -> -1
 
     let beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType searchRange =
@@ -196,7 +197,7 @@ module BTreeLeaf =
         searchNext state
 
     let insert txBuffer txConcurrency txRecovery schema blockId keyType key recordId =
-        let getSlot keyType searchKey page =
+        let getSlotNo keyType searchKey page =
             let rec binarySearch startSlot endSlot target =
                 if startSlot < endSlot then
                     let middleSlot = startSlot + (endSlot - startSlot) / 2
@@ -216,12 +217,12 @@ module BTreeLeaf =
             elif SearchKey.compare (getKey page 0 keyType) searchKey > 0 then
                 0
             else
-                let slot = binarySearch 0 countOfRecords searchKey
-                if SearchKey.compare (getKey page slot keyType) searchKey
+                let slotNo = binarySearch 0 countOfRecords searchKey
+                if SearchKey.compare (getKey page slotNo keyType) searchKey
                    <= 0 then
-                    slot + 1
+                    slotNo + 1
                 else
-                    slot
+                    slotNo
 
         let splitOverflow page =
             let overflowBlockNo = getOverflowBlockNo page
@@ -232,17 +233,17 @@ module BTreeLeaf =
             page.Split 1 [ overflowFrom; -1L ]
             |> setOverflowBlockNo page
 
-        let splitSibling (page: BTreePage) =
+        let splitSibling page =
             let searchSibling (page: BTreePage) =
-                let mutable slot = page.GetCountOfRecords() / 2
-                let key = getKey page slot keyType
+                let mutable slotNo = page.GetCountOfRecords() / 2
+                let key = getKey page slotNo keyType
                 if SearchKey.compare key (getKey page 0 keyType) = 0 then
-                    while SearchKey.compare key (getKey page slot keyType) = 0 do
-                        slot <- slot + 1
+                    while SearchKey.compare key (getKey page slotNo keyType) = 0 do
+                        slotNo <- slotNo + 1
                 else
-                    while SearchKey.compare key (getKey page (slot - 1) keyType) = 0 do
-                        slot <- slot - 1
-                slot
+                    while SearchKey.compare key (getKey page (slotNo - 1) keyType) = 0 do
+                        slotNo <- slotNo - 1
+                slotNo
 
             let siblingSlot = searchSibling page
             let siblingKey = getKey page siblingSlot keyType
@@ -257,7 +258,7 @@ module BTreeLeaf =
         let page =
             initBTreePage txBuffer txConcurrency txRecovery schema blockId
 
-        getSlot keyType key page
+        getSlotNo keyType key page
         |> insertSlot txRecovery keyType page key recordId
 
         if page.IsFull() then

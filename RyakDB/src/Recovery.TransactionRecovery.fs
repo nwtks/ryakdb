@@ -14,8 +14,8 @@ type TransactionRecovery =
       LogTableFileDeletionEnd: string -> int64 -> int32 -> LogSeqNo
       LogIndexInsertionEnd: string -> SearchKey -> int64 -> int32 -> LogSeqNo
       LogIndexDeletionEnd: string -> SearchKey -> int64 -> int32 -> LogSeqNo
-      LogIndexPageInsertion: bool -> BlockId -> SearchKeyType -> int32 -> LogSeqNo
-      LogIndexPageDeletion: bool -> BlockId -> SearchKeyType -> int32 -> LogSeqNo
+      LogIndexPageInsertion: bool -> SearchKeyType -> BlockId -> int32 -> LogSeqNo
+      LogIndexPageDeletion: bool -> SearchKeyType -> BlockId -> int32 -> LogSeqNo
       LogSetVal: Buffer -> int32 -> DbConstant -> LogSeqNo option }
 
 module TransactionRecovery =
@@ -24,39 +24,27 @@ module TransactionRecovery =
         |> writeToLog logService
 
     let logTableFileInsertionEnd logService txNo logicalStartLogSeqNo tableName blockNo slotNo =
-        match logicalStartLogSeqNo with
-        | Some startLsn ->
-            newTableFileInsertEndRecord txNo tableName blockNo slotNo startLsn
-            |> writeToLog logService
-        | _ -> failwith "Logical start LogSeqNo is null (in logTableFileInsertionEnd)"
-
-    let logTableFileDeletionEnd logService txNo logicalStartLogSeqNo tableName blockNo slotNo =
-        match logicalStartLogSeqNo with
-        | Some startLsn ->
-            newTableFileDeleteEndRecord txNo tableName blockNo slotNo startLsn
-            |> writeToLog logService
-        | _ -> failwith "Logical start LogSeqNo is null (in logTableFileDeletionEnd)"
-
-    let logIndexInsertionEnd logService txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
-        match logicalStartLogSeqNo with
-        | Some startLsn ->
-            newIndexInsertEndRecord txNo indexName searchKey blockNo slotNo startLsn
-            |> writeToLog logService
-        | _ -> failwith "Logical start LogSeqNo is null (in logIndexInsertionEnd)"
-
-    let logIndexDeletionEnd logService txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
-        match logicalStartLogSeqNo with
-        | Some startLsn ->
-            newIndexDeleteEndRecord txNo indexName searchKey blockNo slotNo startLsn
-            |> writeToLog logService
-        | _ -> failwith "Logical start LogSeqNo is null (in logIndexDeletionEnd)"
-
-    let logIndexPageInsertion logService txNo isBranch indexBlockId keyType slot =
-        newIndexPageInsertRecord isBranch txNo indexBlockId keyType slot
+        newTableFileInsertEndRecord txNo tableName blockNo slotNo logicalStartLogSeqNo
         |> writeToLog logService
 
-    let logIndexPageDeletion logService txNo isBranch indexBlockId keyType slot =
-        newIndexPageDeleteRecord isBranch txNo indexBlockId keyType slot
+    let logTableFileDeletionEnd logService txNo logicalStartLogSeqNo tableName blockNo slotNo =
+        newTableFileDeleteEndRecord txNo tableName blockNo slotNo logicalStartLogSeqNo
+        |> writeToLog logService
+
+    let logIndexInsertionEnd logService txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
+        newIndexInsertEndRecord txNo indexName searchKey blockNo slotNo logicalStartLogSeqNo
+        |> writeToLog logService
+
+    let logIndexDeletionEnd logService txNo logicalStartLogSeqNo indexName searchKey blockNo slotNo =
+        newIndexDeleteEndRecord txNo indexName searchKey blockNo slotNo logicalStartLogSeqNo
+        |> writeToLog logService
+
+    let logIndexPageInsertion logService txNo isBranch keyType blockId slotNo =
+        newIndexPageInsertRecord txNo isBranch keyType blockId slotNo
+        |> writeToLog logService
+
+    let logIndexPageDeletion logService txNo isBranch keyType blockId slotNo =
+        newIndexPageDeleteRecord txNo isBranch keyType blockId slotNo
         |> writeToLog logService
 
     let logSetVal logService txNo buffer offset newValue =
@@ -84,58 +72,32 @@ let newTransactionRecovery logService txNo isReadOnly =
               lsn
       LogTableFileInsertionEnd =
           fun tableName blockNo slotNo ->
-              let lsn =
-                  TransactionRecovery.logTableFileInsertionEnd
-                      logService
-                      txNo
-                      logicalStartLogSeqNo
-                      tableName
-                      blockNo
-                      slotNo
-
-              logicalStartLogSeqNo <- None
-              lsn
+              match logicalStartLogSeqNo with
+              | Some startLsn ->
+                  logicalStartLogSeqNo <- None
+                  TransactionRecovery.logTableFileInsertionEnd logService txNo startLsn tableName blockNo slotNo
+              | _ -> failwith "No logical start LogSeqNo"
       LogTableFileDeletionEnd =
           fun tableName blockNo slotNo ->
-              let lsn =
-                  TransactionRecovery.logTableFileDeletionEnd
-                      logService
-                      txNo
-                      logicalStartLogSeqNo
-                      tableName
-                      blockNo
-                      slotNo
-
-              logicalStartLogSeqNo <- None
-              lsn
+              match logicalStartLogSeqNo with
+              | Some startLsn ->
+                  logicalStartLogSeqNo <- None
+                  TransactionRecovery.logTableFileDeletionEnd logService txNo startLsn tableName blockNo slotNo
+              | _ -> failwith "No logical start LogSeqNo"
       LogIndexInsertionEnd =
           fun indexName searchKey blockNo slotNo ->
-              let lsn =
-                  TransactionRecovery.logIndexInsertionEnd
-                      logService
-                      txNo
-                      logicalStartLogSeqNo
-                      indexName
-                      searchKey
-                      blockNo
-                      slotNo
-
-              logicalStartLogSeqNo <- None
-              lsn
+              match logicalStartLogSeqNo with
+              | Some startLsn ->
+                  logicalStartLogSeqNo <- None
+                  TransactionRecovery.logIndexInsertionEnd logService txNo startLsn indexName searchKey blockNo slotNo
+              | _ -> failwith "No logical start LogSeqNo"
       LogIndexDeletionEnd =
           fun indexName searchKey blockNo slotNo ->
-              let lsn =
-                  TransactionRecovery.logIndexDeletionEnd
-                      logService
-                      txNo
-                      logicalStartLogSeqNo
-                      indexName
-                      searchKey
-                      blockNo
-                      slotNo
-
-              logicalStartLogSeqNo <- None
-              lsn
+              match logicalStartLogSeqNo with
+              | Some startLsn ->
+                  logicalStartLogSeqNo <- None
+                  TransactionRecovery.logIndexDeletionEnd logService txNo startLsn indexName searchKey blockNo slotNo
+              | _ -> failwith "No logical start LogSeqNo"
       LogIndexPageInsertion = TransactionRecovery.logIndexPageInsertion logService txNo
       LogIndexPageDeletion = TransactionRecovery.logIndexPageDeletion logService txNo
       LogSetVal = TransactionRecovery.logSetVal logService txNo }

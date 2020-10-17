@@ -43,24 +43,25 @@ module BTreeBranch =
         |> List.iteri (fun i t -> sch.AddField (KeyPrefix + i.ToString()) t)
         sch
 
-    let getKey page slot (SearchKeyType (keys)) =
+    let getKey page slotNo (SearchKeyType keys) =
         keys
-        |> List.mapi (fun i _ -> page.GetVal slot (KeyPrefix + i.ToString()))
+        |> List.mapi (fun i _ -> page.GetVal slotNo (KeyPrefix + i.ToString()))
         |> SearchKey.newSearchKey
 
-    let getChildBlockNo page slot =
-        page.GetVal slot ChildBlockNo |> DbConstant.toLong
+    let getChildBlockNo page slotNo =
+        page.GetVal slotNo ChildBlockNo
+        |> DbConstant.toLong
 
-    let insertSlot txRecovery keyType page (SearchKey keys) blockNo slot =
-        txRecovery.LogIndexPageInsertion false page.BlockId keyType slot
+    let insertSlot txRecovery keyType page (SearchKey keys) blockNo slotNo =
+        txRecovery.LogIndexPageInsertion false keyType page.BlockId slotNo
         |> ignore
 
-        page.Insert slot
+        page.Insert slotNo
 
-        page.SetVal slot ChildBlockNo (BigIntDbConstant blockNo)
+        page.SetVal slotNo ChildBlockNo (BigIntDbConstant blockNo)
 
         keys
-        |> List.iteri (fun i k -> page.SetVal slot (KeyPrefix + i.ToString()) k)
+        |> List.iteri (fun i k -> page.SetVal slotNo (KeyPrefix + i.ToString()) k)
 
     let getLevel page = page.GetFlag 0
 
@@ -194,7 +195,7 @@ module BTreeBranch =
 
     let insert txRecovery keyType (page: BTreePage) (BTreeBranchEntry (key, blockNo)) =
         if page.GetCountOfRecords() > 0
-        then (findMatchingSlot keyType page (Some key)) + 1
+        then (Some key |> findMatchingSlot keyType page) + 1
         else 0
         |> insertSlot txRecovery keyType page key blockNo
 
@@ -202,7 +203,7 @@ module BTreeBranch =
             let splitPos = page.GetCountOfRecords() / 2
             let splitKey = getKey page splitPos keyType
             let splitBlockNo = page.Split splitPos [ getLevel page ]
-            Some(newBTreeBranchEntry splitKey splitBlockNo)
+            newBTreeBranchEntry splitKey splitBlockNo |> Some
         else
             None
 

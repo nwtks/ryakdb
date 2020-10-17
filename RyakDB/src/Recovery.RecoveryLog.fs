@@ -6,22 +6,22 @@ open RyakDB.Index
 open RyakDB.Storage.Log
 
 type RecoveryLogOperation =
-    | Start = -42
-    | Commit = -43
-    | Rollback = -44
-    | Checkpoint = -41
-    | LogicalStart = -61
-    | LogicalAbort = -77
+    | Start = -41
+    | Commit = -42
+    | Rollback = -43
+    | Checkpoint = -44
+    | LogicalStart = -51
+    | LogicalUndo = -52
     | TableFileInsertEnd = -71
     | TableFileDeleteEnd = -72
     | IndexFileInsertEnd = -73
     | IndexFileDeleteEnd = -74
     | IndexPageInsert = -75
-    | IndexPageInsertClear = -79
-    | IndexPageDelete = -76
-    | IndexPageDeleteClear = -80
-    | SetValue = -62
-    | SetValueClear = -78
+    | IndexPageInsertCompensate = -76
+    | IndexPageDelete = -77
+    | IndexPageDeleteCompensate = -78
+    | SetValue = -61
+    | SetValueCompensate = -62
 
 type RecoveryLog =
     | StartRecord of txNo: int64 * lsn: LogSeqNo option
@@ -29,17 +29,17 @@ type RecoveryLog =
     | RollbackRecord of txNo: int64 * lsn: LogSeqNo option
     | CheckpointRecord of txNos: int64 list * lsn: LogSeqNo option
     | LogicalStartRecord of txNo: int64 * lsn: LogSeqNo option
-    | LogicalAbortRecord of txNo: int64 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | LogicalUndoRecord of txNo: int64 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | TableFileInsertEndRecord of txNo: int64 * tableName: string * blockNo: int64 * slotNo: int32 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | TableFileDeleteEndRecord of txNo: int64 * tableName: string * blockNo: int64 * slotNo: int32 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | IndexInsertEndRecord of txNo: int64 * indexName: string * searchKey: SearchKey * recordBlockNo: int64 * recordSlotNo: int32 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | IndexDeleteEndRecord of txNo: int64 * indexName: string * searchKey: SearchKey * recordBlockNo: int64 * recordSlotNo: int32 * logicalStartLogSeqNo: LogSeqNo * lsn: LogSeqNo option
-    | IndexPageInsertRecord of txNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * lsn: LogSeqNo option
-    | IndexPageInsertClear of compesationTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
-    | IndexPageDeleteRecord of txNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * lsn: LogSeqNo option
-    | IndexPageDeleteClear of compesationTxNo: int64 * indexBlockId: BlockId * isBranch: bool * keyType: SearchKeyType * slot: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | IndexPageInsertRecord of txNo: int64 * isBranch: bool * keyType: SearchKeyType * indexBlockId: BlockId * indexSlotNo: int32 * lsn: LogSeqNo option
+    | IndexPageInsertCompensateRecord of compensateTxNo: int64 * isBranch: bool * keyType: SearchKeyType * indexBlockId: BlockId * indexSlotNo: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | IndexPageDeleteRecord of txNo: int64 * isBranch: bool * keyType: SearchKeyType * indexBlockId: BlockId * indexSlotNo: int32 * lsn: LogSeqNo option
+    | IndexPageDeleteCompensateRecord of compensateTxNo: int64 * isBranch: bool * keyType: SearchKeyType * indexBlockId: BlockId * indexSlotNo: int32 * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
     | SetValueRecord of txNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * oldValue: DbConstant * newValue: DbConstant * lsn: LogSeqNo option
-    | SetValueClear of compesationTxNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * oldValue: DbConstant * newValue: DbConstant * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
+    | SetValueCompensateRecord of compensateTxNo: int64 * blockId: BlockId * offset: int32 * dbType: DbType * oldValue: DbConstant * newValue: DbConstant * undoNextLogSeqNo: LogSeqNo * lsn: LogSeqNo option
 
 let newStartRecord txNo = StartRecord(txNo, None)
 
@@ -73,10 +73,10 @@ let newLogicalStartRecord txNo = LogicalStartRecord(txNo, None)
 let newLogicalStartRecordByLogRecord record =
     LogicalStartRecord(record.NextVal BigIntDbType |> DbConstant.toLong, Some record.LogSeqNo)
 
-let newLogicalAbortRecord txNo logicalStartLogSeqNo =
-    LogicalAbortRecord(txNo, logicalStartLogSeqNo, None)
+let newLogicalUndoRecord txNo logicalStartLogSeqNo =
+    LogicalUndoRecord(txNo, logicalStartLogSeqNo, None)
 
-let newLogicalAbortRecordByLogRecord record =
+let newLogicalUndoRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
@@ -85,7 +85,7 @@ let newLogicalAbortRecordByLogRecord record =
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    LogicalAbortRecord(txNo, logicalStartLogSeqNo, Some record.LogSeqNo)
+    LogicalUndoRecord(txNo, logicalStartLogSeqNo, Some record.LogSeqNo)
 
 let newTableFileInsertEndRecord txNo tableName blockNo slotNo logicalStartLogSeqNo =
     TableFileInsertEndRecord(txNo, tableName, blockNo, slotNo, logicalStartLogSeqNo, None)
@@ -209,8 +209,8 @@ let newIndexDeleteEndRecordByLogRecord record =
     IndexDeleteEndRecord
         (txNo, indexName, searchKey, recordBlockNo, recordSlotNo, logicalStartLogSeqNo, Some record.LogSeqNo)
 
-let newIndexPageInsertRecord isBranch txNo indexBlockId keyType slot =
-    IndexPageInsertRecord(txNo, indexBlockId, isBranch, keyType, slot, None)
+let newIndexPageInsertRecord txNo isBranch keyType indexBlockId indexSlotNo =
+    IndexPageInsertRecord(txNo, isBranch, keyType, indexBlockId, indexSlotNo, None)
 
 let newIndexPageInsertRecordByLogRecord record =
     let txNo =
@@ -226,7 +226,7 @@ let newIndexPageInsertRecordByLogRecord record =
              |> DbConstant.toString)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    let slot =
+    let indexSlotNo =
         record.NextVal IntDbType |> DbConstant.toInt
 
     let count =
@@ -238,12 +238,12 @@ let newIndexPageInsertRecordByLogRecord record =
             DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
-    IndexPageInsertRecord(txNo, indexBlockId, isBranch, keyType, slot, Some record.LogSeqNo)
+    IndexPageInsertRecord(txNo, isBranch, keyType, indexBlockId, indexSlotNo, Some record.LogSeqNo)
 
-let newIndexPageInsertClear isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
-    IndexPageInsertClear(compTxNo, indexBlockId, isBranch, keyType, slot, undoNextLogSeqNo, None)
+let newIndexPageInsertCompensateRecord compTxNo isBranch keyType indexBlockId indexSlotNo undoNextLogSeqNo =
+    IndexPageInsertCompensateRecord(compTxNo, isBranch, keyType, indexBlockId, indexSlotNo, undoNextLogSeqNo, None)
 
-let newIndexPageInsertClearByLogRecord record =
+let newIndexPageInsertCompensateRecordByLogRecord record =
     let compTxNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
@@ -257,7 +257,7 @@ let newIndexPageInsertClearByLogRecord record =
              |> DbConstant.toString)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    let slot =
+    let indexSlotNo =
         record.NextVal IntDbType |> DbConstant.toInt
 
     let undoNextLogSeqNo =
@@ -274,10 +274,11 @@ let newIndexPageInsertClearByLogRecord record =
             DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
-    IndexPageInsertClear(compTxNo, indexBlockId, isBranch, keyType, slot, undoNextLogSeqNo, Some record.LogSeqNo)
+    IndexPageInsertCompensateRecord
+        (compTxNo, isBranch, keyType, indexBlockId, indexSlotNo, undoNextLogSeqNo, Some record.LogSeqNo)
 
-let newIndexPageDeleteRecord isBranch txNo indexBlockId keyType slot =
-    IndexPageDeleteRecord(txNo, indexBlockId, isBranch, keyType, slot, None)
+let newIndexPageDeleteRecord txNo isBranch keyType indexBlockId indexSlotNo =
+    IndexPageDeleteRecord(txNo, isBranch, keyType, indexBlockId, indexSlotNo, None)
 
 let newIndexPageDeleteRecordByLogRecord record =
     let txNo =
@@ -293,7 +294,7 @@ let newIndexPageDeleteRecordByLogRecord record =
              |> DbConstant.toString)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    let slot =
+    let indexSlotNo =
         record.NextVal IntDbType |> DbConstant.toInt
 
     let count =
@@ -305,12 +306,12 @@ let newIndexPageDeleteRecordByLogRecord record =
             DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
-    IndexPageDeleteRecord(txNo, indexBlockId, isBranch, keyType, slot, Some record.LogSeqNo)
+    IndexPageDeleteRecord(txNo, isBranch, keyType, indexBlockId, indexSlotNo, Some record.LogSeqNo)
 
-let newIndexPageDeleteClear isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
-    IndexPageDeleteClear(compTxNo, indexBlockId, isBranch, keyType, slot, undoNextLogSeqNo, None)
+let newIndexPageDeleteCompensateRecord compTxNo isBranch keyType indexBlockId indexSlotNo undoNextLogSeqNo =
+    IndexPageDeleteCompensateRecord(compTxNo, isBranch, keyType, indexBlockId, indexSlotNo, undoNextLogSeqNo, None)
 
-let newIndexPageDeleteClearByLogRecord record =
+let newIndexPageDeleteCompensateRecordByLogRecord record =
     let compTxNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
@@ -324,7 +325,7 @@ let newIndexPageDeleteClearByLogRecord record =
              |> DbConstant.toString)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    let slot =
+    let indexSlotNo =
         record.NextVal IntDbType |> DbConstant.toInt
 
     let undoNextLogSeqNo =
@@ -341,7 +342,8 @@ let newIndexPageDeleteClearByLogRecord record =
             DbType.fromInt (record.NextVal IntDbType |> DbConstant.toInt) (record.NextVal IntDbType |> DbConstant.toInt))
         |> SearchKeyType.newSearchKeyTypeByTypes
 
-    IndexPageDeleteClear(compTxNo, indexBlockId, isBranch, keyType, slot, undoNextLogSeqNo, Some record.LogSeqNo)
+    IndexPageDeleteCompensateRecord
+        (compTxNo, isBranch, keyType, indexBlockId, indexSlotNo, undoNextLogSeqNo, Some record.LogSeqNo)
 
 let newSetValueRecord txNo blockId offset value newValue =
     SetValueRecord(txNo, blockId, offset, DbConstant.dbType value, value, newValue, None)
@@ -367,10 +369,11 @@ let newSetValueRecordByLogRecord record =
     let newValue = record.NextVal dbType
     SetValueRecord(txNo, blockId, offset, dbType, value, newValue, Some record.LogSeqNo)
 
-let newSetValueClear compTxNo blockId offset value newValue undoNextLogSeqNo =
-    SetValueClear(compTxNo, blockId, offset, DbConstant.dbType value, value, newValue, undoNextLogSeqNo, None)
+let newSetValueCompensateRecord compTxNo blockId offset value newValue undoNextLogSeqNo =
+    SetValueCompensateRecord
+        (compTxNo, blockId, offset, DbConstant.dbType value, value, newValue, undoNextLogSeqNo, None)
 
-let newSetValueClearByLogRecord record =
+let newSetValueCompensateRecordByLogRecord record =
     let txNo =
         record.NextVal BigIntDbType |> DbConstant.toLong
 
@@ -395,83 +398,61 @@ let newSetValueClearByLogRecord record =
             (record.NextVal BigIntDbType |> DbConstant.toLong)
             (record.NextVal BigIntDbType |> DbConstant.toLong)
 
-    SetValueClear(txNo, blockId, offset, dbType, value, newValue, undoNextLogSeqNo, Some record.LogSeqNo)
+    SetValueCompensateRecord(txNo, blockId, offset, dbType, value, newValue, undoNextLogSeqNo, Some record.LogSeqNo)
 
 let transactionNo record =
     match record with
-    | StartRecord(txNo = n) -> n
-    | CommitRecord(txNo = n) -> n
-    | RollbackRecord(txNo = n) -> n
     | CheckpointRecord _ -> -1L
-    | LogicalStartRecord(txNo = n) -> n
-    | LogicalAbortRecord(txNo = n) -> n
-    | TableFileInsertEndRecord(txNo = n) -> n
-    | TableFileDeleteEndRecord(txNo = n) -> n
-    | IndexInsertEndRecord(txNo = n) -> n
-    | IndexDeleteEndRecord(txNo = n) -> n
-    | IndexPageInsertRecord(txNo = n) -> n
-    | IndexPageInsertClear(compesationTxNo = n) -> n
-    | IndexPageDeleteRecord(txNo = n) -> n
-    | IndexPageDeleteClear(compesationTxNo = n) -> n
-    | SetValueRecord(txNo = n) -> n
-    | SetValueClear(compesationTxNo = n) -> n
+    | StartRecord(txNo = txNo)
+    | CommitRecord(txNo = txNo)
+    | RollbackRecord(txNo = txNo)
+    | LogicalStartRecord(txNo = txNo)
+    | LogicalUndoRecord(txNo = txNo)
+    | TableFileInsertEndRecord(txNo = txNo)
+    | TableFileDeleteEndRecord(txNo = txNo)
+    | IndexInsertEndRecord(txNo = txNo)
+    | IndexDeleteEndRecord(txNo = txNo)
+    | IndexPageInsertRecord(txNo = txNo)
+    | IndexPageInsertCompensateRecord(compensateTxNo = txNo)
+    | IndexPageDeleteRecord(txNo = txNo)
+    | IndexPageDeleteCompensateRecord(compensateTxNo = txNo)
+    | SetValueRecord(txNo = txNo)
+    | SetValueCompensateRecord(compensateTxNo = txNo) -> txNo
 
 let getLogSeqNo record =
     match record with
-    | StartRecord(lsn = n) -> n
-    | CommitRecord(lsn = n) -> n
-    | RollbackRecord(lsn = n) -> n
-    | CheckpointRecord(lsn = n) -> n
-    | LogicalStartRecord(lsn = n) -> n
-    | LogicalAbortRecord(lsn = n) -> n
-    | TableFileInsertEndRecord(lsn = n) -> n
-    | TableFileDeleteEndRecord(lsn = n) -> n
-    | IndexInsertEndRecord(lsn = n) -> n
-    | IndexDeleteEndRecord(lsn = n) -> n
-    | IndexPageInsertRecord(lsn = n) -> n
-    | IndexPageInsertClear(lsn = n) -> n
-    | IndexPageDeleteRecord(lsn = n) -> n
-    | IndexPageDeleteClear(lsn = n) -> n
-    | SetValueRecord(lsn = n) -> n
-    | SetValueClear(lsn = n) -> n
+    | StartRecord(lsn = lsn)
+    | CommitRecord(lsn = lsn)
+    | RollbackRecord(lsn = lsn)
+    | CheckpointRecord(lsn = lsn)
+    | LogicalStartRecord(lsn = lsn)
+    | LogicalUndoRecord(lsn = lsn)
+    | TableFileInsertEndRecord(lsn = lsn)
+    | TableFileDeleteEndRecord(lsn = lsn)
+    | IndexInsertEndRecord(lsn = lsn)
+    | IndexDeleteEndRecord(lsn = lsn)
+    | IndexPageInsertRecord(lsn = lsn)
+    | IndexPageInsertCompensateRecord(lsn = lsn)
+    | IndexPageDeleteRecord(lsn = lsn)
+    | IndexPageDeleteCompensateRecord(lsn = lsn)
+    | SetValueRecord(lsn = lsn)
+    | SetValueCompensateRecord(lsn = lsn) -> lsn
 
 let getLogicalStartLogSeqNo record =
     match record with
-    | StartRecord _ -> None
-    | CommitRecord _ -> None
-    | RollbackRecord _ -> None
-    | CheckpointRecord _ -> None
-    | LogicalStartRecord _ -> None
-    | LogicalAbortRecord(logicalStartLogSeqNo = lsn) -> Some lsn
-    | TableFileInsertEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
-    | TableFileDeleteEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
-    | IndexInsertEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
-    | IndexDeleteEndRecord(logicalStartLogSeqNo = lsn) -> Some lsn
-    | IndexPageInsertRecord _ -> None
-    | IndexPageInsertClear _ -> None
-    | IndexPageDeleteRecord _ -> None
-    | IndexPageDeleteClear _ -> None
-    | SetValueRecord _ -> None
-    | SetValueClear _ -> None
+    | LogicalUndoRecord(logicalStartLogSeqNo = startLsn)
+    | TableFileInsertEndRecord(logicalStartLogSeqNo = startLsn)
+    | TableFileDeleteEndRecord(logicalStartLogSeqNo = startLsn)
+    | IndexInsertEndRecord(logicalStartLogSeqNo = startLsn)
+    | IndexDeleteEndRecord(logicalStartLogSeqNo = startLsn) -> Some startLsn
+    | _ -> None
 
 let getUndoNextLogSeqNo record =
     match record with
-    | StartRecord _ -> None
-    | CommitRecord _ -> None
-    | RollbackRecord _ -> None
-    | CheckpointRecord _ -> None
-    | LogicalStartRecord _ -> None
-    | LogicalAbortRecord _ -> None
-    | TableFileInsertEndRecord _ -> None
-    | TableFileDeleteEndRecord _ -> None
-    | IndexInsertEndRecord _ -> None
-    | IndexDeleteEndRecord _ -> None
-    | IndexPageInsertRecord _ -> None
-    | IndexPageInsertClear(undoNextLogSeqNo = lsn) -> Some lsn
-    | IndexPageDeleteRecord _ -> None
-    | IndexPageDeleteClear(undoNextLogSeqNo = lsn) -> Some lsn
-    | SetValueRecord _ -> None
-    | SetValueClear(undoNextLogSeqNo = lsn) -> Some lsn
+    | IndexPageInsertCompensateRecord(undoNextLogSeqNo = undoNextLsn)
+    | IndexPageDeleteCompensateRecord(undoNextLogSeqNo = undoNextLsn)
+    | SetValueCompensateRecord(undoNextLogSeqNo = undoNextLsn) -> Some undoNextLsn
+    | _ -> None
 
 let operation record =
     match record with
@@ -480,17 +461,17 @@ let operation record =
     | RollbackRecord _ -> RecoveryLogOperation.Rollback
     | CheckpointRecord _ -> RecoveryLogOperation.Checkpoint
     | LogicalStartRecord _ -> RecoveryLogOperation.LogicalStart
-    | LogicalAbortRecord _ -> RecoveryLogOperation.LogicalAbort
+    | LogicalUndoRecord _ -> RecoveryLogOperation.LogicalUndo
     | TableFileInsertEndRecord _ -> RecoveryLogOperation.TableFileInsertEnd
     | TableFileDeleteEndRecord _ -> RecoveryLogOperation.TableFileDeleteEnd
     | IndexInsertEndRecord _ -> RecoveryLogOperation.IndexFileInsertEnd
     | IndexDeleteEndRecord _ -> RecoveryLogOperation.IndexFileDeleteEnd
     | IndexPageInsertRecord _ -> RecoveryLogOperation.IndexPageInsert
-    | IndexPageInsertClear _ -> RecoveryLogOperation.IndexPageInsertClear
+    | IndexPageInsertCompensateRecord _ -> RecoveryLogOperation.IndexPageInsertCompensate
     | IndexPageDeleteRecord _ -> RecoveryLogOperation.IndexPageDelete
-    | IndexPageDeleteClear _ -> RecoveryLogOperation.IndexPageDeleteClear
+    | IndexPageDeleteCompensateRecord _ -> RecoveryLogOperation.IndexPageDeleteCompensate
     | SetValueRecord _ -> RecoveryLogOperation.SetValue
-    | SetValueClear _ -> RecoveryLogOperation.SetValueClear
+    | SetValueCompensateRecord _ -> RecoveryLogOperation.SetValueCompensate
 
 let buildRecord record =
     let op =
@@ -503,33 +484,33 @@ let buildRecord record =
         [ op
           List.length txNos |> IntDbConstant ]
         @ (txNos |> List.map BigIntDbConstant)
-    | LogicalAbortRecord (_, LogSeqNo (startBlockNo, startOffset), _) ->
+    | LogicalUndoRecord (_, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset ]
-    | TableFileInsertEndRecord (_, name, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
+    | TableFileInsertEndRecord (_, name, blockNo, slotNo, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset ]
-    | TableFileDeleteEndRecord (_, name, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
+    | TableFileDeleteEndRecord (_, name, blockNo, slotNo, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset ]
-    | IndexInsertEndRecord (_, name, SearchKey key, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
+    | IndexInsertEndRecord (_, name, SearchKey key, blockNo, slotNo, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset
           List.length key |> IntDbConstant ]
@@ -539,12 +520,12 @@ let buildRecord record =
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant
                  v ]))
-    | IndexDeleteEndRecord (_, name, SearchKey key, blockNo, slot, LogSeqNo (startBlockNo, startOffset), _) ->
+    | IndexDeleteEndRecord (_, name, SearchKey key, blockNo, slotNo, LogSeqNo (startBlockNo, startOffset), _) ->
         [ op
           txNo
           DbConstant.newVarchar name
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           BigIntDbConstant startBlockNo
           BigIntDbConstant startOffset
           List.length key |> IntDbConstant ]
@@ -554,31 +535,31 @@ let buildRecord record =
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant
                  v ]))
-    | IndexPageInsertRecord (_, BlockId (fileName, blockNo), branch, SearchKeyType keyType, slot, _) ->
+    | IndexPageInsertRecord (_, branch, SearchKeyType keyType, BlockId (fileName, blockNo), slotNo, _) ->
         [ op
           txNo
           (if branch then 1 else 0) |> IntDbConstant
           DbConstant.newVarchar fileName
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           List.length keyType |> IntDbConstant ]
         @ (keyType
            |> List.collect (fun t ->
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant ]))
-    | IndexPageInsertClear (_,
-                            BlockId (fileName, blockNo),
-                            branch,
-                            SearchKeyType keyType,
-                            slot,
-                            LogSeqNo (undoBlockNo, undoOffset),
-                            _) ->
+    | IndexPageInsertCompensateRecord (_,
+                                       branch,
+                                       SearchKeyType keyType,
+                                       BlockId (fileName, blockNo),
+                                       slotNo,
+                                       LogSeqNo (undoBlockNo, undoOffset),
+                                       _) ->
         [ op
           txNo
           (if branch then 1 else 0) |> IntDbConstant
           DbConstant.newVarchar fileName
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           BigIntDbConstant undoBlockNo
           BigIntDbConstant undoOffset
           List.length keyType |> IntDbConstant ]
@@ -586,31 +567,31 @@ let buildRecord record =
            |> List.collect (fun t ->
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant ]))
-    | IndexPageDeleteRecord (_, BlockId (fileName, blockNo), branch, SearchKeyType keyType, slot, _) ->
+    | IndexPageDeleteRecord (_, branch, SearchKeyType keyType, BlockId (fileName, blockNo), slotNo, _) ->
         [ op
           txNo
           (if branch then 1 else 0) |> IntDbConstant
           DbConstant.newVarchar fileName
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           List.length keyType |> IntDbConstant ]
         @ (keyType
            |> List.collect (fun t ->
                [ DbType.toInt t |> IntDbConstant
                  DbType.argument t |> IntDbConstant ]))
-    | IndexPageDeleteClear (_,
-                            BlockId (fileName, blockNo),
-                            branch,
-                            SearchKeyType keyType,
-                            slot,
-                            LogSeqNo (undoBlockNo, undoOffset),
-                            _) ->
+    | IndexPageDeleteCompensateRecord (_,
+                                       branch,
+                                       SearchKeyType keyType,
+                                       BlockId (fileName, blockNo),
+                                       slotNo,
+                                       LogSeqNo (undoBlockNo, undoOffset),
+                                       _) ->
         [ op
           txNo
           (if branch then 1 else 0) |> IntDbConstant
           DbConstant.newVarchar fileName
           BigIntDbConstant blockNo
-          IntDbConstant slot
+          IntDbConstant slotNo
           BigIntDbConstant undoBlockNo
           BigIntDbConstant undoOffset
           List.length keyType |> IntDbConstant ]
@@ -628,14 +609,14 @@ let buildRecord record =
           DbType.argument dbType |> IntDbConstant
           oldValue
           newValue ]
-    | SetValueClear (_,
-                     BlockId (fileName, blockNo),
-                     offset,
-                     dbType,
-                     oldValue,
-                     newValue,
-                     LogSeqNo (undoBlockNo, undoOffset),
-                     _) ->
+    | SetValueCompensateRecord (_,
+                                BlockId (fileName, blockNo),
+                                offset,
+                                dbType,
+                                oldValue,
+                                newValue,
+                                LogSeqNo (undoBlockNo, undoOffset),
+                                _) ->
         [ op
           txNo
           DbConstant.newVarchar fileName
@@ -653,25 +634,23 @@ let writeToLog logService record = buildRecord record |> logService.Append
 
 let fromLogRecord record =
     let operation =
-        record.NextVal IntDbType
-        |> DbConstant.toInt
-        |> enum<RecoveryLogOperation>
+        record.NextVal IntDbType |> DbConstant.toInt
 
-    match operation with
+    match operation |> enum<RecoveryLogOperation> with
     | RecoveryLogOperation.Start -> newStartRecordByLogRecord record
     | RecoveryLogOperation.Commit -> newCommitRecordByLogRecord record
     | RecoveryLogOperation.Rollback -> newRollbackRecordByLogRecord record
     | RecoveryLogOperation.Checkpoint -> newCheckpointRecordByLogRecord record
     | RecoveryLogOperation.LogicalStart -> newLogicalStartRecordByLogRecord record
-    | RecoveryLogOperation.LogicalAbort -> newLogicalAbortRecordByLogRecord record
+    | RecoveryLogOperation.LogicalUndo -> newLogicalUndoRecordByLogRecord record
     | RecoveryLogOperation.TableFileInsertEnd -> newTableFileInsertEndRecordByLogRecord record
     | RecoveryLogOperation.TableFileDeleteEnd -> newTableFileDeleteEndRecordByLogRecord record
     | RecoveryLogOperation.IndexFileInsertEnd -> newIndexInsertEndRecordByLogRecord record
     | RecoveryLogOperation.IndexFileDeleteEnd -> newIndexDeleteEndRecordByLogRecord record
     | RecoveryLogOperation.IndexPageInsert -> newIndexPageInsertRecordByLogRecord record
-    | RecoveryLogOperation.IndexPageInsertClear -> newIndexPageInsertClearByLogRecord record
+    | RecoveryLogOperation.IndexPageInsertCompensate -> newIndexPageInsertCompensateRecordByLogRecord record
     | RecoveryLogOperation.IndexPageDelete -> newIndexPageDeleteRecordByLogRecord record
-    | RecoveryLogOperation.IndexPageDeleteClear -> newIndexPageDeleteClearByLogRecord record
+    | RecoveryLogOperation.IndexPageDeleteCompensate -> newIndexPageDeleteCompensateRecordByLogRecord record
     | RecoveryLogOperation.SetValue -> newSetValueRecordByLogRecord record
-    | RecoveryLogOperation.SetValueClear -> newSetValueClearByLogRecord record
+    | RecoveryLogOperation.SetValueCompensate -> newSetValueCompensateRecordByLogRecord record
     | _ -> failwith ("Not supported operation:" + operation.ToString())

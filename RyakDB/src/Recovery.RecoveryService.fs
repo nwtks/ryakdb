@@ -23,57 +23,71 @@ type RecoveryService =
       Checkpoint: int64 list -> unit }
 
 module RecoveryService =
-    let insertBTreeBranchSlot tx keyType blockId slot =
+    let insertBTreeBranchSlot tx keyType blockId slotNo =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
         use page =
             BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
-        page.Insert slot
+        page.Insert slotNo
 
-    let deleteBTreeBranchSlot tx keyType blockId slot =
+    let deleteBTreeBranchSlot tx keyType blockId slotNo =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
         use page =
             BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
-        page.Delete slot
+        page.Delete slotNo
 
-    let insertBTreeLeafSlot tx keyType blockId slot =
+    let insertBTreeLeafSlot tx keyType blockId slotNo =
         let schema = BTreeLeaf.keyTypeToSchema keyType
 
         use page =
             BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
-        page.Insert slot
+        page.Insert slotNo
 
-    let deleteBTreeLeafSlot tx keyType blockId slot =
+    let deleteBTreeLeafSlot tx keyType blockId slotNo =
         let schema = BTreeLeaf.keyTypeToSchema keyType
 
         use page =
             BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
 
-        page.Delete slot
+        page.Delete slotNo
 
-    let logLogicalAbort logService txNo undoNextLogSeqNo =
-        newLogicalAbortRecord txNo undoNextLogSeqNo
+    let logLogicalUndo logService txNo undoNextLogSeqNo =
+        newLogicalUndoRecord txNo undoNextLogSeqNo
         |> writeToLog logService
         |> logService.Flush
 
-    let logIndexPageInsertionClear logService isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
-        newIndexPageInsertClear isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo
+    let logIndexPageInsertionCompensationRecord logService
+                                                compTxNo
+                                                isBranch
+                                                keyType
+                                                indexBlockId
+                                                indexSlotNo
+                                                undoNextLogSeqNo
+                                                =
+        newIndexPageInsertCompensateRecord compTxNo isBranch keyType indexBlockId indexSlotNo undoNextLogSeqNo
         |> writeToLog logService
         |> logService.Flush
 
-    let logIndexPageDeletionClear logService isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo =
-        newIndexPageDeleteClear isBranch compTxNo indexBlockId keyType slot undoNextLogSeqNo
+    let logIndexPageDeletionCompensationRecord logService
+                                               compTxNo
+                                               isBranch
+                                               keyType
+                                               indexBlockId
+                                               indexSlotNo
+                                               undoNextLogSeqNo
+                                               =
+        newIndexPageDeleteCompensateRecord compTxNo isBranch keyType indexBlockId indexSlotNo undoNextLogSeqNo
         |> writeToLog logService
         |> logService.Flush
 
-    let logSetValClear logService compTxNo (buffer: Buffer) offset newValue undoNextLogSeqNo =
+    let logSetValCompensationRecord logService compTxNo (buffer: Buffer) offset newValue undoNextLogSeqNo =
         let blockId = buffer.BlockId()
         if not (BlockId.fileName blockId |> FileService.isTempFile) then
-            newSetValueClear
+            newSetValueCompensateRecord
                 compTxNo
                 blockId
                 offset
@@ -83,67 +97,67 @@ module RecoveryService =
             |> writeToLog logService
             |> logService.Flush
 
-    let undo fileService (logService: LogService) catalogService tx recoveryLog =
+    let undo fileService logService catalogService tx recoveryLog =
         match recoveryLog with
         | LogicalStartRecord (txNo, lsn) ->
             lsn
-            |> Option.iter (logLogicalAbort logService txNo)
-        | TableFileInsertEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
+            |> Option.iter (logLogicalUndo logService txNo)
+        | TableFileInsertEndRecord (txNo, tableName, blockNo, slotNo, startLsn, _) ->
             catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
                 use tf =
                     newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-                RecordId.newBlockRecordId slot (TableInfo.tableFileName ti) blockNo
+                RecordId.newBlockRecordId slotNo (TableInfo.tableFileName ti) blockNo
                 |> tf.UndoInsert)
-            logLogicalAbort logService txNo startLsn
-        | TableFileDeleteEndRecord (txNo, tableName, blockNo, slot, startLsn, _) ->
+            logLogicalUndo logService txNo startLsn
+        | TableFileDeleteEndRecord (txNo, tableName, blockNo, slotNo, startLsn, _) ->
             catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
                 use tf =
                     newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-                RecordId.newBlockRecordId slot (TableInfo.tableFileName ti) blockNo
+                RecordId.newBlockRecordId slotNo (TableInfo.tableFileName ti) blockNo
                 |> tf.UndoDelete)
-            logLogicalAbort logService txNo startLsn
-        | IndexInsertEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
+            logLogicalUndo logService txNo startLsn
+        | IndexInsertEndRecord (txNo, indexName, searchKey, blockNo, slotNo, startLsn, _) ->
             catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
                 use idx = IndexFactory.newIndex fileService tx ii
-                RecordId.newBlockRecordId slot (IndexInfo.tableFileName ii) blockNo
+                RecordId.newBlockRecordId slotNo (IndexInfo.tableFileName ii) blockNo
                 |> idx.Delete false searchKey)
-            logLogicalAbort logService txNo startLsn
-        | IndexDeleteEndRecord (txNo, indexName, searchKey, blockNo, slot, startLsn, _) ->
+            logLogicalUndo logService txNo startLsn
+        | IndexDeleteEndRecord (txNo, indexName, searchKey, blockNo, slotNo, startLsn, _) ->
             catalogService.GetIndexInfoByName tx indexName
             |> Option.iter (fun ii ->
                 use idx = IndexFactory.newIndex fileService tx ii
-                RecordId.newBlockRecordId slot (IndexInfo.tableFileName ii) blockNo
+                RecordId.newBlockRecordId slotNo (IndexInfo.tableFileName ii) blockNo
                 |> idx.Insert false searchKey)
-            logLogicalAbort logService txNo startLsn
-        | IndexPageInsertRecord (txNo, blockId, branch, keyType, slot, lsn) ->
+            logLogicalUndo logService txNo startLsn
+        | IndexPageInsertRecord (txNo, branch, keyType, blockId, slotNo, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
-            | Some l when l < buffer.LastLogSeqNo() ->
+            | Some no when no < buffer.LastLogSeqNo() ->
                 if branch
-                then deleteBTreeBranchSlot tx keyType blockId slot
-                else deleteBTreeLeafSlot tx keyType blockId slot
-                logIndexPageDeletionClear logService branch txNo blockId keyType slot l
+                then deleteBTreeBranchSlot tx keyType blockId slotNo
+                else deleteBTreeLeafSlot tx keyType blockId slotNo
+                logIndexPageDeletionCompensationRecord logService txNo branch keyType blockId slotNo no
             | _ -> ()
             tx.Buffer.Unpin buffer
-        | IndexPageDeleteRecord (txNo, blockId, branch, keyType, slot, lsn) ->
+        | IndexPageDeleteRecord (txNo, branch, keyType, blockId, slotNo, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
-            | Some l when l < buffer.LastLogSeqNo() ->
+            | Some no when no < buffer.LastLogSeqNo() ->
                 if branch
-                then insertBTreeBranchSlot tx keyType blockId slot
-                else insertBTreeLeafSlot tx keyType blockId slot
-                logIndexPageInsertionClear logService branch txNo blockId keyType slot l
+                then insertBTreeBranchSlot tx keyType blockId slotNo
+                else insertBTreeLeafSlot tx keyType blockId slotNo
+                logIndexPageInsertionCompensationRecord logService txNo branch keyType blockId slotNo no
             | _ -> ()
             tx.Buffer.Unpin buffer
         | SetValueRecord (txNo, blockId, offset, _, oldValue, _, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
-            | Some l -> logSetValClear logService txNo buffer offset oldValue l
+            | Some no -> logSetValCompensationRecord logService txNo buffer offset oldValue no
             | _ -> ()
             buffer.SetVal offset oldValue None
             tx.Buffer.Unpin buffer
@@ -151,51 +165,51 @@ module RecoveryService =
 
     let redo tx recoveryLog =
         match recoveryLog with
-        | IndexPageInsertRecord (_, blockId, branch, keyType, slot, lsn)
-        | IndexPageInsertClear (_, blockId, branch, keyType, slot, _, lsn) ->
+        | IndexPageInsertRecord (_, branch, keyType, blockId, slotNo, lsn)
+        | IndexPageInsertCompensateRecord (_, branch, keyType, blockId, slotNo, _, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
-            | Some l when l > buffer.LastLogSeqNo() ->
+            | Some no when no > buffer.LastLogSeqNo() ->
                 if branch
-                then insertBTreeBranchSlot tx keyType blockId slot
-                else insertBTreeLeafSlot tx keyType blockId slot
+                then insertBTreeBranchSlot tx keyType blockId slotNo
+                else insertBTreeLeafSlot tx keyType blockId slotNo
             | _ -> ()
             tx.Buffer.Unpin buffer
-        | IndexPageDeleteRecord (_, blockId, branch, keyType, slot, lsn)
-        | IndexPageDeleteClear (_, blockId, branch, keyType, slot, _, lsn) ->
+        | IndexPageDeleteRecord (_, branch, keyType, blockId, slotNo, lsn)
+        | IndexPageDeleteCompensateRecord (_, branch, keyType, blockId, slotNo, _, lsn) ->
             let buffer = tx.Buffer.Pin blockId
             match lsn with
-            | Some l when l > buffer.LastLogSeqNo() ->
+            | Some no when no > buffer.LastLogSeqNo() ->
                 if branch
-                then deleteBTreeBranchSlot tx keyType blockId slot
-                else deleteBTreeLeafSlot tx keyType blockId slot
+                then deleteBTreeBranchSlot tx keyType blockId slotNo
+                else deleteBTreeLeafSlot tx keyType blockId slotNo
             | _ -> ()
             tx.Buffer.Unpin buffer
         | SetValueRecord (_, blockId, offset, _, _, newValue, _)
-        | SetValueClear (_, blockId, offset, _, _, newValue, _, _) ->
+        | SetValueCompensateRecord (_, blockId, offset, _, _, newValue, _, _) ->
             let buffer = tx.Buffer.Pin blockId
             buffer.SetVal offset newValue None
             tx.Buffer.Unpin buffer
         | _ -> ()
 
     let rollbackPartially fileService logService catalogService tx stepsInUndo =
-        let mutable txUndoNextLogSeqNo = None
+        let mutable undoNextLogSeqNo = None
 
         logService.Records()
-        |> if stepsInUndo > 0 then Seq.take stepsInUndo else id
+        |> if stepsInUndo > 0 then Seq.truncate stepsInUndo else id
         |> Seq.map fromLogRecord
         |> Seq.filter (fun rlog -> transactionNo rlog = tx.TransactionNo)
         |> Seq.takeWhile (fun rlog -> operation rlog <> RecoveryLogOperation.Start)
         |> Seq.filter (fun rlog ->
-            Option.isNone txUndoNextLogSeqNo
+            Option.isNone undoNextLogSeqNo
             || getLogSeqNo rlog
-            |> Option.map (fun lsn -> txUndoNextLogSeqNo |> Option.get > lsn)
+            |> Option.map (fun lsn -> undoNextLogSeqNo |> Option.get > lsn)
             |> Option.defaultValue false)
         |> Seq.iter (fun rlog ->
             undo fileService logService catalogService tx rlog
-            txUndoNextLogSeqNo <-
+            undoNextLogSeqNo <-
                 getLogicalStartLogSeqNo rlog
-                |> Option.orElse txUndoNextLogSeqNo)
+                |> Option.orElse undoNextLogSeqNo)
 
     let rollback fileService logService catalogService tx =
         rollbackPartially fileService logService catalogService tx -1
@@ -225,28 +239,28 @@ module RecoveryService =
         redoRecords |> List.iter (redo tx)
 
         let mutable uncompletedTxs = uncompletedTxs.Remove tx.TransactionNo
-        let mutable txUndoNextLogSeqNos = Map.empty
+        let mutable undoNextLogSeqNos = Map.empty
 
         logService.Records()
-        |> if stepsInUndo > 0 then Seq.take stepsInUndo else id
+        |> if stepsInUndo > 0 then Seq.truncate stepsInUndo else id
         |> Seq.map fromLogRecord
         |> Seq.takeWhile (fun _ -> not (uncompletedTxs.IsEmpty))
         |> Seq.map (fun rlog -> rlog, transactionNo rlog)
         |> Seq.filter (fun (rlog, txNo) ->
             uncompletedTxs.Contains txNo
-            && (not (txUndoNextLogSeqNos.ContainsKey txNo)
+            && (not (undoNextLogSeqNos.ContainsKey txNo)
                 || getLogSeqNo rlog
-                |> Option.map (fun lsn -> txUndoNextLogSeqNos.[txNo] > lsn)
+                |> Option.map (fun lsn -> undoNextLogSeqNos.[txNo] > lsn)
                 |> Option.defaultValue false))
         |> Seq.iter (fun (rlog, txNo) ->
             match rlog, getLogicalStartLogSeqNo rlog, getUndoNextLogSeqNo rlog with
             | CommitRecord _, _, _
             | RollbackRecord _, _, _ -> ()
             | StartRecord _, _, _ -> uncompletedTxs <- uncompletedTxs.Remove txNo
-            | _, Some logicalStartLSN, _ ->
+            | _, Some startLsn, _ ->
                 undo fileService logService catalogService tx rlog
-                txUndoNextLogSeqNos <- txUndoNextLogSeqNos.Add(txNo, logicalStartLSN)
-            | _, _, Some undoNextLSN -> txUndoNextLogSeqNos <- txUndoNextLogSeqNos.Add(txNo, undoNextLSN)
+                undoNextLogSeqNos <- undoNextLogSeqNos.Add(txNo, startLsn)
+            | _, _, Some undoNextLsn -> undoNextLogSeqNos <- undoNextLogSeqNos.Add(txNo, undoNextLsn)
             | _, _, _ -> undo fileService logService catalogService tx rlog)
 
     let recover fileService logService catalogService tx =

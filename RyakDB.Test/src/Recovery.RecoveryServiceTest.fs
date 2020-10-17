@@ -9,6 +9,7 @@ open RyakDB.Index
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
 open RyakDB.Database
+open RyakDB.Recovery.RecoveryService
 
 let blockId = BlockId.newBlockId "_test_recover" 13L
 
@@ -418,3 +419,143 @@ let ``B-tree index`` () =
 
     db.Catalog.DropTable tx4 "RecoveryTest"
     tx4.Commit()
+
+[<Fact>]
+let ``crash during rollback`` () =
+    use db =
+        Database.defaultConfig ()
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    initBuffer db
+
+    let tx1 =
+        db.Transaction.NewTransaction false Serializable
+
+    let tx2 =
+        db.Transaction.NewTransaction false Serializable
+
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    let buff = tx1.Buffer.Pin blockId
+    tx1.Recovery.LogSetVal buff 504 (IntDbConstant 1111)
+    |> buff.SetVal 504 (IntDbConstant 1111)
+
+    tx2.Recovery.LogSetVal buff 520 (DbConstant.newVarchar "bbbb")
+    |> buff.SetVal 520 (DbConstant.newVarchar "bbbb")
+
+    tx3.Recovery.LogSetVal buff 540 (DbConstant.newVarchar "BBBB")
+    |> buff.SetVal 540 (DbConstant.newVarchar "BBBB")
+
+    tx1.Recovery.LogSetVal buff 504 (IntDbConstant 2222)
+    |> buff.SetVal 504 (IntDbConstant 2222)
+
+    tx2.Recovery.LogSetVal buff 520 (DbConstant.newVarchar "cccc")
+    |> buff.SetVal 520 (DbConstant.newVarchar "cccc")
+
+    tx3.Recovery.LogSetVal buff 540 (DbConstant.newVarchar "CCCC")
+    |> buff.SetVal 540 (DbConstant.newVarchar "CCCC")
+
+    tx1.Buffer.Unpin buff
+
+    tx3.Commit()
+
+    let tx4 =
+        db.Transaction.NewTransaction false Serializable
+
+    let buff = tx4.Buffer.Pin blockId
+    buff.GetVal 504 IntDbType
+    |> should equal (IntDbConstant 2222)
+    buff.GetVal 520 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "cccc")
+    buff.GetVal 540 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "CCCC")
+    tx4.Buffer.Unpin buff
+
+    RecoveryService.rollbackPartially db.File db.Log db.Catalog tx1 5
+    RecoveryService.rollbackPartially db.File db.Log db.Catalog tx2 6
+
+    let tx5 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Recovery.RecoverSystem tx5
+
+    let buff = tx5.Buffer.Pin blockId
+    buff.GetVal 504 IntDbType
+    |> should equal (IntDbConstant 0)
+    buff.GetVal 520 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "aaaa")
+    buff.GetVal 540 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "CCCC")
+    tx5.Buffer.Unpin buff
+
+[<Fact>]
+let ``crash during recovery`` () =
+    use db =
+        Database.defaultConfig ()
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    initBuffer db
+
+    let tx1 =
+        db.Transaction.NewTransaction false Serializable
+
+    let tx2 =
+        db.Transaction.NewTransaction false Serializable
+
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    let buff = tx1.Buffer.Pin blockId
+    tx1.Recovery.LogSetVal buff 404 (IntDbConstant 1111)
+    |> buff.SetVal 404 (IntDbConstant 1111)
+
+    tx2.Recovery.LogSetVal buff 420 (DbConstant.newVarchar "bbbb")
+    |> buff.SetVal 420 (DbConstant.newVarchar "bbbb")
+
+    tx3.Recovery.LogSetVal buff 440 (DbConstant.newVarchar "BBBB")
+    |> buff.SetVal 440 (DbConstant.newVarchar "BBBB")
+
+    tx1.Recovery.LogSetVal buff 404 (IntDbConstant 2222)
+    |> buff.SetVal 404 (IntDbConstant 2222)
+
+    tx2.Recovery.LogSetVal buff 420 (DbConstant.newVarchar "cccc")
+    |> buff.SetVal 420 (DbConstant.newVarchar "cccc")
+
+    tx3.Recovery.LogSetVal buff 440 (DbConstant.newVarchar "CCCC")
+    |> buff.SetVal 440 (DbConstant.newVarchar "CCCC")
+
+    tx1.Buffer.Unpin buff
+
+    tx3.Commit()
+
+    let tx4 =
+        db.Transaction.NewTransaction false Serializable
+
+    let buff = tx4.Buffer.Pin blockId
+    buff.GetVal 404 IntDbType
+    |> should equal (IntDbConstant 2222)
+    buff.GetVal 420 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "cccc")
+    buff.GetVal 440 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "CCCC")
+    tx4.Buffer.Unpin buff
+
+    let tx5 =
+        db.Transaction.NewTransaction false Serializable
+
+    RecoveryService.recoverPartially db.File db.Log db.Catalog tx5 7
+
+    let tx6 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Recovery.RecoverSystem tx6
+
+    let buff = tx6.Buffer.Pin blockId
+    buff.GetVal 404 IntDbType
+    |> should equal (IntDbConstant 0)
+    buff.GetVal 420 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "aaaa")
+    buff.GetVal 440 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "CCCC")
+    tx6.Buffer.Unpin buff
