@@ -18,7 +18,10 @@ type DbConstantRange =
       IsValid: unit -> bool
       IsConstant: unit -> bool
       ToConstant: unit -> DbConstant
-      Contains: DbConstant -> bool }
+      Contains: DbConstant -> bool
+      ApplyLow: DbConstant -> bool -> DbConstantRange
+      ApplyHigh: DbConstant -> bool -> DbConstantRange
+      ApplyConstant: DbConstant -> DbConstantRange }
 
 module DbType =
     let inline argument t =
@@ -272,10 +275,6 @@ module DbConstant =
                  + rhs.ToString())
 
 module DbConstantRange =
-    let getLow low includesLow = if includesLow then low else None
-
-    let getHigh high includesHigh = if includesHigh then high else None
-
     let isValid low includesLow high includesHigh =
         match low, high with
         | Some l, Some h ->
@@ -311,10 +310,57 @@ module DbConstantRange =
                || includesHigh && DbConstant.compare h value = 0)
            |> Option.defaultValue true
 
-    let newConstantRange low includesLow high includesHigh =
-        { Low = fun () -> getLow low includesLow
-          High = fun () -> getHigh high includesHigh
+    let applyLow low includesLow value includes =
+        low
+        |> Option.map (fun l ->
+            if DbConstant.compare l value > 0 then
+                (Some value), includes
+            elif includesLow
+                 && DbConstant.compare l value = 0
+                 && not includes then
+                low, false
+            else
+                low, includesLow)
+        |> Option.defaultValue (low, includesLow)
+
+    let applyHigh high includesHigh value includes =
+        high
+        |> Option.map (fun h ->
+            if DbConstant.compare h value < 0 then
+                (Some value), includes
+            elif includesHigh
+                 && DbConstant.compare h value = 0
+                 && not includes then
+                high, false
+            else
+                high, includesHigh)
+        |> Option.defaultValue (high, includesHigh)
+
+    let applyConstant low includesLow high includesHigh value =
+        let newLow, newincludesLow = applyLow low includesLow value true
+        let newHigh, newIncludesHigh = applyHigh high includesHigh value true
+        newLow, newincludesLow, newHigh, newIncludesHigh
+
+    let rec newConstantRange low includesLow high includesHigh =
+        { Low = fun () -> low
+          High = fun () -> high
           IsValid = fun () -> isValid low includesLow high includesHigh
           IsConstant = fun () -> isConstant low includesLow high includesHigh
           ToConstant = fun () -> toConstant low includesLow high includesHigh
-          Contains = fun value -> contains low includesLow high includesHigh value }
+          Contains = fun value -> contains low includesLow high includesHigh value
+          ApplyLow =
+              fun value includes ->
+                  let newLow, newincludesLow = applyLow low includesLow value includes
+                  newConstantRange newLow newincludesLow high includesHigh
+          ApplyHigh =
+              fun value includes ->
+                  let newHigh, newIncludesHigh =
+                      applyHigh high includesHigh value includes
+
+                  newConstantRange low includesLow newHigh newIncludesHigh
+          ApplyConstant =
+              fun value ->
+                  let newLow, newincludesLow, newHigh, newIncludesHigh =
+                      applyConstant low includesLow high includesHigh value
+
+                  newConstantRange newLow newincludesLow newHigh newIncludesHigh }

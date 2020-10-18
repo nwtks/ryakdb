@@ -76,7 +76,7 @@ module BufferPool =
             else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length)
 
         let pinNew assignBuffer =
-            fun (buffer: Buffer) ->
+            fun buffer ->
                 state.BlockMap.TryRemove(buffer.BlockId())
                 |> ignore
                 assignBuffer buffer
@@ -91,7 +91,7 @@ module BufferPool =
             ((state.LastReplacedBuff + 1) % state.BufferPool.Length)
 
     let rec pin state blockId =
-        let pinExistBuffer (buffer: Buffer) =
+        let pinExistBuffer buffer =
             if blockId = buffer.BlockId() then
                 pinBuffer state buffer
                 Some buffer

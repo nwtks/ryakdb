@@ -11,10 +11,10 @@ open RyakDB.Recovery.TransactionRecovery
 open RyakDB.Table.SlottedPage
 
 module BTreePageFormatter =
-    let makeDefaultRecord schema (offsetMap: Map<string, int32>) buffer position =
+    let makeDefaultRecord schema offsetMap buffer position =
         schema.Fields()
         |> List.iter (fun field ->
-            buffer.SetValue (position + offsetMap.[field]) (schema.DbType field |> DbConstant.defaultConstant))
+            buffer.SetValue (position + (Map.find field offsetMap)) (schema.DbType field |> DbConstant.defaultConstant))
 
 let newBTreePageFormatter schema flags =
     let offsetMap = SlottedPage.offsetMap schema
@@ -81,20 +81,11 @@ module BTreePage =
 
     let slotPosition headerSize slotSize slotNo = headerSize + slotNo * slotSize
 
-    let fieldPosition headerSize slotSize (offsetMap: Map<string, int32>) slotNo fieldName =
+    let fieldPosition headerSize slotSize offsetMap slotNo fieldName =
         (slotPosition headerSize slotSize slotNo)
-        + offsetMap.[fieldName]
+        + (Map.find fieldName offsetMap)
 
-    let setValueUnchecked txRecovery
-                          schema
-                          buffer
-                          headerSize
-                          slotSize
-                          (offsetMap: Map<string, int32>)
-                          slotNo
-                          fieldName
-                          value
-                          =
+    let setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slotNo fieldName value =
         DbConstant.castTo (schema.DbType fieldName) value
         |> setValue txRecovery buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
@@ -109,24 +100,14 @@ module BTreePage =
         IntDbConstant value
         |> setValueWithoutLogging buffer 0
 
-    let getVal schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slotNo fieldName =
+    let getVal schema buffer headerSize slotSize offsetMap slotNo fieldName =
         if slotNo >= getCountOfRecords buffer
         then failwith ("Slot overflow:" + slotNo.ToString())
 
         schema.DbType fieldName
         |> getValue buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
-    let setVal txRecovery
-               schema
-               buffer
-               headerSize
-               slotSize
-               countOfSlots
-               (offsetMap: Map<string, int32>)
-               slotNo
-               fieldName
-               value
-               =
+    let setVal txRecovery schema buffer headerSize slotSize countOfSlots offsetMap slotNo fieldName value =
         if slotNo >= countOfSlots
         then failwith ("Slot overflow:" + slotNo.ToString())
 
@@ -135,7 +116,7 @@ module BTreePage =
 
         setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slotNo fieldName value
 
-    let setValWithoutLogging schema buffer headerSize slotSize (offsetMap: Map<string, int32>) slotNo fieldName value =
+    let setValWithoutLogging schema buffer headerSize slotSize offsetMap slotNo fieldName value =
         DbConstant.castTo (schema.DbType fieldName) value
         |> setValueWithoutLogging buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 

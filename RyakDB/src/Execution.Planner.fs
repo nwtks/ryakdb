@@ -70,66 +70,190 @@ module QueryPlanner =
                 |> createPlan fileService bufferPool catalogService tx
             | _ ->
                 match catalogService.GetTableInfo tx tblname with
-                | Some ti -> Plan.newTablePlan tx ti
-                | _ -> failwith ("Not found table" + tblname))
-        |> List.reduce Plan.newProductPlan
-        |> Plan.newSelectPlan predicate
-        |> Plan.newGroupByPlan newSortScan groupFields aggregationFns
-        |> Plan.newProjectPlan projectionFields
-        |> Plan.newSortPlan newSortScan sortFields
+                | Some ti -> Plan.newTablePlan fileService tx ti
+                | _ -> failwith ("Not found table:" + tblname))
+        |> List.reduce Plan.pipeProductPlan
+        |> Plan.pipeSelectPlan predicate
+        |> Plan.pipeGroupByPlan newSortScan groupFields aggregationFns
+        |> Plan.pipeProjectPlan projectionFields
+        |> Plan.pipeSortPlan newSortScan sortFields
 
 let newQueryPlanner fileService bufferPool catalogService =
     { CreatePlan = QueryPlanner.createPlan fileService bufferPool catalogService }
 
+module IndexSelector =
+    let selectIndexSelectPlan fileService tx predicate candidates =
+        let selectIndexInfo bestIndex searchRanges indexInfo =
+            let indexType = IndexInfo.indexType indexInfo
+
+            let ranges =
+                IndexInfo.fieldNames indexInfo
+                |> List.map (fun f -> f, Predicate.toConstantRange f predicate)
+                |> List.filter (fun (_, range) -> Option.isSome range)
+                |> List.map (fun (f, range) -> f, Option.get range)
+                |> List.filter (fun (_, range) ->
+                    indexType = BTree
+                    || indexType = Hash && range.IsConstant())
+                |> List.fold (fun ranges (f, range) -> ranges |> Map.add f range) Map.empty
+
+            if Map.count ranges > Map.count searchRanges
+            then (Some indexInfo), ranges
+            else bestIndex, searchRanges
+
+        match candidates
+              |> List.fold (fun (bestIndex, searchRanges) ii -> selectIndexInfo bestIndex searchRanges ii)
+                     (None, Map.empty) with
+        | (Some bestIndex), searchRanges ->
+            Some
+                (Plan.pipeIndexSelectPlan
+                    fileService
+                     tx
+                     bestIndex
+                     (SearchRange.newSearchRangeByFieldsRanges (IndexInfo.fieldNames bestIndex) searchRanges))
+        | _ -> None
+
+    let selectByBestMatchedIndex fileService catalogService tx tableName predicate excludedFields =
+        catalogService.GetIndexInfosByTable tx tableName
+        |> List.filter (fun ii ->
+            not
+                (IndexInfo.fieldNames ii
+                 |> List.exists (fun f -> List.contains f excludedFields)))
+        |> selectIndexSelectPlan fileService tx predicate
+
 module UpdatePlanner =
     let executeInsert fileService catalogService tx tableName fieldNames values =
+        let fieldValues = List.zip fieldNames values |> Map.ofList
+
         use scan =
             match catalogService.GetTableInfo tx tableName with
-            | Some ti -> Plan.newTablePlan tx ti
-            | _ -> failwith ("Not found table" + tableName)
-            |> Plan.openScan fileService
+            | Some ti -> Plan.newTablePlan fileService tx ti
+            | _ -> failwith ("Not found table:" + tableName)
+            |> Plan.openScan
 
         scan.Insert()
-        List.zip fieldNames values
-        |> List.iter (fun (field, value) -> scan.SetVal field value)
+        fieldNames
+        |> List.iter (fun field -> scan.SetVal field fieldValues.[field])
+        let rid = scan.GetRecordId()
+
+        catalogService.GetIndexInfosByTable tx tableName
+        |> List.iter (fun ii ->
+            let key =
+                IndexInfo.fieldNames ii
+                |> List.map (fun field -> fieldValues.[field])
+                |> SearchKey.newSearchKey
+
+            use index = IndexFactory.newIndex fileService tx ii
+            index.Insert true key rid)
+
         1
 
     let executeDelete fileService catalogService tx tableName predicate =
-        use scan =
-            match catalogService.GetTableInfo tx tableName with
-            | Some ti -> Plan.newTablePlan tx ti
-            | _ -> failwith ("Not found table" + tableName)
-            |> Plan.newSelectPlan predicate
-            |> Plan.openScan fileService
-
-        let rec deleteAll i =
+        let rec deleteAll indexInfos selectPlan useIndex scan i =
             if scan.Next() then
-                scan.Delete()
-                deleteAll (i + 1)
-            else
-                i
+                let rid = scan.GetRecordId()
+                indexInfos
+                |> List.iter (fun ii ->
+                    let key =
+                        IndexInfo.fieldNames ii
+                        |> List.map scan.GetVal
+                        |> SearchKey.newSearchKey
 
+                    use index = IndexFactory.newIndex fileService tx ii
+                    index.Delete true key rid)
+                scan.Delete()
+
+                let nextScan =
+                    if useIndex then
+                        scan.Close()
+                        let nextScan = Plan.openScan selectPlan
+                        nextScan.BeforeFirst()
+                        nextScan
+                    else
+                        scan
+
+                deleteAll indexInfos selectPlan useIndex nextScan (i + 1)
+            else
+                scan, i
+
+        let indexInfos =
+            catalogService.GetIndexInfosByTable tx tableName
+
+        let newIndexSelecPlan =
+            IndexSelector.selectByBestMatchedIndex fileService catalogService tx tableName predicate []
+
+        let selectPlan =
+            match catalogService.GetTableInfo tx tableName with
+            | Some ti -> Plan.newTablePlan fileService tx ti
+            | _ -> failwith ("Not found table:" + tableName)
+            |> Option.defaultValue id newIndexSelecPlan
+            |> Plan.pipeSelectPlan predicate
+
+        let scan = Plan.openScan selectPlan
         scan.BeforeFirst()
-        deleteAll 0
+
+        let scan, count =
+            deleteAll indexInfos selectPlan (Option.isSome newIndexSelecPlan) scan 0
+
+        scan.Close()
+        count
 
     let executeModify fileService catalogService tx tableName predicate fieldValues =
-        use scan =
-            match catalogService.GetTableInfo tx tableName with
-            | Some ti -> Plan.newTablePlan tx ti
-            | _ -> failwith ("Not found table" + tableName)
-            |> Plan.newSelectPlan predicate
-            |> Plan.openScan fileService
-
-        let rec modifyAll i =
+        let rec modifyAll indexInfos scan i =
             if scan.Next() then
-                fieldValues
-                |> Map.iter (fun f e -> Expression.evaluate scan.GetVal e |> scan.SetVal f)
-                modifyAll (i + 1)
+                let oldValues =
+                    fieldValues |> Map.map (fun f _ -> scan.GetVal f)
+
+                let newValues =
+                    fieldValues
+                    |> Map.map (fun _ e -> Expression.evaluate scan.GetVal e)
+
+                newValues |> Map.iter scan.SetVal
+
+                let rid = scan.GetRecordId()
+                indexInfos
+                |> List.iter (fun ii ->
+                    use index = IndexFactory.newIndex fileService tx ii
+
+                    let oldKey =
+                        IndexInfo.fieldNames ii
+                        |> List.map (fun f -> if oldValues.ContainsKey f then oldValues.[f] else scan.GetVal f)
+                        |> SearchKey.newSearchKey
+
+                    index.Delete true oldKey rid
+
+                    let newKey =
+                        IndexInfo.fieldNames ii
+                        |> List.map (fun f -> if newValues.ContainsKey f then newValues.[f] else scan.GetVal f)
+                        |> SearchKey.newSearchKey
+
+                    index.Insert true newKey rid)
+
+                modifyAll indexInfos scan (i + 1)
             else
                 i
 
+        let indexInfos =
+            catalogService.GetIndexInfosByTable tx tableName
+
+        let newIndexSelecPlan =
+            IndexSelector.selectByBestMatchedIndex
+                fileService
+                catalogService
+                tx
+                tableName
+                predicate
+                (fieldValues |> Map.toList |> List.map fst)
+
+        use scan =
+            match catalogService.GetTableInfo tx tableName with
+            | Some ti -> Plan.newTablePlan fileService tx ti
+            | _ -> failwith ("Not found table:" + tableName)
+            |> Option.defaultValue id newIndexSelecPlan
+            |> Plan.pipeSelectPlan predicate
+            |> Plan.openScan
+
         scan.BeforeFirst()
-        modifyAll 0
+        modifyAll indexInfos scan 0
 
     let executeCreateTable catalogService tx tableName schema =
         catalogService.CreateTable tx tableName schema

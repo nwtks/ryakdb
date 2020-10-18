@@ -412,7 +412,7 @@ module TableFile =
     let undoDelete fileService txBuffer txConcurrency txRecovery txReadOnly doLog tableInfo state recordId =
         let (TableInfo (tableName, _, tableFileName)) = tableInfo
 
-        let rec moveToDeletedSlot state (deletedRecordId: RecordId) lastDeletedRecordId =
+        let rec moveToDeletedSlot state deletedRecordId lastDeletedRecordId =
             let (RecordId (_, BlockId (_, blockNo))) = deletedRecordId
             if deletedRecordId <> recordId && blockNo > 0L then
                 let newstate =

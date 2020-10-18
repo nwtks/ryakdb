@@ -54,10 +54,10 @@ module SlottedPage =
 
     let currentPosition slotSize currentSlotNo = currentSlotNo * slotSize
 
-    let fieldPosition (offsetMap: Map<string, int32>) slotSize currentSlotNo fieldName =
+    let fieldPosition offsetMap slotSize currentSlotNo fieldName =
         (currentPosition slotSize currentSlotNo)
         + FlagSize
-        + offsetMap.[fieldName]
+        + (Map.find fieldName offsetMap)
 
     let getValue txConcurrency (currentBuffer: Buffer) blockId currentSlotNo offset dbType =
         if not (BlockId.fileName blockId |> FileService.isTempFile) then
@@ -331,12 +331,12 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
               | _ -> failwith "Closed page" }
 
 module SlottedPageFormatter =
-    let makeDefaultSlottedPage schema (offsetMap: Map<string, int32>) buffer position =
+    let makeDefaultSlottedPage schema offsetMap buffer position =
         schema.Fields()
         |> List.iter (fun field ->
             schema.DbType field
             |> DbConstant.defaultConstant
-            |> buffer.SetValue(position + 4 + offsetMap.[field]))
+            |> buffer.SetValue(position + 4 + (Map.find field offsetMap)))
 
 let newSlottedPageFormatter schema =
     let offsetMap = SlottedPage.offsetMap schema

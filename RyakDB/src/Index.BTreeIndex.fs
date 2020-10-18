@@ -55,7 +55,7 @@ module BTreeIndex =
     let beforeFirst txBuffer txConcurrency txRecovery indexInfo keyType branchFileName leafFileName searchRange =
         if searchRange.IsValid() then
             let leaf =
-                searchRange.GetMin()
+                searchRange.GetLow()
                 |> search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName Read leafFileName
                 |> fst
 

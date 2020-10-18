@@ -103,7 +103,7 @@ module BTreeLeaf =
         if countOfRecords = 0 then
             -1
         else
-            match searchRange.GetMin() with
+            match searchRange.GetLow() with
             | Some searchMin ->
                 if SearchKey.compare (getKey page (countOfRecords - 1) keyType) searchMin < 0 then
                     countOfRecords - 1
@@ -189,7 +189,7 @@ module BTreeLeaf =
                  else
                      { state with CurrentSlot = nextSlot })
             elif getKey state.CurrentPage nextSlot keyType
-                 |> state.SearchRange.BetweenMinAndMax then
+                 |> state.SearchRange.BetweenLowHigh then
                 searchNext { state with CurrentSlot = nextSlot }
             else
                 false, { state with CurrentSlot = nextSlot }

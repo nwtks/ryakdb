@@ -119,6 +119,8 @@ module Term =
         | _ -> None
 
 module Predicate =
+    let isEmpty (Predicate terms) = List.isEmpty terms
+
     let isSatisfied record (Predicate terms) =
         terms |> List.forall (Term.isSatisfied record)
 
@@ -128,3 +130,42 @@ module Predicate =
         |> Predicate
 
     let conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate
+
+    let toConstantRange fieldName (Predicate terms) =
+        terms
+        |> List.fold (fun cr t ->
+            match Term.oppositeConstant fieldName t with
+            | Some c ->
+                match Term.operator fieldName t with
+                | Some EqualOperator ->
+                    cr
+                    |> Option.map (fun cr -> cr.ApplyConstant c)
+                    |> Option.defaultWith (fun () -> DbConstantRange.newConstantRange (Some c) true (Some c) true)
+                    |> Some
+                | Some GraterThanOperator ->
+                    cr
+                    |> Option.map (fun cr -> cr.ApplyLow c false)
+                    |> Option.defaultWith (fun () -> DbConstantRange.newConstantRange (Some c) false None false)
+                    |> Some
+                | Some GraterThanEqualOperator ->
+                    cr
+                    |> Option.map (fun cr -> cr.ApplyLow c true)
+                    |> Option.defaultWith (fun () -> DbConstantRange.newConstantRange (Some c) true None false)
+                    |> Some
+                | Some LessThanOperator ->
+                    cr
+                    |> Option.map (fun cr -> cr.ApplyHigh c false)
+                    |> Option.defaultWith (fun () -> DbConstantRange.newConstantRange None false (Some c) false)
+                    |> Some
+                | Some LessThanEqualOperator ->
+                    cr
+                    |> Option.map (fun cr -> cr.ApplyHigh c true)
+                    |> Option.defaultWith (fun () -> DbConstantRange.newConstantRange None false (Some c) true)
+                    |> Some
+                | _ -> cr
+            | _ -> cr) None
+        |> Option.filter (fun cr ->
+            cr.IsValid()
+            && (cr.Low()
+                |> Option.isSome
+                || cr.High() |> Option.isSome))

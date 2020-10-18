@@ -16,10 +16,10 @@ type TableInfo = TableInfo of tableName: string * schema: Schema * fileName: str
 type RecordId = RecordId of slotNo: int32 * blockId: BlockId
 
 module Schema =
-    let addField (fieldTypes: Map<string, DbType>) fieldName dbType = fieldTypes.Add(fieldName, dbType)
+    let addField fieldTypes fieldName dbType = Map.add fieldName dbType fieldTypes
 
-    let add (fieldTypes: Map<string, DbType>) fieldName schema =
-        fieldTypes.Add(fieldName, schema.DbType fieldName)
+    let add fieldTypes fieldName schema =
+        Map.add fieldName (schema.DbType fieldName) fieldTypes
 
     let addAll fieldTypes schema =
         schema.Fields()
@@ -27,9 +27,9 @@ module Schema =
 
     let fields fieldTypes = fieldTypes |> Map.toList |> List.map fst
 
-    let hasField (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.ContainsKey fieldName
+    let hasField fieldTypes fieldName = Map.containsKey fieldName fieldTypes
 
-    let dbType (fieldTypes: Map<string, DbType>) fieldName = fieldTypes.[fieldName]
+    let dbType fieldTypes fieldName = Map.find fieldName fieldTypes
 
     let newSchema () =
         let mutable fieldTypes = Map.empty

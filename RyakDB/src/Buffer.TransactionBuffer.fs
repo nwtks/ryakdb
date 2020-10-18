@@ -30,9 +30,10 @@ module TransactionBuffer =
             pinBufferPool ()
             |> waitUnpinningBuffer bufferPool pinBufferPool timestamp
 
-    let pinNewBuffer (bufferPool: BufferPool) (pinningBuffers: Map<BlockId, PinningBuffer>) pinBufferPool repinBuffer =
-        if pinningBuffers.Count >= bufferPool.BufferPoolSize
-        then failwith "Buffer pool full"
+    let pinNewBuffer (bufferPool: BufferPool) pinningBuffers pinBufferPool repinBuffer =
+        if Map.count pinningBuffers
+           >= bufferPool.BufferPoolSize then
+            failwith "Buffer pool full"
 
         let nextBuffers, newBuffer =
             match pinBufferPool ()
@@ -44,8 +45,8 @@ module TransactionBuffer =
 
         nextBuffers, newBuffer
 
-    let pinExistBuffer (pinningBuffers: Map<BlockId, PinningBuffer>) blockId =
-        let pinnedBuff = pinningBuffers.[blockId]
+    let pinExistBuffer pinningBuffers blockId =
+        let pinnedBuff = Map.find blockId pinningBuffers
 
         let nextPinnedBuff =
             { pinnedBuff with
@@ -53,10 +54,10 @@ module TransactionBuffer =
 
         pinningBuffers.Add(blockId, nextPinnedBuff), nextPinnedBuff.Buffer
 
-    let unpin (bufferPool: BufferPool) (pinningBuffers: Map<BlockId, PinningBuffer>) buffer =
+    let unpin (bufferPool: BufferPool) pinningBuffers buffer =
         let blockId = buffer.BlockId()
-        if pinningBuffers.ContainsKey blockId then
-            let pinnedBuff = pinningBuffers.[blockId]
+        if Map.containsKey blockId pinningBuffers then
+            let pinnedBuff = Map.find blockId pinningBuffers
 
             let nextPinnedBuff =
                 { pinnedBuff with
@@ -71,14 +72,14 @@ module TransactionBuffer =
         else
             pinningBuffers
 
-    let rec pin (bufferPool: BufferPool) blockId (pinningBuffers: Map<BlockId, PinningBuffer>) =
+    let rec pin (bufferPool: BufferPool) blockId pinningBuffers =
         let pinBufferPool () = bufferPool.Pin blockId
 
         let repinBuffer pinningBuffers =
             repin bufferPool pinningBuffers
             |> pin bufferPool blockId
 
-        if pinningBuffers.ContainsKey blockId
+        if Map.containsKey blockId pinningBuffers
         then pinExistBuffer pinningBuffers blockId
         else pinNewBuffer bufferPool pinningBuffers pinBufferPool repinBuffer
 

@@ -19,7 +19,7 @@ module HashIndex =
     let FieldSlotNo = "slot_no"
     let KeyPrefix = "key"
 
-    let fileSize (fileService: FileService) txConcurrency fileName =
+    let fileSize fileService txConcurrency fileName =
         txConcurrency.ReadFile fileName
         fileService.Size fileName
 
@@ -31,7 +31,7 @@ module HashIndex =
         |> List.iteri (fun i t -> sch.AddField (KeyPrefix + i.ToString()) t)
         sch
 
-    let getKey (tableFile: TableFile) (SearchKeyType types) =
+    let getKey tableFile (SearchKeyType types) =
         types
         |> List.mapi (fun i _ -> tableFile.GetVal(KeyPrefix + i.ToString()))
         |> SearchKey.newSearchKey
@@ -67,7 +67,7 @@ module HashIndex =
           TableFile = tf }
 
     let next keyType state =
-        let rec searchNext keyType (tableFile: TableFile) searchKey =
+        let rec searchNext keyType tableFile searchKey =
             if tableFile.Next() then
                 if SearchKey.compare searchKey (getKey tableFile keyType) = 0
                 then true
@@ -91,13 +91,7 @@ module HashIndex =
             RecordId.newBlockRecordId slotNo tableFileName blockNo
         | _ -> failwith "Must call beforeFirst()"
 
-    let insert txRecovery
-               indexName
-               (tableFile: TableFile)
-               doLogicalLogging
-               key
-               (RecordId (slotNo, BlockId (_, blockNo)))
-               =
+    let insert txRecovery indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
         if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
 
         tableFile.Insert()
@@ -117,7 +111,7 @@ module HashIndex =
             |> ignore
 
     let delete txRecovery indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
-        let rec searchDelete (tableFile: TableFile) blockNo slotNo =
+        let rec searchDelete tableFile blockNo slotNo =
             if tableFile.Next() then
                 let tfBlockNo =
                     tableFile.GetVal FieldBlockNo |> DbConstant.toLong

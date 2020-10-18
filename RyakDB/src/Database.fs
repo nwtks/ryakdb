@@ -20,7 +20,7 @@ type Database =
       Transaction: TransactionService
       Catalog: CatalogService
       Recovery: RecoveryService
-      NewPlanner: unit -> Planner
+      Planner: Planner
       Shutdown: unit -> unit }
     interface System.IDisposable with
         member this.Dispose() = this.Shutdown()
@@ -98,6 +98,9 @@ let newDatabase dbPath config =
     else newPeriodicCheckpointTask transactionService config.CheckpointPeriod
     |> taskService.RunTask
 
+    let planner =
+        Database.createPlanner fileService bufferPool catalogService
+
     { File = fileService
       BufferPool = bufferPool
       Log = logService
@@ -105,5 +108,5 @@ let newDatabase dbPath config =
       Transaction = transactionService
       Catalog = catalogService
       Recovery = recoveryService
-      NewPlanner = fun () -> Database.createPlanner fileService bufferPool catalogService
+      Planner = planner
       Shutdown = fun () -> Database.shutdown fileService bufferPool transactionService taskService }

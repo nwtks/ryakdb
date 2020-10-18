@@ -2,6 +2,7 @@ module RyakDB.Execution.Scan
 
 open RyakDB.DataType
 open RyakDB.Table
+open RyakDB.Index
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Table.TableFile
@@ -28,15 +29,15 @@ module Scan =
         let tableFile =
             newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tableInfo
 
-        { GetVal = fun field -> tableFile.GetVal field
-          BeforeFirst = fun () -> tableFile.BeforeFirst()
-          Close = fun () -> tableFile.Close()
-          Next = fun () -> tableFile.Next()
+        { GetVal = tableFile.GetVal
+          BeforeFirst = tableFile.BeforeFirst
+          Close = tableFile.Close
+          Next = tableFile.Next
           HasField = (TableInfo.schema tableInfo).HasField
           SetVal = tableFile.SetVal
-          Insert = fun () -> tableFile.Insert()
-          Delete = fun () -> tableFile.Delete()
-          GetRecordId = fun () -> tableFile.CurrentRecordId()
+          Insert = tableFile.Insert
+          Delete = tableFile.Delete
+          GetRecordId = tableFile.CurrentRecordId
           MoveToRecordId = tableFile.MoveToRecordId }
 
     let newSelectScan scan predicate =
@@ -52,14 +53,38 @@ module Scan =
             searchNext ()
 
         { GetVal = scan.GetVal
-          BeforeFirst = fun () -> scan.BeforeFirst()
-          Close = fun () -> scan.Close()
-          Next = fun () -> next ()
+          BeforeFirst = scan.BeforeFirst
+          Close = scan.Close
+          Next = next
           HasField = scan.HasField
           SetVal = scan.SetVal
-          Insert = fun () -> scan.Insert()
-          Delete = fun () -> scan.Delete()
-          GetRecordId = fun () -> scan.GetRecordId()
+          Insert = scan.Insert
+          Delete = scan.Delete
+          GetRecordId = scan.GetRecordId
+          MoveToRecordId = scan.MoveToRecordId }
+
+    let newIndexSelectScan scan (index: Index) searchRange =
+        let beforeFirst () = index.BeforeFirst searchRange
+
+        let next () =
+            let found = index.Next()
+            if found
+            then index.GetDataRecordId() |> scan.MoveToRecordId
+            found
+
+        let close () =
+            index.Close()
+            scan.Close()
+
+        { GetVal = scan.GetVal
+          BeforeFirst = beforeFirst
+          Close = close
+          Next = next
+          HasField = scan.HasField
+          SetVal = scan.SetVal
+          Insert = scan.Insert
+          Delete = scan.Delete
+          GetRecordId = scan.GetRecordId
           MoveToRecordId = scan.MoveToRecordId }
 
     let newProductScan scan1 scan2 =
@@ -94,9 +119,9 @@ module Scan =
             scan2.Close()
 
         { GetVal = getVal
-          BeforeFirst = fun () -> beforeFirst ()
-          Close = fun () -> close ()
-          Next = fun () -> next ()
+          BeforeFirst = beforeFirst
+          Close = close
+          Next = next
           HasField = hasField
           SetVal = fun _ _ -> ()
           Insert = fun () -> ()
@@ -113,9 +138,65 @@ module Scan =
         let hasField field = fields |> List.contains field
 
         { GetVal = getVal
-          BeforeFirst = fun () -> scan.BeforeFirst()
-          Close = fun () -> scan.Close()
-          Next = fun () -> scan.Next()
+          BeforeFirst = scan.BeforeFirst
+          Close = scan.Close
+          Next = scan.Next
+          HasField = hasField
+          SetVal = fun _ _ -> ()
+          Insert = fun () -> ()
+          Delete = fun () -> ()
+          GetRecordId = fun () -> failwith "Can't update"
+          MoveToRecordId = fun _ -> () }
+
+    let newIndexJoinScan scan joinedScan indexInfo (index: Index) joinFields =
+        let mutable isScanEmpty = false
+
+        let resetIndex () =
+            let joinValues =
+                joinFields
+                |> List.fold (fun values (f1, f2) -> values |> Map.add f2 (scan.GetVal f1)) Map.empty
+
+            IndexInfo.fieldNames indexInfo
+            |> List.map (fun f -> joinValues.[f])
+            |> SearchKey.newSearchKey
+            |> SearchRange.newSearchRangeBySearchKey
+            |> index.BeforeFirst
+
+        let getVal field =
+            if joinedScan.HasField field then joinedScan.GetVal field else scan.GetVal field
+
+        let hasField field =
+            joinedScan.HasField field || scan.HasField field
+
+        let beforeFirst () =
+            scan.BeforeFirst()
+            isScanEmpty <- not (scan.Next())
+            if not isScanEmpty then resetIndex ()
+
+        let rec next () =
+            if isScanEmpty then
+                false
+            elif index.Next() then
+                index.GetDataRecordId()
+                |> joinedScan.MoveToRecordId
+                true
+            else
+                isScanEmpty <- not (scan.Next())
+                if not isScanEmpty then
+                    resetIndex ()
+                    next ()
+                else
+                    false
+
+        let close () =
+            scan.Close()
+            index.Close()
+            joinedScan.Close()
+
+        { GetVal = getVal
+          BeforeFirst = beforeFirst
+          Close = close
+          Next = next
           HasField = hasField
           SetVal = fun _ _ -> ()
           Insert = fun () -> ()
@@ -127,6 +208,16 @@ module Scan =
         let mutable currentScan = None
         let mutable hasMore1 = false
         let mutable hasMore2 = false
+
+        let getVal field =
+            match currentScan with
+            | Some scan -> scan.GetVal field
+            | _ -> failwith "Must call next()"
+
+        let hasField field =
+            match currentScan with
+            | Some scan -> scan.HasField field
+            | _ -> failwith "Must call next()"
 
         let beforeFirst () =
             currentScan <- None
@@ -169,19 +260,11 @@ module Scan =
             scan1.Close()
             scan2 |> Option.iter (fun s -> s.Close())
 
-        { GetVal =
-              fun field ->
-                  match currentScan with
-                  | Some scan -> scan.GetVal field
-                  | _ -> failwith "Must call next()"
-          BeforeFirst = fun () -> beforeFirst ()
-          Close = fun () -> close ()
-          Next = fun () -> next ()
-          HasField =
-              fun field ->
-                  match currentScan with
-                  | Some scan -> scan.HasField field
-                  | _ -> failwith "Must call next()"
+        { GetVal = getVal
+          BeforeFirst = beforeFirst
+          Close = close
+          Next = next
+          HasField = hasField
           SetVal = fun _ _ -> ()
           Insert = fun () -> ()
           Delete = fun () -> ()
@@ -236,9 +319,9 @@ module Scan =
                 false
 
         { GetVal = getVal
-          BeforeFirst = fun () -> beforeFirst ()
-          Close = fun () -> scan.Close()
-          Next = fun () -> next ()
+          BeforeFirst = beforeFirst
+          Close = scan.Close
+          Next = next
           HasField = hasField
           SetVal = fun _ _ -> ()
           Insert = fun () -> ()

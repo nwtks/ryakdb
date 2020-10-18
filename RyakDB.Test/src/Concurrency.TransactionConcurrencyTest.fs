@@ -211,38 +211,40 @@ let ``serializable, serializable`` () =
     let tx2 =
         db.Transaction.NewTransaction false Serializable
 
-    db.Catalog.GetTableInfo tx1 "student"
-    |> Option.get
-    |> Plan.newTablePlan tx1
-    |> Plan.openScan db.File
-    |> (fun scan1 ->
-        scan1.BeforeFirst()
-        db.Catalog.GetTableInfo tx2 "student"
+    use scan1 =
+        db.Catalog.GetTableInfo tx1 "student"
         |> Option.get
-        |> Plan.newTablePlan tx2
-        |> Plan.openScan db.File
-        |> (fun scan2 ->
-            scan2.BeforeFirst()
-            scan1.Next() |> ignore
-            scan2.Next() |> ignore
-            shouldFail (fun () -> scan2.Insert()) |> ignore
-            scan2.Close())
-        scan1.Close())
+        |> Plan.newTablePlan db.File tx1
+        |> Plan.openScan
 
-    db.Catalog.GetTableInfo tx1 "student"
-    |> Option.get
-    |> Plan.newTablePlan tx1
-    |> Plan.openScan db.File
-    |> (fun scan1 ->
-        shouldFail (fun () -> scan1.Insert()) |> ignore
+    scan1.BeforeFirst()
+
+    use scan2 =
         db.Catalog.GetTableInfo tx2 "student"
         |> Option.get
-        |> Plan.newTablePlan tx2
-        |> Plan.openScan db.File
-        |> (fun scan2 ->
-            shouldFail (fun () -> scan2.Insert()) |> ignore
-            scan2.Close())
-        scan1.Close())
+        |> Plan.newTablePlan db.File tx2
+        |> Plan.openScan
+
+    scan2.BeforeFirst()
+    scan1.Next() |> ignore
+    scan2.Next() |> ignore
+    shouldFail (fun () -> scan2.Insert()) |> ignore
+
+    use scan1 =
+        db.Catalog.GetTableInfo tx1 "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx1
+        |> Plan.openScan
+
+    shouldFail (fun () -> scan1.Insert()) |> ignore
+
+    use scan2 =
+        db.Catalog.GetTableInfo tx2 "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx2
+        |> Plan.openScan
+
+    shouldFail (fun () -> scan2.Insert()) |> ignore
 
     tx1.Rollback()
     tx2.Rollback()
@@ -262,43 +264,45 @@ let ``serializable, repeatable read`` () =
     let tx2 =
         db.Transaction.NewTransaction false RepeatableRead
 
-    db.Catalog.GetTableInfo tx2 "student"
-    |> Option.get
-    |> Plan.newTablePlan tx2
-    |> Plan.openScan db.File
-    |> (fun scan2 ->
-        scan2.BeforeFirst()
-        db.Catalog.GetTableInfo tx1 "student"
+    use scan1 =
+        db.Catalog.GetTableInfo tx2 "student"
         |> Option.get
-        |> Plan.newTablePlan tx1
-        |> Plan.openScan db.File
-        |> (fun scan1 ->
-            scan1.BeforeFirst()
-            scan2.Next() |> ignore
-            scan1.Next() |> ignore
-            scan1.Insert()
-            scan1.Close())
-        scan2.Close())
+        |> Plan.newTablePlan db.File tx2
+        |> Plan.openScan
 
-    db.Catalog.GetTableInfo tx2 "student"
-    |> Option.get
-    |> Plan.newTablePlan tx2
-    |> Plan.openScan db.File
-    |> (fun scan2 ->
-        scan2.BeforeFirst()
+    scan1.BeforeFirst()
+
+    use scan2 =
         db.Catalog.GetTableInfo tx1 "student"
         |> Option.get
-        |> Plan.newTablePlan tx1
-        |> Plan.openScan db.File
-        |> (fun scan1 ->
-            shouldFail (fun () ->
-                scan1.BeforeFirst()
-                scan2.Next() |> ignore)
-            |> ignore
-            scan1.Next() |> ignore
-            shouldFail (fun () -> scan2.Insert()) |> ignore
-            scan1.Close())
-        scan2.Close())
+        |> Plan.newTablePlan db.File tx1
+        |> Plan.openScan
+
+    scan2.BeforeFirst()
+    scan1.Next() |> ignore
+    scan2.Next() |> ignore
+    scan2.Insert()
+
+    use scan3 =
+        db.Catalog.GetTableInfo tx2 "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx2
+        |> Plan.openScan
+
+    scan3.BeforeFirst()
+
+    use scan4 =
+        db.Catalog.GetTableInfo tx1 "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx1
+        |> Plan.openScan
+
+    shouldFail (fun () ->
+        scan4.BeforeFirst()
+        scan3.Next() |> ignore)
+    |> ignore
+    scan4.Next() |> ignore
+    shouldFail (fun () -> scan3.Insert()) |> ignore
 
     tx1.Rollback()
     tx2.Rollback()
@@ -318,26 +322,27 @@ let ``serializable, read committed`` () =
     let tx2 =
         db.Transaction.NewTransaction false ReadCommitted
 
-    db.Catalog.GetTableInfo tx2 "student"
-    |> Option.get
-    |> Plan.newTablePlan tx2
-    |> Plan.openScan db.File
-    |> (fun scan2 ->
-        scan2.BeforeFirst()
+    use scan1 =
+        db.Catalog.GetTableInfo tx2 "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx2
+        |> Plan.openScan
+
+    scan1.BeforeFirst()
+
+    use scan2 =
         db.Catalog.GetTableInfo tx1 "student"
         |> Option.get
-        |> Plan.newTablePlan tx1
-        |> Plan.openScan db.File
-        |> (fun scan1 ->
-            scan1.BeforeFirst()
-            scan2.Next() |> ignore
-            scan2.GetVal "s_id"
-            |> should equal (IntDbConstant 1)
-            tx2.EndStatement()
-            scan1.Next() |> ignore
-            scan1.Insert()
-            scan1.Close())
-        scan2.Close())
+        |> Plan.newTablePlan db.File tx1
+        |> Plan.openScan
+
+    scan2.BeforeFirst()
+    scan1.Next() |> ignore
+    scan1.GetVal "s_id"
+    |> should equal (IntDbConstant 1)
+    tx2.EndStatement()
+    scan2.Next() |> ignore
+    scan2.Insert()
 
     tx1.Rollback()
     tx2.Rollback()

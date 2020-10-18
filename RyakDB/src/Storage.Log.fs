@@ -67,7 +67,7 @@ module LogService =
         IntDbConstant position
         |> page.SetVal LastRecordPositionOffset
 
-    let appendNewBlock logFileName (page: Page) =
+    let appendNewBlock logFileName page =
         setLastRecordPosition page 0
         page.Append logFileName
 

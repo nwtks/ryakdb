@@ -11,6 +11,7 @@ type IndexCatalogService =
     { CreateIndex: Transaction -> string -> IndexType -> string -> string list -> unit
       DropIndex: Transaction -> string -> unit
       GetIndexInfoByName: Transaction -> string -> IndexInfo option
+      GetIndexInfosByTable: Transaction -> string -> IndexInfo list
       GetIndexInfosByField: Transaction -> string -> string -> IndexInfo list
       GetIndexedFields: Transaction -> string -> string list
       InitIndexCatalogService: Transaction -> unit }
@@ -72,7 +73,7 @@ module IndexCatalogService =
             (indexName, indeType, tblInfo) |> Some
         | _ -> None
 
-    let rec findIcatfileByIndexName tableService tx (tf: TableFile) indexName =
+    let rec findIcatfileByIndexName tableService tx tf indexName =
         if tf.Next() then
             let info =
                 if tf.GetVal IcatIdxName
@@ -96,7 +97,7 @@ module IndexCatalogService =
             tf.BeforeFirst()
             findIcatfileByIndexName tableService tx tf indexName)
 
-    let rec findIcatfileByTableName tableService tx (tf: TableFile) tableName indexes =
+    let rec findIcatfileByTableName tableService tx tf tableName indexes =
         if tf.Next() then
             if tf.GetVal IcatTblName
                |> DbConstant.toString = tableName then
@@ -119,7 +120,7 @@ module IndexCatalogService =
             findIcatfileByTableName tableService tx tf tableName [])
         |> Option.defaultValue []
 
-    let rec findKcatfile (tf: TableFile) indexName fields =
+    let rec findKcatfile tf indexName fields =
         if tf.Next() then
             if tf.GetVal KcatIdxName
                |> DbConstant.toString = indexName then
@@ -182,7 +183,7 @@ module IndexCatalogService =
         createKcatfile tableService
 
     let dropIndex fileService tableService tx indexName =
-        let rec deleteIcatfile (tf: TableFile) indexName =
+        let rec deleteIcatfile tf indexName =
             if tf.Next() then
                 if tf.GetVal IcatIdxName
                    |> DbConstant.toString = indexName then
@@ -198,7 +199,7 @@ module IndexCatalogService =
                 tf.BeforeFirst()
                 deleteIcatfile tf indexName)
 
-        let rec deleteKcatfile (tf: TableFile) indexName =
+        let rec deleteKcatfile tf indexName =
             if tf.Next() then
                 if tf.GetVal KcatIdxName
                    |> DbConstant.toString = indexName then
@@ -223,6 +224,12 @@ module IndexCatalogService =
             findFields fileService tableService tx indexName
             |> IndexInfo.newIndexInfo idxName idxType tblInfo)
 
+    let getIndexInfosByTable fileService tableService tx tableName =
+        findIcatByTableName fileService tableService tx tableName
+        |> List.map (fun (idxName, idxType, tblInfo) ->
+            findFields fileService tableService tx idxName
+            |> IndexInfo.newIndexInfo idxName idxType tblInfo)
+
     let getIndexInfosByField fileService tableService tx tableName field =
         findIcatByTableName fileService tableService tx tableName
         |> List.map (fun (idxName, idxType, tblInfo) ->
@@ -245,6 +252,7 @@ let newIndexCatalogService fileService tableService =
     { CreateIndex = IndexCatalogService.createIndex fileService tableService
       DropIndex = IndexCatalogService.dropIndex fileService tableService
       GetIndexInfoByName = IndexCatalogService.getIndexInfoByName fileService tableService
+      GetIndexInfosByTable = IndexCatalogService.getIndexInfosByTable fileService tableService
       GetIndexInfosByField = IndexCatalogService.getIndexInfosByField fileService tableService
       GetIndexedFields = IndexCatalogService.getIndexedFields fileService tableService
       InitIndexCatalogService = IndexCatalogService.initIndexCatalogService tableService }

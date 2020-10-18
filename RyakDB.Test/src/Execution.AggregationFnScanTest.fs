@@ -25,20 +25,20 @@ let count () =
     let newSortScan =
         MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.Catalog.GetTableInfo tx "student"
-    |> Option.get
-    |> Plan.newTablePlan tx
-    |> Plan.newGroupByPlan newSortScan [] [ CountFn("grad_year") ]
-    |> Plan.openScan db.File
-    |> (fun scan ->
-        let mutable i = 0
-        scan.BeforeFirst()
-        while scan.Next() do
-            i <- i + 1
-            scan.GetVal "count_of_grad_year"
-            |> should equal (IntDbConstant 900)
-        i |> should equal 1
-        scan.Close())
+    use scan =
+        db.Catalog.GetTableInfo tx "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeGroupByPlan newSortScan [] [ CountFn("grad_year") ]
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "count_of_grad_year"
+        |> should equal (IntDbConstant 900)
+    i |> should equal 1
 
     tx.Commit()
 
@@ -57,20 +57,20 @@ let max () =
     let newSortScan =
         MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.Catalog.GetTableInfo tx "student"
-    |> Option.get
-    |> Plan.newTablePlan tx
-    |> Plan.newGroupByPlan newSortScan [] [ MaxFn("grad_year") ]
-    |> Plan.openScan db.File
-    |> (fun scan ->
-        let mutable i = 0
-        scan.BeforeFirst()
-        while scan.Next() do
-            i <- i + 1
-            scan.GetVal "max_of_grad_year"
-            |> should equal (IntDbConstant 2009)
-        i |> should equal 1
-        scan.Close())
+    use scan =
+        db.Catalog.GetTableInfo tx "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeGroupByPlan newSortScan [] [ MaxFn("grad_year") ]
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "max_of_grad_year"
+        |> should equal (IntDbConstant 2009)
+    i |> should equal 1
 
     tx.Commit()
 
@@ -89,20 +89,20 @@ let min () =
     let newSortScan =
         MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.Catalog.GetTableInfo tx "student"
-    |> Option.get
-    |> Plan.newTablePlan tx
-    |> Plan.newGroupByPlan newSortScan [] [ MinFn("s_name") ]
-    |> Plan.openScan db.File
-    |> (fun scan ->
-        let mutable i = 0
-        scan.BeforeFirst()
-        while scan.Next() do
-            i <- i + 1
-            scan.GetVal "min_of_s_name"
-            |> should equal (DbConstant.newVarchar "student 1")
-        i |> should equal 1
-        scan.Close())
+    use scan =
+        db.Catalog.GetTableInfo tx "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeGroupByPlan newSortScan [] [ MinFn("s_name") ]
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "min_of_s_name"
+        |> should equal (DbConstant.newVarchar "student 1")
+    i |> should equal 1
 
     tx.Commit()
 
@@ -121,20 +121,20 @@ let sum () =
     let newSortScan =
         MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.Catalog.GetTableInfo tx "student"
-    |> Option.get
-    |> Plan.newTablePlan tx
-    |> Plan.newGroupByPlan newSortScan [] [ SumFn("s_id") ]
-    |> Plan.openScan db.File
-    |> (fun scan ->
-        let mutable i = 0
-        scan.BeforeFirst()
-        while scan.Next() do
-            i <- i + 1
-            scan.GetVal "sum_of_s_id"
-            |> should equal (IntDbConstant 405450)
-        i |> should equal 1
-        scan.Close())
+    use scan =
+        db.Catalog.GetTableInfo tx "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeGroupByPlan newSortScan [] [ SumFn("s_id") ]
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "sum_of_s_id"
+        |> should equal (IntDbConstant 405450)
+    i |> should equal 1
 
     tx.Commit()
 
@@ -153,19 +153,19 @@ let avg () =
     let newSortScan =
         MergeSort.newSortScan db.File db.BufferPool tx
 
-    db.Catalog.GetTableInfo tx "student"
-    |> Option.get
-    |> Plan.newTablePlan tx
-    |> Plan.newGroupByPlan newSortScan [] [ AvgFn("major_id") ]
-    |> Plan.openScan db.File
-    |> (fun scan ->
-        let mutable i = 0
-        scan.BeforeFirst()
-        while scan.Next() do
-            i <- i + 1
-            scan.GetVal "avg_of_major_id"
-            |> should equal (DoubleDbConstant 20.3)
-        i |> should equal 1
-        scan.Close())
+    use scan =
+        db.Catalog.GetTableInfo tx "student"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeGroupByPlan newSortScan [] [ AvgFn("major_id") ]
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "avg_of_major_id"
+        |> should equal (DoubleDbConstant 20.3)
+    i |> should equal 1
 
     tx.Commit()
