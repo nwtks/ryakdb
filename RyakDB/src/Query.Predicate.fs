@@ -129,6 +129,36 @@ module Predicate =
         |> List.filter (Term.isApplicableTo schema)
         |> Predicate
 
+    let joinPredicate schema1 schema2 (Predicate terms) =
+        let allSchema = Schema.newSchema ()
+        allSchema.AddAll schema1
+        allSchema.AddAll schema2
+        terms
+        |> List.filter (fun t ->
+            not (Term.isApplicableTo schema1 t)
+            && not (Term.isApplicableTo schema2 t)
+            && Term.isApplicableTo allSchema t)
+        |> Predicate
+
+    let joinFields fieldName (Predicate terms) =
+        let rec transiteFields (fields, transite) =
+            if List.isEmpty transite then
+                fields
+            else
+                terms
+                |> List.map (fun t ->
+                    let f = transite.Head
+                    Term.operator f t, Term.oppositeField f t)
+                |> List.filter (fun (op, f) ->
+                    Option.exists (fun op -> op = EqualOperator) op
+                    && Option.exists (fun f -> not (List.contains f fields)) f)
+                |> List.map (fun (_, f) -> Option.get f)
+                |> List.fold (fun (fields, transite) f -> (f :: fields, f :: transite)) (fields, transite.Tail)
+                |> transiteFields
+
+        transiteFields ([ fieldName ], [ fieldName ])
+        |> List.filter (fun f -> f <> fieldName)
+
     let conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate
 
     let toConstantRange fieldName (Predicate terms) =

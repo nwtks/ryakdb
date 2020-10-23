@@ -354,7 +354,7 @@ let ``B-tree index`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index1 =
-        db.Catalog.GetIndexInfosByField tx1 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByTable tx1 "RecoveryTest"
         |> List.head
         |> IndexFactory.newIndex db.File tx1
 
@@ -368,7 +368,7 @@ let ``B-tree index`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index2 =
-        db.Catalog.GetIndexInfosByField tx2 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByTable tx2 "RecoveryTest"
         |> List.head
         |> IndexFactory.newIndex db.File tx2
 
@@ -391,7 +391,7 @@ let ``B-tree index`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index3 =
-        db.Catalog.GetIndexInfosByField tx3 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByTable tx3 "RecoveryTest"
         |> List.head
         |> IndexFactory.newIndex db.File tx3
 
@@ -404,7 +404,7 @@ let ``B-tree index`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index4 =
-        db.Catalog.GetIndexInfosByField tx4 "RecoveryTest" "cid"
+        db.Catalog.GetIndexInfosByTable tx4 "RecoveryTest"
         |> List.head
         |> IndexFactory.newIndex db.File tx4
 

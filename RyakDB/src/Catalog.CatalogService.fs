@@ -15,8 +15,6 @@ type CatalogService =
       DropIndex: Transaction -> string -> unit
       GetIndexInfoByName: Transaction -> string -> IndexInfo option
       GetIndexInfosByTable: Transaction -> string -> IndexInfo list
-      GetIndexInfosByField: Transaction -> string -> string -> IndexInfo list
-      GetIndexedFields: Transaction -> string -> string list
       CreateView: Transaction -> string -> string -> unit
       DropView: Transaction -> string -> unit
       GetViewDef: Transaction -> string -> string option
@@ -35,8 +33,7 @@ let newCatalogService fileService =
     { CreateTable = tableService.CreateTable
       DropTable =
           fun tx tableName ->
-              indexService.GetIndexedFields tx tableName
-              |> List.collect (indexService.GetIndexInfosByField tx tableName)
+              indexService.GetIndexInfosByTable tx tableName
               |> List.map (IndexInfo.indexName)
               |> List.iter (indexService.DropIndex tx)
               viewService.GetViewNamesByTable tx tableName
@@ -47,8 +44,6 @@ let newCatalogService fileService =
       DropIndex = indexService.DropIndex
       GetIndexInfoByName = indexService.GetIndexInfoByName
       GetIndexInfosByTable = indexService.GetIndexInfosByTable
-      GetIndexInfosByField = indexService.GetIndexInfosByField
-      GetIndexedFields = indexService.GetIndexedFields
       CreateView = viewService.CreateView
       DropView = viewService.DropView
       GetViewDef = viewService.GetViewDef

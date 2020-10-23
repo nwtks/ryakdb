@@ -105,8 +105,8 @@ let ``varchar key`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index =
-        db.Catalog.GetIndexInfosByField tx "HITable" "title"
-        |> List.head
+        db.Catalog.GetIndexInfoByName tx "HITable_SI2"
+        |> Option.get
         |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "HITable.tbl" 0L

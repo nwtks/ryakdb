@@ -124,15 +124,12 @@ module SearchRange =
 
     let newSearchRangeBySearchKey (SearchKey searchKeyConstants) =
         searchKeyConstants
-        |> List.map (fun c -> DbConstantRange.newConstantRange (Some c) true (Some c) true)
+        |> List.map DbConstantRange.newConstantRangeByConstant
         |> newSearchRangeByRanges
 
     let newSearchRangeByFieldsRanges fields ranges =
         fields
-        |> List.map (fun f ->
-            if Map.containsKey f ranges
-            then Map.find f ranges
-            else DbConstantRange.newConstantRange None false None false)
+        |> List.map (fun f -> if Map.containsKey f ranges then Map.find f ranges else DbConstantRange.NoRange)
         |> newSearchRangeByRanges
 
 module IndexInfo =

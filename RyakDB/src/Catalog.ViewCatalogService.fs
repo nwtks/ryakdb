@@ -73,7 +73,8 @@ module ViewCatalogService =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             tf.BeforeFirst()
-            findVcatfileByTableName tf tableName [])
+            findVcatfileByTableName tf tableName []
+            |> List.rev)
         |> Option.defaultValue []
 
     let createView fileService tableService tx viewName viewDef =

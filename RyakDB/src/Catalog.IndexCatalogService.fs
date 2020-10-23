@@ -12,8 +12,6 @@ type IndexCatalogService =
       DropIndex: Transaction -> string -> unit
       GetIndexInfoByName: Transaction -> string -> IndexInfo option
       GetIndexInfosByTable: Transaction -> string -> IndexInfo list
-      GetIndexInfosByField: Transaction -> string -> string -> IndexInfo list
-      GetIndexedFields: Transaction -> string -> string list
       InitIndexCatalogService: Transaction -> unit }
 
 module IndexCatalogService =
@@ -117,7 +115,8 @@ module IndexCatalogService =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             tf.BeforeFirst()
-            findIcatfileByTableName tableService tx tf tableName [])
+            findIcatfileByTableName tableService tx tf tableName []
+            |> List.rev)
         |> Option.defaultValue []
 
     let rec findKcatfile tf indexName fields =
@@ -139,7 +138,7 @@ module IndexCatalogService =
                 newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
             tf.BeforeFirst()
-            findKcatfile tf indexName [])
+            findKcatfile tf indexName [] |> List.rev)
         |> Option.defaultValue []
 
     let createIndex fileService tableService tx indexName indexType tableName fields =
@@ -230,20 +229,6 @@ module IndexCatalogService =
             findFields fileService tableService tx idxName
             |> IndexInfo.newIndexInfo idxName idxType tblInfo)
 
-    let getIndexInfosByField fileService tableService tx tableName field =
-        findIcatByTableName fileService tableService tx tableName
-        |> List.map (fun (idxName, idxType, tblInfo) ->
-            idxName, idxType, tblInfo, findFields fileService tableService tx idxName)
-        |> List.filter (fun (_, _, _, fields) -> fields |> List.contains field)
-        |> List.map (fun (idxName, idxType, tblInfo, fields) -> IndexInfo.newIndexInfo idxName idxType tblInfo fields)
-
-    let getIndexedFields fileService tableService tx tableName =
-        findIcatByTableName fileService tableService tx tableName
-        |> List.map (fun (idxName, _, _) -> findFields fileService tableService tx idxName)
-        |> List.collect id
-        |> Set.ofList
-        |> Set.toList
-
     let initIndexCatalogService tableService tx =
         createIcat tableService tx
         createKcat tableService tx
@@ -253,6 +238,4 @@ let newIndexCatalogService fileService tableService =
       DropIndex = IndexCatalogService.dropIndex fileService tableService
       GetIndexInfoByName = IndexCatalogService.getIndexInfoByName fileService tableService
       GetIndexInfosByTable = IndexCatalogService.getIndexInfosByTable fileService tableService
-      GetIndexInfosByField = IndexCatalogService.getIndexInfosByField fileService tableService
-      GetIndexedFields = IndexCatalogService.getIndexedFields fileService tableService
       InitIndexCatalogService = IndexCatalogService.initIndexCatalogService tableService }

@@ -364,3 +364,8 @@ module DbConstantRange =
                       applyConstant low includesLow high includesHigh value
 
                   newConstantRange newLow newincludesLow newHigh newIncludesHigh }
+
+    let newConstantRangeByConstant constant =
+        newConstantRange (Some constant) true (Some constant) true
+
+    let NoRange = newConstantRange None false None false

@@ -3,6 +3,8 @@ module RyakDB.Test.Execution.PlanTest
 open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
+open RyakDB.Table
+open RyakDB.Index
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Transaction
@@ -231,5 +233,175 @@ let ``sort plan`` () =
         prevGradYear <- gradYear
         prevSid <- sid
     i |> should equal 900
+
+    tx.Commit()
+
+let setupIndexedData db =
+    let tx =
+        db.Transaction.NewTransaction false Serializable
+
+    let sch = Schema.newSchema ()
+    sch.AddField "key_1" IntDbType
+    sch.AddField "key_2" IntDbType
+    sch.AddField "key_3" IntDbType
+    sch.AddField "data" (VarcharDbType 100)
+    db.Catalog.CreateTable tx "testing_table" sch
+    db.Catalog.CreateIndex tx "testing_index" BTree "testing_table" [ "key_1"; "key_2"; "key_3" ]
+
+    use tf =
+        db.Catalog.GetTableInfo tx "testing_table"
+        |> Option.get
+        |> TableFile.newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+
+    use idx =
+        db.Catalog.GetIndexInfoByName tx "testing_index"
+        |> Option.get
+        |> IndexFactory.newIndex db.File tx
+
+    [ 1 .. 20 ]
+    |> List.iter (fun i ->
+        [ 1 .. 20 ]
+        |> List.iter (fun j ->
+            [ 1 .. 20 ]
+            |> List.iter (fun k ->
+                tf.Insert()
+                tf.SetVal "key_1" (IntDbConstant i)
+                tf.SetVal "key_2" (IntDbConstant j)
+                tf.SetVal "key_3" (IntDbConstant k)
+                tf.SetVal
+                    "data"
+                    (DbConstant.newVarchar
+                        ("test_"
+                         + i.ToString()
+                         + "_"
+                         + j.ToString()
+                         + "_"
+                         + k.ToString()))
+                idx.Insert
+                    true
+                    (SearchKey.newSearchKey [ IntDbConstant i
+                                              IntDbConstant j
+                                              IntDbConstant k ])
+                    (tf.CurrentRecordId()))))
+
+    let sch2 = Schema.newSchema ()
+    sch2.AddField "join_key_1" IntDbType
+    sch2.AddField "join_key_2" IntDbType
+    sch2.AddField "join_key_3" IntDbType
+    sch2.AddField "join_data" (VarcharDbType 100)
+    db.Catalog.CreateTable tx "testing_join_table" sch2
+
+    use tf2 =
+        db.Catalog.GetTableInfo tx "testing_join_table"
+        |> Option.get
+        |> TableFile.newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+
+    [ 1 .. 20 ]
+    |> List.iter (fun i ->
+        [ 1 .. 20 ]
+        |> List.iter (fun j ->
+            [ 1 .. 20 ]
+            |> List.iter (fun k ->
+                tf2.Insert()
+                tf2.SetVal "join_key_1" (IntDbConstant i)
+                tf2.SetVal "join_key_2" (IntDbConstant j)
+                tf2.SetVal "join_key_3" (IntDbConstant k)
+                tf2.SetVal
+                    "join_data"
+                    (DbConstant.newVarchar
+                        ("join_test_"
+                         + i.ToString()
+                         + "_"
+                         + j.ToString()
+                         + "_"
+                         + k.ToString())))))
+
+    tx.Commit()
+
+[<Fact>]
+let ``index select plan`` () =
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    setupIndexedData db
+
+    let tx =
+        db.Transaction.NewTransaction false Serializable
+
+    let ii =
+        db.Catalog.GetIndexInfoByName tx "testing_index"
+        |> Option.get
+
+    let searchKey =
+        SearchKey.newSearchKey [ IntDbConstant 1
+                                 IntDbConstant 20
+                                 IntDbConstant 7 ]
+        |> SearchRange.newSearchRangeBySearchKey
+
+    use scan =
+        db.Catalog.GetTableInfo tx "testing_table"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeIndexSelectPlan db.File tx ii searchKey
+        |> Plan.openScan
+
+    scan.BeforeFirst()
+    scan.Next() |> should be True
+    scan.GetVal "key_1"
+    |> DbConstant.toInt
+    |> should equal 1
+    scan.GetVal "key_2"
+    |> DbConstant.toInt
+    |> should equal 20
+    scan.GetVal "key_3"
+    |> DbConstant.toInt
+    |> should equal 7
+    scan.GetVal "data"
+    |> DbConstant.toString
+    |> should equal "test_1_20_7"
+    scan.Next() |> should be False
+
+    tx.Commit()
+
+[<Fact>]
+let ``range index select plan`` () =
+    use db =
+        { Database.defaultConfig () with
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    setupIndexedData db
+
+    let tx =
+        db.Transaction.NewTransaction false Serializable
+
+    let ii =
+        db.Catalog.GetIndexInfoByName tx "testing_index"
+        |> Option.get
+
+    let searchKey =
+        SearchRange.newSearchRangeByFieldsRanges
+            (IndexInfo.fieldNames ii)
+            (Map.ofList [ "key_1",
+                          IntDbConstant 5
+                          |> DbConstantRange.newConstantRangeByConstant ])
+
+    use scan =
+        db.Catalog.GetTableInfo tx "testing_table"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeIndexSelectPlan db.File tx ii searchKey
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "key_1"
+        |> DbConstant.toInt
+        |> should equal 5
+    i |> should equal 400
 
     tx.Commit()

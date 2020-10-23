@@ -72,37 +72,15 @@ let ``create index`` () =
     db.Catalog.GetIndexInfoByName tx "test_create_index_I4"
     |> should equal None
 
-    let indexes1 =
-        db.Catalog.GetIndexInfosByField tx tbl "AAA"
+    let indexes =
+        db.Catalog.GetIndexInfosByTable tx tbl
+        |> List.sortBy IndexInfo.indexName
 
-    indexes1.Head
-    |> IndexInfo.indexName
-    |> should equal i1
-    indexes1.Head
-    |> IndexInfo.fieldNames
-    |> should equal [ "AAA" ]
-
-    let indexes2 =
-        db.Catalog.GetIndexInfosByField tx tbl "BBB"
-
-    indexes2.Head
-    |> IndexInfo.indexName
-    |> should equal i2
-    indexes2.Head
-    |> IndexInfo.fieldNames
-    |> should equal [ "BBB" ]
-
-    let indexes3 =
-        db.Catalog.GetIndexInfosByField tx tbl "CCC"
-
-    indexes3.Head
-    |> IndexInfo.indexName
-    |> should equal i3
-    indexes3.Head
-    |> IndexInfo.fieldNames
-    |> should equal [ "CCC" ]
-
-    db.Catalog.GetIndexedFields tx tbl
-    |> should equal [ "AAA"; "BBB"; "CCC" ]
+    indexes
+    |> List.map IndexInfo.indexName
+    |> should equal [ i1; i2; i3 ]
+    indexes
+    |> List.map IndexInfo.fieldNames
+    |> should equal [ [ "AAA" ]; [ "BBB" ]; [ "CCC" ] ]
 
     tx.Commit()

@@ -108,8 +108,8 @@ let ``varchar key`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index =
-        db.Catalog.GetIndexInfosByField tx "BITable" "title"
-        |> List.head
+        db.Catalog.GetIndexInfoByName tx "BITable_SI2"
+        |> Option.get
         |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "BITable.tbl" 0L
@@ -284,8 +284,8 @@ let ``branch overflow`` () =
         db.Transaction.NewTransaction false Serializable
 
     use index =
-        db.Catalog.GetIndexInfosByField tx "BITable" "majorid"
-        |> List.head
+        db.Catalog.GetIndexInfoByName tx "BITable_SI4"
+        |> Option.get
         |> IndexFactory.newIndex db.File tx
 
     let blk = BlockId.newBlockId "BITable.tbl" 0L

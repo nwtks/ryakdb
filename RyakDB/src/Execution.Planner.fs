@@ -52,27 +52,119 @@ let newPlanner queryPlanner updatePlanner =
     { CreateQueryPlan = Planner.createQueryPlan queryPlanner
       ExecuteUpdate = Planner.executeUpdate updatePlanner }
 
+module IndexSelector =
+    let getConstantRanges predicate indexInfo =
+        let indexType = IndexInfo.indexType indexInfo
+        IndexInfo.fieldNames indexInfo
+        |> List.map (fun f -> f, Predicate.toConstantRange f predicate)
+        |> List.takeWhile (fun (_, range) -> Option.isSome range)
+        |> List.map (fun (f, range) -> f, Option.get range)
+        |> List.takeWhile (fun (_, range) ->
+            indexType = BTree
+            || indexType = Hash && range.IsConstant())
+        |> List.fold (fun ranges (f, range) -> ranges |> Map.add f range) Map.empty
+
+    let getIndexSelectPlan fileService tx ranges =
+        let index, constantRanges =
+            ranges
+            |> List.maxBy (fun (_, ranges) -> Map.count ranges)
+
+        SearchRange.newSearchRangeByFieldsRanges (IndexInfo.fieldNames index) constantRanges
+        |> Plan.pipeIndexSelectPlan fileService tx index
+
+    let makeIndexSelectPlan fileService catalogService tx tableName predicate excludedFields =
+        match catalogService.GetIndexInfosByTable tx tableName
+              |> List.filter (fun ii ->
+                  not
+                      (IndexInfo.fieldNames ii
+                       |> List.exists (fun f -> List.contains f excludedFields)))
+              |> List.map (fun ii -> ii, getConstantRanges predicate ii) with
+        | [] -> None
+        | ranges -> getIndexSelectPlan fileService tx ranges |> Some
+
 module QueryPlanner =
+    type QueryPlan =
+        | TableQueryPlan of plan: Plan * tableName: string
+        | ViewQueryPlan of plan: Plan
+
+    let addSelectPredicate predicate plan =
+        Plan.pipeSelectPlan (Predicate.selectPredicate (Plan.schema plan) predicate) plan
+
+    let addJoinPredicate predicate plan joinedPlan =
+        Plan.pipeSelectPlan (Predicate.joinPredicate (Plan.schema plan) (Plan.schema joinedPlan) predicate) plan
+
+    let makeIndexJoinPlan fileService catalogService tx joinedTableName predicate plan joinedPlan =
+        let getJoinFields (schema: Schema) indexInfo =
+            IndexInfo.fieldNames indexInfo
+            |> List.collect (fun f ->
+                Predicate.joinFields f predicate
+                |> List.takeWhile schema.HasField
+                |> List.map (fun f2 -> f2, f))
+
+        let getIndexJoinPlan candidates =
+            let indexInfo, joinFields =
+                candidates
+                |> List.maxBy (fun (_, pairs) -> List.length pairs)
+
+            Plan.pipeIndexJoinPlan fileService tx plan joinedPlan indexInfo joinFields
+
+        let schema = Plan.schema plan
+        match catalogService.GetIndexInfosByTable tx joinedTableName
+              |> List.map (fun ii -> ii, getJoinFields schema ii) with
+        | [] ->
+            joinedPlan
+            |> (IndexSelector.makeIndexSelectPlan fileService catalogService tx joinedTableName predicate []
+                |> Option.defaultValue id)
+            |> addSelectPredicate predicate
+            |> Plan.pipeProductPlan plan
+        | candidates -> getIndexJoinPlan candidates
+
     let rec createPlan fileService
                        bufferPool
                        catalogService
                        tx
                        (QueryData (projectionFields, tables, predicate, groupFields, aggregationFns, sortFields))
                        =
+        let getQueryPlans tables =
+            tables
+            |> List.map (fun tableName ->
+                match catalogService.GetViewDef tx tableName with
+                | Some viewDef ->
+                    Parser.queryCommand viewDef
+                    |> createPlan fileService bufferPool catalogService tx
+                    |> addSelectPredicate predicate
+                    |> ViewQueryPlan
+                | _ ->
+                    match catalogService.GetTableInfo tx tableName with
+                    | Some ti ->
+                        (Plan.newTablePlan fileService tx ti, tableName)
+                        |> TableQueryPlan
+                    | _ -> failwith ("Not found table:" + tableName))
+
+        let getJoinPlans queryPlans =
+            queryPlans
+            |> List.tail
+            |> List.fold (fun plan queryPlan ->
+                match queryPlan with
+                | TableQueryPlan (p, tn) ->
+                    makeIndexJoinPlan fileService catalogService tx tn predicate plan p
+                    |> addJoinPredicate predicate p
+                | ViewQueryPlan p -> p |> Plan.pipeProductPlan plan
+                |> addSelectPredicate predicate)
+                   (match List.head queryPlans with
+                    | TableQueryPlan (p, tn) ->
+                        p
+                        |> (IndexSelector.makeIndexSelectPlan fileService catalogService tx tn predicate []
+                            |> Option.defaultValue id)
+                        |> addSelectPredicate predicate
+                    | ViewQueryPlan p -> p)
+
         let newSortScan =
             MergeSort.newSortScan fileService bufferPool tx
 
         tables
-        |> List.map (fun tblname ->
-            match catalogService.GetViewDef tx tblname with
-            | Some viewDef ->
-                Parser.queryCommand viewDef
-                |> createPlan fileService bufferPool catalogService tx
-            | _ ->
-                match catalogService.GetTableInfo tx tblname with
-                | Some ti -> Plan.newTablePlan fileService tx ti
-                | _ -> failwith ("Not found table:" + tblname))
-        |> List.reduce Plan.pipeProductPlan
+        |> getQueryPlans
+        |> getJoinPlans
         |> Plan.pipeSelectPlan predicate
         |> Plan.pipeGroupByPlan newSortScan groupFields aggregationFns
         |> Plan.pipeProjectPlan projectionFields
@@ -80,45 +172,6 @@ module QueryPlanner =
 
 let newQueryPlanner fileService bufferPool catalogService =
     { CreatePlan = QueryPlanner.createPlan fileService bufferPool catalogService }
-
-module IndexSelector =
-    let selectIndexSelectPlan fileService tx predicate candidates =
-        let selectIndexInfo bestIndex searchRanges indexInfo =
-            let indexType = IndexInfo.indexType indexInfo
-
-            let ranges =
-                IndexInfo.fieldNames indexInfo
-                |> List.map (fun f -> f, Predicate.toConstantRange f predicate)
-                |> List.filter (fun (_, range) -> Option.isSome range)
-                |> List.map (fun (f, range) -> f, Option.get range)
-                |> List.filter (fun (_, range) ->
-                    indexType = BTree
-                    || indexType = Hash && range.IsConstant())
-                |> List.fold (fun ranges (f, range) -> ranges |> Map.add f range) Map.empty
-
-            if Map.count ranges > Map.count searchRanges
-            then (Some indexInfo), ranges
-            else bestIndex, searchRanges
-
-        match candidates
-              |> List.fold (fun (bestIndex, searchRanges) ii -> selectIndexInfo bestIndex searchRanges ii)
-                     (None, Map.empty) with
-        | (Some bestIndex), searchRanges ->
-            Some
-                (Plan.pipeIndexSelectPlan
-                    fileService
-                     tx
-                     bestIndex
-                     (SearchRange.newSearchRangeByFieldsRanges (IndexInfo.fieldNames bestIndex) searchRanges))
-        | _ -> None
-
-    let selectByBestMatchedIndex fileService catalogService tx tableName predicate excludedFields =
-        catalogService.GetIndexInfosByTable tx tableName
-        |> List.filter (fun ii ->
-            not
-                (IndexInfo.fieldNames ii
-                 |> List.exists (fun f -> List.contains f excludedFields)))
-        |> selectIndexSelectPlan fileService tx predicate
 
 module UpdatePlanner =
     let executeInsert fileService catalogService tx tableName fieldNames values =
@@ -179,7 +232,7 @@ module UpdatePlanner =
             catalogService.GetIndexInfosByTable tx tableName
 
         let newIndexSelecPlan =
-            IndexSelector.selectByBestMatchedIndex fileService catalogService tx tableName predicate []
+            IndexSelector.makeIndexSelectPlan fileService catalogService tx tableName predicate []
 
         let selectPlan =
             match catalogService.GetTableInfo tx tableName with
@@ -236,7 +289,7 @@ module UpdatePlanner =
             catalogService.GetIndexInfosByTable tx tableName
 
         let newIndexSelecPlan =
-            IndexSelector.selectByBestMatchedIndex
+            IndexSelector.makeIndexSelectPlan
                 fileService
                 catalogService
                 tx
