@@ -15,7 +15,7 @@
     <Compile Include="src/Buffer.TransactionBufferTest.fs" />
     <Compile Include="src/Concurrency.LockServiceTest.fs" />
     <Compile Include="src/Concurrency.TransactionConcurrencyTest.fs" />
-    <Compile Include="src/Table.SlottedPageTest.fs" />
+    <Compile Include="src/Table.TablePageTest.fs" />
     <Compile Include="src/Table.TableFileTest.fs" />
     <Compile Include="src/Index.HashIndexTest.fs" />
     <Compile Include="src/Index.BTreePageTest.fs" />

@@ -5,7 +5,7 @@ open RyakDB.Table
 open RyakDB.Query
 open RyakDB.Storage.File
 open RyakDB.Buffer.BufferPool
-open RyakDB.Table.SlottedPage
+open RyakDB.Table.TablePage
 open RyakDB.Table.TableFile
 open RyakDB.Transaction
 open RyakDB.Execution.Scan
@@ -48,37 +48,37 @@ let newTempTable fileService tx schema =
 
     { OpenScan = fun () -> TempTable.openScan fileService tx ti }
 
-module TempSlottedPage =
-    type TempSlottedPage =
-        { SlottedPage: SlottedPage
+module TempTablePage =
+    type TempTablePage =
+        { TablePage: TablePage
           Schema: Schema }
 
-    let moveToPageHead tsp = tsp.SlottedPage.MoveToSlotNo -1
+    let moveToPageHead ttp = ttp.TablePage.MoveToSlotNo -1
 
-    let insertFromScan scan tsp =
-        if tsp.SlottedPage.InsertIntoNextEmptySlot() then
-            tsp.Schema.Fields()
-            |> List.iter (fun fn -> scan.GetVal fn |> tsp.SlottedPage.SetVal fn)
+    let insertFromScan scan ttp =
+        if ttp.TablePage.InsertIntoNextEmptySlot() then
+            ttp.Schema.Fields()
+            |> List.iter (fun fn -> scan.GetVal fn |> ttp.TablePage.SetVal fn)
             if scan.Next() then 1 else -1
         else
             0
 
-    let copyToScan scan tsp =
-        if tsp.SlottedPage.Next() then
+    let copyToScan scan ttp =
+        if ttp.TablePage.Next() then
             scan.Insert()
-            tsp.Schema.Fields()
-            |> List.iter (fun fn -> tsp.SlottedPage.GetVal fn |> (scan.SetVal fn))
+            ttp.Schema.Fields()
+            |> List.iter (fun fn -> ttp.TablePage.GetVal fn |> (scan.SetVal fn))
             true
         else
             false
 
-    let compareRecords sortFields slotNo1 slotNo2 tsp =
+    let compareRecords sortFields slotNo1 slotNo2 ttp =
         sortFields
         |> List.tryPick (fun (SortField (sortFld, sortDir)) ->
-            tsp.SlottedPage.MoveToSlotNo slotNo1
-            let val1 = tsp.SlottedPage.GetVal sortFld
-            tsp.SlottedPage.MoveToSlotNo slotNo2
-            let val2 = tsp.SlottedPage.GetVal sortFld
+            ttp.TablePage.MoveToSlotNo slotNo1
+            let val1 = ttp.TablePage.GetVal sortFld
+            ttp.TablePage.MoveToSlotNo slotNo2
+            let val2 = ttp.TablePage.GetVal sortFld
             if val1 < val2
             then if sortDir = SortDesc then Some 1 else Some -1
             elif val1 > val2
@@ -86,13 +86,13 @@ module TempSlottedPage =
             else None)
         |> Option.defaultValue 0
 
-    let findSmallestFrom sortFields startSlotNo tsp =
+    let findSmallestFrom sortFields startSlotNo ttp =
         let rec findMin minSlotNo =
-            if tsp.SlottedPage.Next() then
-                tsp.SlottedPage.CurrentSlotNo()
+            if ttp.TablePage.Next() then
+                ttp.TablePage.CurrentSlotNo()
                 |> fun slotNo ->
                     if minSlotNo < 0
-                       || compareRecords sortFields minSlotNo slotNo tsp > 0 then
+                       || compareRecords sortFields minSlotNo slotNo ttp > 0 then
                         slotNo
                     else
                         minSlotNo
@@ -102,36 +102,36 @@ module TempSlottedPage =
 
         findMin startSlotNo
 
-    let swapRecords slotNo1 slotNo2 tsp =
-        tsp.Schema.Fields()
+    let swapRecords slotNo1 slotNo2 ttp =
+        ttp.Schema.Fields()
         |> List.iter (fun fn ->
-            tsp.SlottedPage.MoveToSlotNo slotNo1
-            let val1 = tsp.SlottedPage.GetVal fn
-            tsp.SlottedPage.MoveToSlotNo slotNo2
-            let val2 = tsp.SlottedPage.GetVal fn
-            tsp.SlottedPage.SetVal fn val1
-            tsp.SlottedPage.MoveToSlotNo slotNo1
-            tsp.SlottedPage.SetVal fn val2)
+            ttp.TablePage.MoveToSlotNo slotNo1
+            let val1 = ttp.TablePage.GetVal fn
+            ttp.TablePage.MoveToSlotNo slotNo2
+            let val2 = ttp.TablePage.GetVal fn
+            ttp.TablePage.SetVal fn val1
+            ttp.TablePage.MoveToSlotNo slotNo1
+            ttp.TablePage.SetVal fn val2)
 
-    let sortBySelection sortFields tsp =
-        let rec loopSelect i tsp =
-            if tsp.SlottedPage.Next() then
-                let minId = findSmallestFrom sortFields i tsp
-                if minId <> i then swapRecords i minId tsp
-                tsp.SlottedPage.MoveToSlotNo i
-                loopSelect (i + 1) tsp
+    let sortBySelection sortFields ttp =
+        let rec loopSelect i ttp =
+            if ttp.TablePage.Next() then
+                let minId = findSmallestFrom sortFields i ttp
+                if minId <> i then swapRecords i minId ttp
+                ttp.TablePage.MoveToSlotNo i
+                loopSelect (i + 1) ttp
 
-        moveToPageHead tsp
-        loopSelect 0 tsp
+        moveToPageHead ttp
+        loopSelect 0 ttp
 
-    let close tsp = tsp.SlottedPage.Close()
+    let close ttp = ttp.TablePage.Close()
 
-    let newTempSlottedPage tx blockId schema =
-        { SlottedPage = newSlottedPage tx.Buffer tx.Concurrency tx.Recovery blockId schema false
+    let newTempTablePage tx blockId schema =
+        { TablePage = newTablePage tx.Buffer tx.Concurrency tx.Recovery blockId schema false
           Schema = schema }
 
 module MergeSort =
-    let newTempSlottedPage tx schema tblcount =
+    let newTempTablePage tx schema tblcount =
         let tableName =
             FileService.TmpFilePrefix
             + "TableFile"
@@ -140,36 +140,34 @@ module MergeSort =
             + "-"
             + tx.TransactionNo.ToString()
 
-        let tsp =
-            newSlottedPageFormatter schema
+        let ttp =
+            newTablePageFormatter schema
             |> tx.Buffer.PinNew tableName
-            |> fun buff -> TempSlottedPage.newTempSlottedPage tx (buff.BlockId()) schema
+            |> fun buff -> TempTablePage.newTempTablePage tx (buff.BlockId()) schema
 
-        tsp |> TempSlottedPage.moveToPageHead
-        tsp
+        ttp |> TempTablePage.moveToPageHead
+        ttp
 
-    let rec loopInsertFromScan scan tsp =
-        let f =
-            tsp |> TempSlottedPage.insertFromScan scan
+    let rec loopInsertFromScan scan ttp =
+        let f = ttp |> TempTablePage.insertFromScan scan
 
-        if f > 0 then loopInsertFromScan scan tsp else f
+        if f > 0 then loopInsertFromScan scan ttp else f
 
-    let rec loopCopyToScan scan tsp =
-        if tsp |> TempSlottedPage.copyToScan scan
-        then loopCopyToScan scan tsp
+    let rec loopCopyToScan scan ttp =
+        if ttp |> TempTablePage.copyToScan scan then loopCopyToScan scan ttp
 
-    let rec loopTempSlottedPage fileService tx schema src temps scan tblcount sortFields tsp =
-        let flag = tsp |> loopInsertFromScan src
-        tsp |> TempSlottedPage.sortBySelection sortFields
-        tsp |> TempSlottedPage.moveToPageHead
-        tsp |> loopCopyToScan scan
-        tsp |> TempSlottedPage.close
+    let rec loopTempTablePage fileService tx schema src temps scan tblcount sortFields ttp =
+        let flag = ttp |> loopInsertFromScan src
+        ttp |> TempTablePage.sortBySelection sortFields
+        ttp |> TempTablePage.moveToPageHead
+        ttp |> loopCopyToScan scan
+        ttp |> TempTablePage.close
         scan.Close()
         if flag <> -1 then
             let temp = newTempTable fileService tx schema
             let nextTblcount = tblcount + 1
-            newTempSlottedPage tx schema nextTblcount
-            |> loopTempSlottedPage fileService tx schema src (temp :: temps) (temp.OpenScan()) nextTblcount sortFields
+            newTempTablePage tx schema nextTblcount
+            |> loopTempTablePage fileService tx schema src (temp :: temps) (temp.OpenScan()) nextTblcount sortFields
         else
             List.rev temps
 
@@ -177,8 +175,8 @@ module MergeSort =
         src.BeforeFirst()
         if src.Next() then
             let temp = newTempTable fileService tx schema
-            newTempSlottedPage tx schema 0
-            |> loopTempSlottedPage fileService tx schema src [ temp ] (temp.OpenScan()) 0 sortFields
+            newTempTablePage tx schema 0
+            |> loopTempTablePage fileService tx schema src [ temp ] (temp.OpenScan()) 0 sortFields
         else
             []
 

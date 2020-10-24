@@ -8,7 +8,7 @@ open RyakDB.Buffer.Buffer
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
-open RyakDB.Table.SlottedPage
+open RyakDB.Table.TablePage
 
 module BTreePageFormatter =
     let makeDefaultRecord schema offsetMap buffer position =
@@ -17,7 +17,7 @@ module BTreePageFormatter =
             buffer.SetValue (position + (Map.find field offsetMap)) (schema.DbType field |> DbConstant.defaultConstant))
 
 let newBTreePageFormatter schema flags =
-    let offsetMap = SlottedPage.offsetMap schema
+    let offsetMap = TablePage.offsetMap schema
     fun buffer ->
         let mutable position = 0
         buffer.SetValue position (IntDbConstant 0)
@@ -26,7 +26,7 @@ let newBTreePageFormatter schema flags =
         |> List.iter (fun f ->
             buffer.SetValue position (BigIntDbConstant f)
             position <- position + 8)
-        let slotSize = SlottedPage.slotSize schema
+        let slotSize = TablePage.slotSize schema
         [ position .. slotSize .. buffer.BufferSize - slotSize - 1 ]
         |> List.iter (BTreePageFormatter.makeDefaultRecord schema offsetMap buffer)
 
@@ -245,7 +245,7 @@ module BTreePage =
 let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFlags =
     let headerSize = 4 + countOfFlags * 8
     let buffer = txBuffer.Pin blockId
-    let offsetMap = SlottedPage.offsetMap schema
+    let offsetMap = TablePage.offsetMap schema
     let slotSize = BTreePage.slotSize schema buffer
 
     let countOfSlots =

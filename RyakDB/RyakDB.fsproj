@@ -22,7 +22,7 @@
     <Compile Include="src/Concurrency.TransactionConcurrency.fs" />
     <Compile Include="src/Recovery.RecoveryLog.fs" />
     <Compile Include="src/Recovery.TransactionRecovery.fs" />
-    <Compile Include="src/Table.SlottedPage.fs" />
+    <Compile Include="src/Table.TablePage.fs" />
     <Compile Include="src/Table.TableFile.fs" />
     <Compile Include="src/Index.HashIndex.fs" />
     <Compile Include="src/Index.BTreePage.fs" />

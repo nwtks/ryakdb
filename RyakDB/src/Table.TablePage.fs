@@ -1,4 +1,4 @@
-module RyakDB.Table.SlottedPage
+module RyakDB.Table.TablePage
 
 open RyakDB.DataType
 open RyakDB.Storage
@@ -10,7 +10,7 @@ open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Concurrency.TransactionConcurrency
 open RyakDB.Recovery.TransactionRecovery
 
-type SlottedPage =
+type TablePage =
     { Close: unit -> unit
       Next: unit -> bool
       GetVal: string -> DbConstant
@@ -27,7 +27,7 @@ type SlottedPage =
     interface System.IDisposable with
         member this.Dispose() = this.Close()
 
-module SlottedPage =
+module TablePage =
     let DeletedSlotSize =
         BlockId.BlockNoSize + RecordId.SlotNoSize
 
@@ -214,16 +214,16 @@ module SlottedPage =
 
     let close txBuffer currentBuffer = currentBuffer |> txBuffer.Unpin
 
-let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
-    let slotSize = SlottedPage.slotSize schema
-    let offsetMap = SlottedPage.offsetMap schema
+let newTablePage txBuffer txConcurrency txRecovery blockId schema doLog =
+    let slotSize = TablePage.slotSize schema
+    let offsetMap = TablePage.offsetMap schema
     let currentBuffer = txBuffer.Pin blockId
 
     let mutable currentSlotNo = Some -1
     { Close =
           fun () ->
               match currentSlotNo with
-              | Some _ -> SlottedPage.close txBuffer currentBuffer
+              | Some _ -> TablePage.close txBuffer currentBuffer
               | _ -> ()
               currentSlotNo <- None
       Next =
@@ -231,7 +231,7 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
               match currentSlotNo with
               | Some slotNo ->
                   let newSlotNo, result =
-                      SlottedPage.next txConcurrency currentBuffer blockId slotSize slotNo
+                      TablePage.next txConcurrency currentBuffer blockId slotSize slotNo
 
                   currentSlotNo <- Some newSlotNo
                   result
@@ -240,13 +240,13 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
           fun fieldName ->
               match currentSlotNo with
               | Some slotNo ->
-                  SlottedPage.getVal txConcurrency schema currentBuffer blockId offsetMap slotSize slotNo fieldName
+                  TablePage.getVal txConcurrency schema currentBuffer blockId offsetMap slotSize slotNo fieldName
               | _ -> failwith "Closed page"
       SetVal =
           fun fieldName value ->
               match currentSlotNo with
               | Some slotNo ->
-                  SlottedPage.setVal
+                  TablePage.setVal
                       txConcurrency
                       txRecovery
                       doLog
@@ -262,28 +262,19 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
           fun nextDeletedSlot ->
               match currentSlotNo with
               | Some slotNo ->
-                  SlottedPage.delete
-                      txConcurrency
-                      txRecovery
-                      doLog
-                      currentBuffer
-                      blockId
-                      slotSize
-                      slotNo
-                      nextDeletedSlot
+                  TablePage.delete txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo nextDeletedSlot
               | _ -> failwith "Closed page"
       UndoDelete =
           fun () ->
               match currentSlotNo with
-              | Some slotNo ->
-                  SlottedPage.undoDelete txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
+              | Some slotNo -> TablePage.undoDelete txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
               | _ -> failwith "Closed page"
       InsertIntoNextEmptySlot =
           fun () ->
               match currentSlotNo with
               | Some slotNo ->
                   let newSlotNo, result =
-                      SlottedPage.insertIntoNextEmptySlot
+                      TablePage.insertIntoNextEmptySlot
                           txConcurrency
                           txRecovery
                           doLog
@@ -299,7 +290,7 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
           fun () ->
               match currentSlotNo with
               | Some slotNo ->
-                  SlottedPage.insertIntoDeletedSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
+                  TablePage.insertIntoDeletedSlot txConcurrency txRecovery doLog currentBuffer blockId slotSize slotNo
               | _ -> failwith "Closed page"
       MoveToSlotNo = fun slotNo -> currentSlotNo <- Some slotNo
       CurrentSlotNo =
@@ -311,13 +302,13 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
       GetDeletedRecordId =
           fun () ->
               match currentSlotNo with
-              | Some slotNo -> SlottedPage.getDeletedRecordId txConcurrency currentBuffer blockId slotSize slotNo
+              | Some slotNo -> TablePage.getDeletedRecordId txConcurrency currentBuffer blockId slotSize slotNo
               | _ -> failwith "Closed page"
       SetDeletedRecordId =
           fun recordId ->
               match currentSlotNo with
               | Some slotNo ->
-                  SlottedPage.setDeletedRecordId
+                  TablePage.setDeletedRecordId
                       txConcurrency
                       txRecovery
                       doLog
@@ -328,19 +319,19 @@ let newSlottedPage txBuffer txConcurrency txRecovery blockId schema doLog =
                       recordId
               | _ -> failwith "Closed page" }
 
-module SlottedPageFormatter =
-    let makeDefaultSlottedPage schema offsetMap buffer position =
+module TablePageFormatter =
+    let makeDefaultTablePage schema offsetMap buffer position =
         schema.Fields()
         |> List.iter (fun field ->
             schema.DbType field
             |> DbConstant.defaultConstant
             |> buffer.SetValue(position + 4 + (Map.find field offsetMap)))
 
-let newSlottedPageFormatter schema =
-    let offsetMap = SlottedPage.offsetMap schema
-    let slotSize = SlottedPage.slotSize schema
+let newTablePageFormatter schema =
+    let offsetMap = TablePage.offsetMap schema
+    let slotSize = TablePage.slotSize schema
     fun buffer ->
         [ 0 .. slotSize .. buffer.BufferSize - slotSize - 1 ]
         |> List.iter (fun position ->
-            buffer.SetValue position SlottedPage.EmptyConst
-            SlottedPageFormatter.makeDefaultSlottedPage schema offsetMap buffer position)
+            buffer.SetValue position TablePage.EmptyConst
+            TablePageFormatter.makeDefaultTablePage schema offsetMap buffer position)

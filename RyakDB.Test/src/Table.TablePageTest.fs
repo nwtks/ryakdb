@@ -1,10 +1,10 @@
-module RyakDB.Test.Table.SlottedPageTest
+module RyakDB.Test.Table.TablePageTest
 
 open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.SlottedPage
+open RyakDB.Table.TablePage
 open RyakDB.Transaction
 open RyakDB.Database
 
@@ -29,59 +29,59 @@ let ``insert read delete`` () =
         db.Transaction.NewTransaction false Serializable
 
     let buff =
-        newSlottedPageFormatter schema
-        |> tx.Buffer.PinNew "SlottedPageTest.tbl"
+        newTablePageFormatter schema
+        |> tx.Buffer.PinNew "TablePageTest.tbl"
 
     tx.Buffer.Unpin buff
 
-    use sp1 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+    use tp1 =
+        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable count = 0
     let mutable insertId = 0
-    while sp1.InsertIntoNextEmptySlot() do
-        sp1.SetVal "cid" (IntDbConstant insertId)
-        sp1.SetVal "deptid" (BigIntDbConstant(int64 (insertId % 3 + 1) * 1000L))
-        sp1.SetVal "title" (DbConstant.newVarchar ("course" + insertId.ToString()))
+    while tp1.InsertIntoNextEmptySlot() do
+        tp1.SetVal "cid" (IntDbConstant insertId)
+        tp1.SetVal "deptid" (BigIntDbConstant(int64 (insertId % 3 + 1) * 1000L))
+        tp1.SetVal "title" (DbConstant.newVarchar ("course" + insertId.ToString()))
         insertId <- insertId + 1
         count <- count + 1
 
-    use sp2 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+    use tp2 =
+        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable readId = 0
-    while sp2.Next() do
-        sp2.GetVal "title"
+    while tp2.Next() do
+        tp2.GetVal "title"
         |> DbConstant.toString
         |> should equal ("course" + readId.ToString())
 
-        sp2.GetVal "deptid"
+        tp2.GetVal "deptid"
         |> DbConstant.toLong
         |> should equal (int64 (readId % 3 + 1) * 1000L)
 
-        sp2.GetVal "cid"
+        tp2.GetVal "cid"
         |> DbConstant.toInt
         |> should equal readId
 
         readId <- readId + 1
     readId |> should equal count
 
-    use sp3 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+    use tp3 =
+        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
     let mutable deletedCount = 0
-    while sp3.Next() do
-        if sp3.GetVal "deptid" = BigIntDbConstant 3000L then
-            RecordId.newBlockRecordId -1 "SlottedPageTest.tbl" -1L
-            |> sp3.Delete
+    while tp3.Next() do
+        if tp3.GetVal "deptid" = BigIntDbConstant 3000L then
+            RecordId.newBlockRecordId -1 "TablePageTest.tbl" -1L
+            |> tp3.Delete
             deletedCount <- deletedCount + 1
     deletedCount |> should equal (count / 3)
 
-    use sp4 =
-        newSlottedPage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+    use tp4 =
+        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
 
-    while sp4.Next() do
-        sp4.GetVal "deptid"
+    while tp4.Next() do
+        tp4.GetVal "deptid"
         |> should not' (equal (BigIntDbConstant 3000L))
 
     tx.Commit()
