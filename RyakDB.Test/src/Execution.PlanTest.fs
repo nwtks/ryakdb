@@ -17,6 +17,7 @@ open RyakDB.Test.TestInit
 let ``table plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -49,6 +50,7 @@ let ``table plan`` () =
 let ``select plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -82,6 +84,7 @@ let ``select plan`` () =
 let ``project plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -116,6 +119,7 @@ let ``project plan`` () =
 let ``product plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -158,6 +162,7 @@ let ``product plan`` () =
 let ``group by plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -195,6 +200,7 @@ let ``group by plan`` () =
 let ``sort plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -258,11 +264,11 @@ let setupIndexedData db =
         |> Option.get
         |> IndexFactory.newIndex db.File tx
 
-    [ 1 .. 20 ]
+    [ 1 .. 10 ]
     |> List.iter (fun i ->
-        [ 1 .. 20 ]
+        [ 1 .. 10 ]
         |> List.iter (fun j ->
-            [ 1 .. 20 ]
+            [ 1 .. 10 ]
             |> List.iter (fun k ->
                 tf.Insert()
                 tf.SetVal "key_1" (IntDbConstant i)
@@ -296,11 +302,11 @@ let setupIndexedData db =
         |> Option.get
         |> TableFile.newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
 
-    [ 1 .. 20 ]
+    [ 1 .. 10 ]
     |> List.iter (fun i ->
-        [ 1 .. 20 ]
+        [ 1 .. 10 ]
         |> List.iter (fun j ->
-            [ 1 .. 20 ]
+            [ 1 .. 10 ]
             |> List.iter (fun k ->
                 tf2.Insert()
                 tf2.SetVal "join_key_1" (IntDbConstant i)
@@ -322,6 +328,7 @@ let setupIndexedData db =
 let ``index select plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -336,7 +343,7 @@ let ``index select plan`` () =
 
     let searchKey =
         SearchKey.newSearchKey [ IntDbConstant 1
-                                 IntDbConstant 20
+                                 IntDbConstant 10
                                  IntDbConstant 7 ]
         |> SearchRange.newSearchRangeBySearchKey
 
@@ -354,13 +361,13 @@ let ``index select plan`` () =
     |> should equal 1
     scan.GetVal "key_2"
     |> DbConstant.toInt
-    |> should equal 20
+    |> should equal 10
     scan.GetVal "key_3"
     |> DbConstant.toInt
     |> should equal 7
     scan.GetVal "data"
     |> DbConstant.toString
-    |> should equal "test_1_20_7"
+    |> should equal "test_1_10_7"
     scan.Next() |> should be False
 
     tx.Commit()
@@ -369,6 +376,7 @@ let ``index select plan`` () =
 let ``range index select plan`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -386,7 +394,9 @@ let ``range index select plan`` () =
             (IndexInfo.fieldNames ii)
             (Map.ofList [ "key_1",
                           IntDbConstant 5
-                          |> DbConstantRange.newConstantRangeByConstant ])
+                          |> DbConstantRange.newConstantRangeByConstant
+                          "key_2",
+                          DbConstantRange.newConstantRange (IntDbConstant 2 |> Some) true (IntDbConstant 8 |> Some) true ])
 
     use scan =
         db.Catalog.GetTableInfo tx "testing_table"
@@ -402,6 +412,72 @@ let ``range index select plan`` () =
         scan.GetVal "key_1"
         |> DbConstant.toInt
         |> should equal 5
-    i |> should equal 400
+    i |> should equal 70
+
+    tx.Commit()
+
+[<Fact>]
+let ``index join plan`` () =
+    use db =
+        { Database.defaultConfig () with
+              BlockSize = 1024
+              InMemory = true }
+        |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
+
+    setupIndexedData db
+
+    let tx =
+        db.Transaction.NewTransaction false Serializable
+
+    let pred =
+        Predicate [ Term(EqualOperator, FieldNameExpression("join_key_1"), ConstantExpression(IntDbConstant 10))
+                    Term(EqualOperator, FieldNameExpression("join_key_2"), ConstantExpression(IntDbConstant 3))
+                    Term
+                        (GraterThanEqualOperator, FieldNameExpression("join_key_3"), ConstantExpression(IntDbConstant 5)) ]
+
+    let p1 =
+        db.Catalog.GetTableInfo tx "testing_join_table"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+        |> Plan.pipeSelectPlan pred
+
+    let ii =
+        db.Catalog.GetIndexInfoByName tx "testing_index"
+        |> Option.get
+
+    let p2 =
+        db.Catalog.GetTableInfo tx "testing_table"
+        |> Option.get
+        |> Plan.newTablePlan db.File tx
+
+    use scan =
+        p1
+        |> Plan.pipeIndexJoinPlan
+            db.File
+               tx
+               p2
+               ii
+               [ "key_1", "join_key_1"
+                 "key_2", "join_key_2"
+                 "key_3", "join_key_3" ]
+        |> Plan.openScan
+
+    let mutable i = 0
+    scan.BeforeFirst()
+    while scan.Next() do
+        i <- i + 1
+        scan.GetVal "key_1"
+        |> DbConstant.toInt
+        |> should equal 10
+        scan.GetVal "key_2"
+        |> DbConstant.toInt
+        |> should equal 3
+        scan.GetVal "join_key_1"
+        |> DbConstant.toInt
+        |> should equal 10
+        scan.GetVal "join_key_2"
+        |> DbConstant.toInt
+        |> should equal 3
+    i |> should equal 6
 
     tx.Commit()

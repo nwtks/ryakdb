@@ -21,6 +21,7 @@ let insert () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -32,13 +33,14 @@ let insert () =
     |> tx.Buffer.PinNew filename
     |> ignore
     let blockId = BlockId.newBlockId filename 0L
-    for i in 0 .. 20 do
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
-        |> ignore
+        |> ignore)
 
     use leaf =
         newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
@@ -49,10 +51,11 @@ let insert () =
                                              (IntDbConstant 20 |> Some)
                                              true ]
     |> leaf.BeforeFirst
-    for i in 0 .. 20 do
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         leaf.Next() |> should be True
         leaf.GetDataRecordId()
-        |> should equal (RecordId.newRecordId i indexBlockId)
+        |> should equal (RecordId.newRecordId i indexBlockId))
 
     tx.Commit()
 
@@ -66,6 +69,7 @@ let delete () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -77,20 +81,22 @@ let delete () =
     |> tx.Buffer.PinNew filename
     |> ignore
     let blockId = BlockId.newBlockId filename 0L
-    for i in 0 .. 20 do
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
-        |> ignore
+        |> ignore)
 
-    for i in 0 .. 20 do
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ])
+        |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ]))
 
     use leaf =
         newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
@@ -115,6 +121,7 @@ let ``split sibling`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -135,13 +142,14 @@ let ``split sibling`` () =
     let count = maxCount * 2
 
     let mutable newEntry = None
-    for i in 0 .. count do
+    [ 0 .. count ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
-        |> Option.iter (fun e -> newEntry <- Some(e))
+        |> Option.iter (fun e -> newEntry <- Some(e)))
 
     if Option.isNone newEntry then failwith "Not split"
 
@@ -159,12 +167,13 @@ let ``split sibling`` () =
         cnt <- cnt + 1
     cnt |> should equal (count + 1)
 
-    for i in 0 .. count do
+    [ 0 .. count ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ])
+        |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ]))
 
     tx.Commit()
 
@@ -178,6 +187,7 @@ let ``split overflow`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -200,13 +210,14 @@ let ``split overflow`` () =
     let insertkey =
         SearchKey.newSearchKey [ IntDbConstant 0 ]
 
-    for i in 0 .. count do
+    [ 0 .. count ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert insertkey
-        |> ignore
+        |> ignore)
 
     use leaf =
         newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
@@ -222,11 +233,12 @@ let ``split overflow`` () =
         cnt <- cnt + 1
     cnt |> should equal (count + 1)
 
-    for i in 0 .. count do
+    [ 0 .. count ]
+    |> List.iter (fun i ->
         use leaf =
             newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
-        |> leaf.Delete insertkey
+        |> leaf.Delete insertkey)
 
     tx.Commit()

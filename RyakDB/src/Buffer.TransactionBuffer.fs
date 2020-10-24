@@ -38,7 +38,7 @@ module TransactionBuffer =
         let nextBuffers, newBuffer =
             match pinBufferPool ()
                   |> Option.orElseWith (fun () -> waitUnpinningBuffer bufferPool pinBufferPool System.DateTime.Now None) with
-            | Some buff -> pinningBuffers.Add(buff.BlockId(), { Buffer = buff; PinCount = 1 }), buff
+            | Some buff -> Map.add (buff.BlockId()) { Buffer = buff; PinCount = 1 } pinningBuffers, buff
             | _ -> repinBuffer pinningBuffers
 
         lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
@@ -52,7 +52,7 @@ module TransactionBuffer =
             { pinnedBuff with
                   PinCount = pinnedBuff.PinCount + 1 }
 
-        pinningBuffers.Add(blockId, nextPinnedBuff), nextPinnedBuff.Buffer
+        Map.add blockId nextPinnedBuff pinningBuffers, nextPinnedBuff.Buffer
 
     let unpin (bufferPool: BufferPool) pinningBuffers buffer =
         let blockId = buffer.BlockId()
@@ -66,9 +66,9 @@ module TransactionBuffer =
             if nextPinnedBuff.PinCount = 0 then
                 bufferPool.Unpin buffer
                 lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
-                pinningBuffers.Remove blockId
+                Map.remove blockId pinningBuffers
             else
-                pinningBuffers.Add(blockId, nextPinnedBuff)
+                Map.add blockId nextPinnedBuff pinningBuffers
         else
             pinningBuffers
 

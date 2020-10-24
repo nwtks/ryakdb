@@ -100,16 +100,15 @@ module LogService =
                     readPage.GetVal position1 IntDbType
                     |> DbConstant.toInt
 
-                Some
-                    (newLogRecord (BlockId.blockNo blockId1) (prevPosition + PointerSize) readPage,
-                     (blockId1, prevPosition))
+                (newLogRecord (BlockId.blockNo blockId1) (prevPosition + PointerSize) readPage, (blockId1, prevPosition))
+                |> Some
             else
                 None) (nextstate.CurrentBlockId, readLastRecordPosition readPage nextstate.CurrentBlockId)
 
     let append fileService logFileName logPage state constants =
         let appendVal page position value =
             page.SetVal position value
-            position + (Page.size value)
+            position + Page.size value
 
         let finalizeRecord page prevLastRecordPosition nextLastRecordPosition =
             IntDbConstant prevLastRecordPosition

@@ -37,6 +37,7 @@ let createIndex db =
 let ``single key`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -98,6 +99,7 @@ let ``single key`` () =
 let ``varchar key`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -126,41 +128,43 @@ let ``varchar key`` () =
     let key4 =
         SearchKey.newSearchKey [ DbConstant.newVarchar "BAEBAEBAEBASAEBASZ1" ]
 
-    for i in 0 .. 999 do
+    [ 0 .. 99 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk
         |> index.Insert false key1
-        RecordId.newRecordId (1000 + i) blk
+        RecordId.newRecordId (100 + i) blk
         |> index.Insert false key2
-        RecordId.newRecordId (2000 + i) blk
+        RecordId.newRecordId (200 + i) blk
         |> index.Insert false key3
-        RecordId.newRecordId (3000 + i) blk
-        |> index.Insert false key4
+        RecordId.newRecordId (300 + i) blk
+        |> index.Insert false key4)
 
     let mutable cnt = 0
     SearchRange.newSearchRangeBySearchKey key1
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 1000
+    cnt |> should equal 100
     SearchRange.newSearchRangeBySearchKey key2
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 2000
+    cnt |> should equal 200
     SearchRange.newSearchRangeBySearchKey key3
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 3000
+    cnt |> should equal 300
     SearchRange.newSearchRangeBySearchKey key4
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 4000
+    cnt |> should equal 400
 
-    for i in 0 .. 999 do
+    [ 0 .. 99 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk
-        |> index.Delete false key1
+        |> index.Delete false key1)
 
     SearchRange.newSearchRangeBySearchKey key1
     |> index.BeforeFirst
@@ -185,6 +189,7 @@ let ``varchar key`` () =
 let ``multi key`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -273,7 +278,7 @@ let ``multi key`` () =
 let ``branch overflow`` () =
     use db =
         { Database.defaultConfig () with
-              BlockSize = 2048
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -290,25 +295,27 @@ let ``branch overflow`` () =
 
     let blk = BlockId.newBlockId "BITable.tbl" 0L
 
-    for i in 9999L .. -1L .. 0L do
+    [ 999L .. -1L .. 0L ]
+    |> List.iter (fun i ->
         RecordId.newRecordId (int32 i) blk
-        |> index.Insert false (SearchKey.newSearchKey [ BigIntDbConstant(i % 1000L) ])
+        |> index.Insert false (SearchKey.newSearchKey [ BigIntDbConstant(i % 100L) ]))
 
-    let key123 =
-        SearchKey.newSearchKey [ IntDbConstant 123 ]
+    let key12 =
+        SearchKey.newSearchKey [ IntDbConstant 12 ]
 
     let mutable cnt = 0
-    SearchRange.newSearchRangeBySearchKey key123
+    SearchRange.newSearchRangeBySearchKey key12
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
     cnt |> should equal 10
 
-    for i in 9999L .. -1L .. 0L do
+    [ 999L .. -1L .. 0L ]
+    |> List.iter (fun i ->
         RecordId.newRecordId (int32 i) blk
-        |> index.Delete false (SearchKey.newSearchKey [ BigIntDbConstant(i % 1000L) ])
+        |> index.Delete false (SearchKey.newSearchKey [ BigIntDbConstant(i % 100L) ]))
 
-    SearchRange.newSearchRangeBySearchKey key123
+    SearchRange.newSearchRangeBySearchKey key12
     |> index.BeforeFirst
     index.Next() |> should be False
 
@@ -319,7 +326,7 @@ let ``branch overflow`` () =
 let ``search range`` () =
     use db =
         { Database.defaultConfig () with
-              BlockSize = 2048
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -337,16 +344,18 @@ let ``search range`` () =
     let blk0 = BlockId.newBlockId "BITable.tbl" 0L
     let blk23 = BlockId.newBlockId "BITable.tbl" 23L
 
-    for i in 0 .. 9999 do
+    [ 0 .. 999 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk0
-        |> index.Insert false (SearchKey.newSearchKey [ IntDbConstant(i % 500) ])
+        |> index.Insert false (SearchKey.newSearchKey [ IntDbConstant(i % 50) ]))
 
     let key7 =
         SearchKey.newSearchKey [ IntDbConstant 7 ]
 
-    for i in 0 .. 99 do
+    [ 0 .. 99 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk23
-        |> index.Insert false key7
+        |> index.Insert false key7)
 
     let mutable cnt = 0
 
@@ -429,30 +438,32 @@ let ``search range`` () =
     cnt |> should equal 120
 
     cnt <- 0
-    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 480)) false None false ]
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 48)) false None false ]
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 380
+    cnt |> should equal 20
 
     cnt <- 0
-    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 480)) true None false ]
+    SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange (Some(IntDbConstant 48)) true None false ]
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 400
+    cnt |> should equal 40
 
-    for i in 0 .. 9999 do
+    [ 0 .. 999 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk0
-        |> index.Delete false (SearchKey.newSearchKey [ IntDbConstant(i % 500) ])
+        |> index.Delete false (SearchKey.newSearchKey [ IntDbConstant(i % 50) ]))
     SearchKey.newSearchKey [ IntDbConstant 5 ]
     |> SearchRange.newSearchRangeBySearchKey
     |> index.BeforeFirst
     index.Next() |> should be False
 
-    for i in 0 .. 99 do
+    [ 0 .. 99 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk23
-        |> index.Delete false key7
+        |> index.Delete false key7)
     SearchRange.newSearchRangeBySearchKey key7
     |> index.BeforeFirst
     index.Next() |> should be False

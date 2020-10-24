@@ -17,7 +17,7 @@ type Plan =
     | IndexSelectPlan of fileService: FileService * tx: Transaction * plan: Plan * indexInfo: IndexInfo * searchRange: SearchRange
     | ProductPlan of plan1: Plan * plan2: Plan * schema: Schema
     | ProjectPlan of plan: Plan * schema: Schema
-    | IndexJoinPlan of fileService: FileService * tx: Transaction * plan1: Plan * plan2: Plan * schema: Schema * indexInfo: IndexInfo * joinFields: (string * string) list
+    | IndexJoinPlan of fileService: FileService * tx: Transaction * plan: Plan * joinedPlan: Plan * schema: Schema * indexInfo: IndexInfo * joinFields: (string * string) list
     | SortPlan of plan: Plan * schema: Schema * sortFields: SortField list * newSortScan: NewSortScan
     | GroupByPlan of plan: Plan * schema: Schema * groupFields: string list * aggFns: AggregationFnScan list
 
@@ -72,11 +72,11 @@ module Plan =
             |> List.iter (fun f -> sch.Add f planSchema)
             ProjectPlan(plan, sch)
 
-    let pipeIndexJoinPlan fileService tx plan1 plan2 indexInfo joinFields =
+    let pipeIndexJoinPlan fileService tx joinedPlan indexInfo joinFields plan =
         let sch = Schema.newSchema ()
-        schema plan1 |> sch.AddAll
-        schema plan2 |> sch.AddAll
-        IndexJoinPlan(fileService, tx, plan1, plan2, sch, indexInfo, joinFields)
+        schema plan |> sch.AddAll
+        schema joinedPlan |> sch.AddAll
+        IndexJoinPlan(fileService, tx, plan, joinedPlan, sch, indexInfo, joinFields)
 
     let pipeSortPlan newSortScan sortFields plan =
         if List.isEmpty sortFields

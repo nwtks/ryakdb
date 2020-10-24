@@ -20,9 +20,9 @@ module BufferPool =
           mutable Available: int
           Anchors: obj [] }
 
-    let private prepareAnchor (anchors: obj []) a =
-        let h = hash a % anchors.Length
-        if h < 0 then h + anchors.Length else h
+    let private prepareAnchor anchors a =
+        let h = hash a % Array.length anchors
+        if h < 0 then h + Array.length anchors else h
         |> anchors.GetValue
 
     let findExistingBuffer state blockId =
@@ -73,7 +73,7 @@ module BufferPool =
             then result
             elif currBlk = lastReplacedBuff
             then None
-            else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % state.BufferPool.Length)
+            else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % Array.length state.BufferPool)
 
         let pinNew assignBuffer =
             fun buffer ->
@@ -88,7 +88,7 @@ module BufferPool =
         clockwiseBuffer
             (pinNew assignBuffer)
             state.LastReplacedBuff
-            ((state.LastReplacedBuff + 1) % state.BufferPool.Length)
+            ((state.LastReplacedBuff + 1) % Array.length state.BufferPool)
 
     let rec pin state blockId =
         let pinExistBuffer buffer =
@@ -100,7 +100,9 @@ module BufferPool =
 
         let assignBuffer buffer = buffer.AssignToBlock blockId
 
-        lock (prepareAnchor state.Anchors (BlockId.fileName blockId)) (fun () ->
+        lock
+            (BlockId.fileName blockId
+             |> prepareAnchor state.Anchors) (fun () ->
             match findExistingBuffer state blockId with
             | Some buffer -> pinExistBuffer buffer
             | _ -> pinNewBuffer state assignBuffer)

@@ -9,7 +9,6 @@ open RyakDB.Index.BTreePage
 open RyakDB.Transaction
 open RyakDB.Database
 
-
 let createSchema () =
     let sch = Schema.newSchema ()
     sch.AddField "id" IntDbType
@@ -21,6 +20,7 @@ let insert () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -37,14 +37,18 @@ let insert () =
     let page =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId 1
 
-    for i in 0 .. 20 do
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         page.Insert 0
-        page.SetVal 0 "id" (IntDbConstant(20 - i))
+        page.SetVal 0 "id" (IntDbConstant(20 - i)))
+
     page.GetCountOfRecords() |> should equal 21
-    for i in 0 .. 20 do
+
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         page.GetVal i "id"
         |> DbConstant.toInt
-        |> should equal i
+        |> should equal i)
 
     tx.Commit()
 
@@ -54,6 +58,7 @@ let delete () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -70,20 +75,21 @@ let delete () =
     let page =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId 1
 
-    for i in 0 .. 10 do
+    [ 0 .. 10 ]
+    |> List.iter (fun i ->
         page.Insert 0
-        page.SetVal 0 "id" (IntDbConstant(10 - i))
+        page.SetVal 0 "id" (IntDbConstant(10 - i)))
 
     page.Delete 10
     page.Delete 7
     page.Delete 3
     page.Delete 1
+
     page.GetCountOfRecords() |> should equal 7
-    let expect = [| 0; 2; 4; 5; 6; 8; 9 |]
-    for i in 0 .. 6 do
-        page.GetVal i "id"
-        |> DbConstant.toInt
-        |> should equal expect.[i]
+
+    [ 0 .. 6 ]
+    |> List.map (fun i -> page.GetVal i "id" |> DbConstant.toInt)
+    |> should equal [ 0; 2; 4; 5; 6; 8; 9 ]
 
     tx.Commit()
 
@@ -93,6 +99,7 @@ let ``transfer records`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -112,46 +119,34 @@ let ``transfer records`` () =
     let page1 =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId1 1
 
-    for i in 0 .. 10 do
+    [ 0 .. 10 ]
+    |> List.iter (fun i ->
         page1.Insert 0
-        page1.SetVal 0 "id" (IntDbConstant(10 - i))
+        page1.SetVal 0 "id" (IntDbConstant(10 - i)))
 
     let blockId2 = BlockId.newBlockId filename 1L
 
     let page2 =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId2 1
 
-    for i in 0 .. 5 do
+    [ 0 .. 5 ]
+    |> List.iter (fun i ->
         page2.Insert 0
-        page2.SetVal 0 "id" (IntDbConstant(100 - i))
+        page2.SetVal 0 "id" (IntDbConstant(100 - i)))
 
     page1.TransferRecords 3 page2 2 4
 
     page1.GetCountOfRecords() |> should equal 7
-    let expect1 = [| 0; 1; 2; 7; 8; 9; 10 |]
-    for i in 0 .. 6 do
-        page1.GetVal i "id"
-        |> DbConstant.toInt
-        |> should equal expect1.[i]
+
+    [ 0 .. 6 ]
+    |> List.map (fun i -> page1.GetVal i "id" |> DbConstant.toInt)
+    |> should equal [ 0; 1; 2; 7; 8; 9; 10 ]
 
     page2.GetCountOfRecords() |> should equal 10
 
-    let expect2 =
-        [| 95
-           96
-           3
-           4
-           5
-           6
-           97
-           98
-           99
-           100 |]
-
-    for i in 0 .. 9 do
-        page2.GetVal i "id"
-        |> DbConstant.toInt
-        |> should equal expect2.[i]
+    [ 0 .. 9 ]
+    |> List.map (fun i -> page2.GetVal i "id" |> DbConstant.toInt)
+    |> should equal [ 95; 96; 3; 4; 5; 6; 97; 98; 99; 100 ]
 
     tx.Commit()
 
@@ -161,6 +156,7 @@ let split () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -180,9 +176,11 @@ let split () =
     let page1 =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId1 1
 
-    for i in 0 .. 20 do
+    [ 0 .. 20 ]
+    |> List.iter (fun i ->
         page1.Insert 0
-        page1.SetVal 0 "id" (IntDbConstant(20 - i))
+        page1.SetVal 0 "id" (IntDbConstant(20 - i)))
+
     page1.GetCountOfRecords() |> should equal 21
 
     let blockId2 =
@@ -193,16 +191,21 @@ let split () =
         newBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId2 1
 
     page1.GetCountOfRecords() |> should equal 8
-    for i in 0 .. 7 do
+
+    [ 0 .. 7 ]
+    |> List.iter (fun i ->
         page1.GetVal i "id"
         |> DbConstant.toInt
-        |> should equal i
+        |> should equal i)
 
     page2.GetCountOfRecords() |> should equal 13
+
     page2.GetFlag 0 |> should equal 100L
-    for i in 0 .. 12 do
+
+    [ 0 .. 12 ]
+    |> List.iter (fun i ->
         page2.GetVal i "id"
         |> DbConstant.toInt
-        |> should equal (i + 8)
+        |> should equal (i + 8))
 
     tx.Commit()

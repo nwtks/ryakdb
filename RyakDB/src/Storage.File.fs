@@ -95,9 +95,9 @@ module FileService =
         { OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, Channel>
           Anchors: obj [] }
 
-    let private prepareAnchor (anchors: obj []) a =
-        let h = hash a % anchors.Length
-        if h < 0 then h + anchors.Length else h
+    let private prepareAnchor anchors a =
+        let h = hash a % Array.length anchors
+        if h < 0 then h + Array.length anchors else h
         |> anchors.GetValue
 
     let private getChannel (dbDir: string) inMemory state fileName =

@@ -87,7 +87,7 @@ let newTransactionService logService bufferPool lockService recoveryService =
                   state <- nextstate
                   tx)
       GetNextTxNo = fun () -> lock txNoLock (fun () -> state.NextTxNo)
-      GetActiveTxCount = fun () -> lock txNoLock (fun () -> state.ActiveTxs.Length)
+      GetActiveTxCount = fun () -> lock txNoLock (fun () -> List.length state.ActiveTxs)
       CreateCheckpoint =
           fun () -> lock txNoLock (fun () -> TransactionService.createCheckpoint bufferPool recoveryService state)
       RollbackAll = fun () -> lock txNoLock (fun () -> TransactionService.rollbackAll state) }

@@ -25,22 +25,25 @@ let ``concurrent buffer pool pin`` () =
         newBufferPool fileService logService bufferCount 1000
 
     let buffers =
-        [ for i in 0 .. bufferCount - 1 ->
+        [ 0 .. bufferCount - 1 ]
+        |> List.collect (fun i ->
             let blockId = BlockId.newBlockId filename (int64 i)
-            [ for _ in 0 .. 9 ->
+            [ 0 .. 9 ]
+            |> List.map (fun _ ->
                 async {
-                    for _ in 0 .. 999 do
+                    [ 0 .. 999 ]
+                    |> List.iter (fun _ ->
                         bufferPool.Pin blockId
                         |> Option.get
-                        |> bufferPool.Unpin
+                        |> bufferPool.Unpin)
 
                     return bufferPool.Pin blockId |> Option.get
-                } ] ]
-        |> List.collect id
+                }))
         |> Async.Parallel
         |> Async.RunSynchronously
 
-    for i in 0 .. bufferCount - 1 do
+    [ 0 .. bufferCount - 1 ]
+    |> List.iter (fun i ->
         let buff = buffers.[i * 10]
-        for j in 0 .. 9 do
-            buffers.[i * 10 + j] |> should sameAs buff
+        [ 0 .. 9 ]
+        |> List.iter (fun j -> buffers.[i * 10 + j] |> should sameAs buff))

@@ -57,17 +57,20 @@ let ``concurrent set`` () =
 
     let pg = newPage fileService
 
-    [ for i in 0 .. 10 ->
+    [ 0 .. 10 ]
+    |> List.map (fun i ->
         async {
-            for _ in 0 .. 99 do
-                pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
-        } ]
+            [ 0 .. 99 ]
+            |> List.iter (fun _ -> pg.SetVal (i * 8) (int64 i |> BigIntDbConstant))
+        })
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
-    for i in 0 .. 10 do
+
+    [ 0 .. 10 ]
+    |> List.iter (fun i ->
         pg.GetVal (i * 8) BigIntDbType
-        |> should equal (int64 i |> BigIntDbConstant)
+        |> should equal (int64 i |> BigIntDbConstant))
 
 [<Fact>]
 let ``concurrent get set`` () =
@@ -76,20 +79,21 @@ let ``concurrent get set`` () =
 
     let pg = newPage fileService
 
-    for i in 0 .. 10 do
-        pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
+    [ 0 .. 10 ]
+    |> List.iter (fun i -> pg.SetVal (i * 8) (int64 i |> BigIntDbConstant))
 
-    [ for i in 0 .. 10 ->
+    [ 0 .. 10 ]
+    |> List.collect (fun i ->
         [ async {
-            for _ in 0 .. 99 do
-                pg.SetVal (i * 8) (int64 i |> BigIntDbConstant)
+            [ 0 .. 99 ]
+            |> List.iter (fun _ -> pg.SetVal (i * 8) (int64 i |> BigIntDbConstant))
           }
           async {
-              for _ in 0 .. 99 do
+              [ 0 .. 99 ]
+              |> List.iter (fun _ ->
                   pg.GetVal (i * 8) BigIntDbType
-                  |> should equal (int64 i |> BigIntDbConstant)
-          } ] ]
-    |> List.collect id
+                  |> should equal (int64 i |> BigIntDbConstant))
+          } ])
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore

@@ -12,6 +12,7 @@ open RyakDB.Database
 let ``create table`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 

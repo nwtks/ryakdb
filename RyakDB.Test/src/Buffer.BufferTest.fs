@@ -149,12 +149,14 @@ let ``concurrent buffer pin`` () =
 
     let buff = newBuffer fileService logService
 
-    [ for _ in 0 .. 10 ->
+    [ 0 .. 10 ]
+    |> List.map (fun _ ->
         async {
-            for __ in 0 .. 999 do
+            [ 0 .. 999 ]
+            |> List.iter (fun _ ->
                 buff.Pin()
-                buff.Unpin()
-        } ]
+                buff.Unpin())
+        })
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore

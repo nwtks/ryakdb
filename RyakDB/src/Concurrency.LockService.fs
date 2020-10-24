@@ -52,9 +52,9 @@ module LockService =
         / System.TimeSpan.TicksPerMillisecond
         + 50L > (int64 waitTime)
 
-    let private prepareAnchor (anchors: obj []) a =
-        let h = hash a % anchors.Length
-        if h < 0 then h + anchors.Length else h
+    let private prepareAnchor anchors a =
+        let h = hash a % Array.length anchors
+        if h < 0 then h + Array.length anchors else h
         |> anchors.GetValue
 
     let prepareLockers (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) key =
@@ -73,37 +73,37 @@ module LockService =
                    =
         lockByTxMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
 
-    let isSLocked lockers = not (lockers.SLockers.IsEmpty)
+    let isSLocked lockers = not (Set.isEmpty lockers.SLockers)
 
     let isXLocked lockers = lockers.XLocker <> -1L
 
     let isSIXLocked lockers = lockers.SIXLocker <> -1L
 
-    let isISLocked lockers = not (lockers.ISLockers.IsEmpty)
+    let isISLocked lockers = not (Set.isEmpty lockers.ISLockers)
 
-    let isIXLocked lockers = not (lockers.IXLockers.IsEmpty)
+    let isIXLocked lockers = not (Set.isEmpty lockers.IXLockers)
 
-    let hasSLock lockers txNo = lockers.SLockers.Contains txNo
+    let hasSLock lockers txNo = Set.contains txNo lockers.SLockers
 
     let hasXLock lockers txNo = lockers.XLocker = txNo
 
     let hasSIXLock lockers txNo = lockers.SIXLocker = txNo
 
-    let hasISLock lockers txNo = lockers.ISLockers.Contains txNo
+    let hasISLock lockers txNo = Set.contains txNo lockers.ISLockers
 
-    let hasIXLock lockers txNo = lockers.IXLockers.Contains txNo
+    let hasIXLock lockers txNo = Set.contains txNo lockers.IXLockers
 
     let isTheOnlySLocker lockers txNo =
-        lockers.SLockers.Count = 1
-        && lockers.SLockers.Contains txNo
+        Set.count lockers.SLockers = 1
+        && Set.contains txNo lockers.SLockers
 
     let isTheOnlyISLocker lockers txNo =
-        lockers.ISLockers.Count = 1
-        && lockers.ISLockers.Contains txNo
+        Set.count lockers.ISLockers = 1
+        && Set.contains txNo lockers.ISLockers
 
     let isTheOnlyIXLocker lockers txNo =
-        lockers.IXLockers.Count = 1
-        && lockers.IXLockers.Contains txNo
+        Set.count lockers.IXLockers = 1
+        && Set.contains txNo lockers.IXLockers
 
     let isSLockable lockers txNo =
         (not (isXLocked lockers) || hasXLock lockers txNo)
@@ -195,14 +195,14 @@ module LockService =
 
                         loopLockers <-
                             { loopLockers with
-                                  RequestSet = lockers.RequestSet.Add txNo }
+                                  RequestSet = Set.add txNo lockers.RequestSet }
 
                         System.Threading.Monitor.Wait(anchor, state.WaitTime)
                         |> ignore
 
                         loopLockers <-
                             { loopLockers with
-                                  RequestSet = lockers.RequestSet.Remove txNo }
+                                  RequestSet = Set.remove txNo lockers.RequestSet }
 
                     if not (isLockable loopLockers txNo) then failwith "Lock abort"
 
@@ -216,7 +216,7 @@ module LockService =
     let sLock state =
         createLock state SLock isSLockable hasSLock (fun txNo lockers ->
             { lockers with
-                  SLockers = lockers.SLockers.Add txNo })
+                  SLockers = Set.add txNo lockers.SLockers })
 
     let xLock state =
         createLock state XLock isXLockable hasXLock (fun txNo lockers -> { lockers with XLocker = txNo })
@@ -227,12 +227,12 @@ module LockService =
     let isLock state =
         createLock state ISLock isISLockable hasISLock (fun txNo lockers ->
             { lockers with
-                  ISLockers = lockers.ISLockers.Add txNo })
+                  ISLockers = Set.add txNo lockers.ISLockers })
 
     let ixLock state =
         createLock state IXLock isIXLockable hasIXLock (fun txNo lockers ->
             { lockers with
-                  IXLockers = lockers.IXLockers.Add txNo })
+                  IXLockers = Set.add txNo lockers.IXLockers })
 
     let releaseLock lockers anchor lockType txNo =
         System.Threading.Monitor.PulseAll anchor
@@ -253,36 +253,36 @@ module LockService =
             else
                 lockers
         | SLock ->
-            if lockers.SLockers.Contains txNo then
+            if Set.contains txNo lockers.SLockers then
                 let newLockers =
                     { lockers with
-                          SLockers = lockers.SLockers.Remove txNo }
+                          SLockers = Set.remove txNo lockers.SLockers }
 
-                if newLockers.SLockers.IsEmpty
+                if Set.isEmpty newLockers.SLockers
                 then System.Threading.Monitor.PulseAll anchor
 
                 newLockers
             else
                 lockers
         | ISLock ->
-            if lockers.ISLockers.Contains txNo then
+            if Set.contains txNo lockers.ISLockers then
                 let newLockers =
                     { lockers with
-                          ISLockers = lockers.ISLockers.Remove txNo }
+                          ISLockers = Set.remove txNo lockers.ISLockers }
 
-                if newLockers.ISLockers.IsEmpty
+                if Set.isEmpty newLockers.ISLockers
                 then System.Threading.Monitor.PulseAll anchor
 
                 newLockers
             else
                 lockers
         | IXLock ->
-            if lockers.IXLockers.Contains txNo then
+            if Set.contains txNo lockers.IXLockers then
                 let newLockers =
                     { lockers with
-                          IXLockers = lockers.IXLockers.Remove txNo }
+                          IXLockers = Set.remove txNo lockers.IXLockers }
 
-                if newLockers.IXLockers.IsEmpty
+                if Set.isEmpty newLockers.IXLockers
                 then System.Threading.Monitor.PulseAll anchor
 
                 newLockers
@@ -307,7 +307,7 @@ module LockService =
                        && not (isSIXLocked newLockers)
                        && not (isISLocked newLockers)
                        && not (isIXLocked newLockers)
-                       && newLockers.RequestSet.IsEmpty then
+                       && Set.isEmpty newLockers.RequestSet then
                         state.LockerMap.TryRemove key |> ignore
                     else
                         state.LockerMap.TryUpdate(key, newLockers, lockers)
@@ -353,7 +353,7 @@ module LockService =
                        && not (isSIXLocked lockers)
                        && not (isISLocked lockers)
                        && not (isIXLocked lockers)
-                       && lockers.RequestSet.IsEmpty then
+                       && Set.isEmpty lockers.RequestSet then
                         state.LockerMap.TryRemove e.Key |> ignore))
         state.TxWaitMap.TryRemove txNo |> ignore
         state.TxnsToBeAborted.TryRemove txNo |> ignore

@@ -147,19 +147,17 @@ module Predicate =
             else
                 terms
                 |> List.map (fun t ->
-                    let f = transite.Head
+                    let f = List.head transite
                     Term.operator f t, Term.oppositeField f t)
                 |> List.filter (fun (op, f) ->
                     Option.exists (fun op -> op = EqualOperator) op
                     && Option.exists (fun f -> not (List.contains f fields)) f)
                 |> List.map (fun (_, f) -> Option.get f)
-                |> List.fold (fun (fields, transite) f -> (f :: fields, f :: transite)) (fields, transite.Tail)
+                |> List.fold (fun (fields, transite) f -> (f :: fields, f :: transite)) (fields, List.tail transite)
                 |> transiteFields
 
         transiteFields ([ fieldName ], [ fieldName ])
         |> List.filter (fun f -> f <> fieldName)
-
-    let conjunctWith terms (Predicate pterms) = pterms @ terms |> Predicate
 
     let toConstantRange fieldName (Predicate terms) =
         terms

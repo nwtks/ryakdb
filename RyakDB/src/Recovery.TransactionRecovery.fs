@@ -52,7 +52,7 @@ module TransactionRecovery =
         if BlockId.fileName blockId |> FileService.isTempFile then
             None
         else
-            newSetValueRecord txNo blockId offset (buffer.GetVal offset (DbConstant.dbType newValue)) newValue
+            newSetValueRecord txNo blockId offset (DbConstant.dbType newValue |> buffer.GetVal offset) newValue
             |> writeToLog logService
             |> Some
 

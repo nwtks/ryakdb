@@ -117,7 +117,7 @@ module DbConstant =
             System.Text.UTF8Encoding().GetString(bytes)
             |> newVarchar
 
-    let inline size c = (toBytes c).Length
+    let inline size c = toBytes c |> Array.length
 
     let defaultConstant dbType =
         match dbType with

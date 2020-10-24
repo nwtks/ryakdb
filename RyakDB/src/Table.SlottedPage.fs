@@ -37,12 +37,10 @@ module SlottedPage =
     let InUseConst = IntDbConstant 1
 
     let offsetMap schema =
-        let offsetMap, _ =
-            schema.Fields()
-            |> List.fold (fun (map: Map<string, int32>, pos) field ->
-                map.Add(field, pos), pos + (schema.DbType field |> Page.maxSize)) (Map.empty, 0)
-
-        offsetMap
+        schema.Fields()
+        |> List.fold (fun (map, pos) field -> Map.add field pos map, pos + (schema.DbType field |> Page.maxSize))
+               (Map.empty, 0)
+        |> fst
 
     let slotSize schema =
         let pos =

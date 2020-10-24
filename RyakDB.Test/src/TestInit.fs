@@ -28,10 +28,11 @@ module TestInit =
             use tf =
                 newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            for i in 1 .. deptMax do
+            [ 1 .. deptMax ]
+            |> List.iter (fun i ->
                 tf.Insert()
                 tf.SetVal "d_id" (IntDbConstant i)
-                tf.SetVal "d_name" (DbConstant.newVarchar ("dept " + i.ToString())))
+                tf.SetVal "d_name" (DbConstant.newVarchar ("dept " + i.ToString()))))
 
         tx.Commit()
 
@@ -51,11 +52,12 @@ module TestInit =
             use tf =
                 newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            for i in 1 .. courseMax do
+            [ 1 .. courseMax ]
+            |> List.iter (fun i ->
                 tf.Insert()
                 tf.SetVal "c_id" (IntDbConstant i)
                 tf.SetVal "title" (DbConstant.newVarchar ("course " + i.ToString()))
-                tf.SetVal "dept_id" (IntDbConstant(i % deptMax + 1)))
+                tf.SetVal "dept_id" (IntDbConstant(i % deptMax + 1))))
 
         tx.Commit()
 
@@ -76,12 +78,13 @@ module TestInit =
             use tf =
                 newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            for i in 1 .. studentMax do
+            [ 1 .. studentMax ]
+            |> List.iter (fun i ->
                 tf.Insert()
                 tf.SetVal "s_id" (IntDbConstant i)
                 tf.SetVal "s_name" (DbConstant.newVarchar ("student " + i.ToString()))
                 tf.SetVal "major_id" (IntDbConstant(i % deptMax + 1))
-                tf.SetVal "grad_year" (IntDbConstant(i % 50 + 1960)))
+                tf.SetVal "grad_year" (IntDbConstant(i % 50 + 1960))))
 
         tx.Commit()
 
@@ -102,12 +105,13 @@ module TestInit =
             use tf =
                 newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            for i in 1 .. sectionMax do
+            [ 1 .. sectionMax ]
+            |> List.iter (fun i ->
                 tf.Insert()
                 tf.SetVal "sec_id" (IntDbConstant i)
                 tf.SetVal "prof" (DbConstant.newVarchar ("prof " + (i % 20 + 1).ToString()))
                 tf.SetVal "course_id" (IntDbConstant(i % courseMax + 1))
-                tf.SetVal "year_offered" (IntDbConstant(i % 30 + 1980)))
+                tf.SetVal "year_offered" (IntDbConstant(i % 30 + 1980))))
 
         tx.Commit()
 
@@ -123,18 +127,19 @@ module TestInit =
             sch.AddField "section_id" IntDbType
             db.Catalog.CreateTable tx "enroll" sch)
 
+        let grades = [| "A+"; "A"; "B"; "C"; "D" |]
         db.Catalog.GetTableInfo tx "enroll"
         |> Option.iter (fun ti ->
             use tf =
                 newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-            let grades = [| "A+"; "A"; "B"; "C"; "D" |]
-            for i in 1 .. enrollMax do
+            [ 1 .. enrollMax ]
+            |> List.iter (fun i ->
                 tf.Insert()
                 tf.SetVal "e_id" (IntDbConstant i)
-                tf.SetVal "grade" (DbConstant.newVarchar (grades.[i % grades.Length]))
+                tf.SetVal "grade" (DbConstant.newVarchar (grades.[i % Array.length grades]))
                 tf.SetVal "student_id" (IntDbConstant(i % studentMax + 1))
-                tf.SetVal "section_id" (IntDbConstant(i % sectionMax + 1)))
+                tf.SetVal "section_id" (IntDbConstant(i % sectionMax + 1))))
 
         tx.Commit()
 

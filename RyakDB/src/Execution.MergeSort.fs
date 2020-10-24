@@ -213,13 +213,16 @@ module MergeSort =
         let result = newTempTable fileService tx schema
         use dest = result.OpenScan()
         let hasMores = srcs |> List.map (fun s -> s.Next())
-        let count = (hasMores |> List.filter id).Length
+
+        let count =
+            hasMores |> List.filter id |> List.length
+
         loopMerge schema comparator dest count srcs hasMores
         srcs |> List.iter (fun s -> s.Close())
         result
 
-    let rec loopMergeRuns fileService tx schema comparator numofbuf (temps: TempTable list) results =
-        if temps.Length > numofbuf then
+    let rec loopMergeRuns fileService tx schema comparator numofbuf temps results =
+        if List.length temps > numofbuf then
             (mergeTemps fileService tx schema comparator temps.[..(numofbuf - 1)])
             :: results
             |> loopMergeRuns fileService tx schema comparator numofbuf temps.[numofbuf..]
@@ -228,16 +231,17 @@ module MergeSort =
 
     let mergeRuns fileService bufferPool tx schema comparator runs =
         let numofbuf =
-            BufferNeeds.bestRoot bufferPool (List.length runs)
+            List.length runs
+            |> BufferNeeds.bestRoot bufferPool
 
         let temps, results =
             loopMergeRuns fileService tx schema comparator numofbuf runs []
 
-        if temps.Length > 1 then
+        if List.length temps > 1 then
             (mergeTemps fileService tx schema comparator temps)
             :: results
-        elif temps.Length = 1 then
-            temps.Head :: results
+        elif List.length temps = 1 then
+            List.head temps :: results
         else
             results
         |> List.rev
@@ -261,14 +265,14 @@ module MergeSort =
             let mutable runs =
                 splitIntoRuns fileService tx schema sortFields scan
 
-            if runs.IsEmpty then
+            if List.isEmpty runs then
                 scan
             else
                 scan.Close()
 
                 let comparator = newRecordComparator sortFields
 
-                while runs.Length > 2 do
+                while List.length runs > 2 do
                     runs <- mergeRuns fileService bufferPool tx schema comparator runs
 
                 let scan1 = runs.Head.OpenScan()

@@ -235,15 +235,23 @@ module BTreeLeaf =
 
         let splitSibling page =
             let searchSibling (page: BTreePage) =
-                let mutable slotNo = page.GetCountOfRecords() / 2
+                let slotNo = page.GetCountOfRecords() / 2
                 let key = getKey page slotNo keyType
-                if SearchKey.compare key (getKey page 0 keyType) = 0 then
-                    while SearchKey.compare key (getKey page slotNo keyType) = 0 do
-                        slotNo <- slotNo + 1
+                if getKey page 0 keyType |> SearchKey.compare key = 0 then
+                    (seq { slotNo + 1 .. page.GetCountOfRecords() - 1 }
+                     |> Seq.takeWhile (fun slot ->
+                         getKey page slot keyType
+                         |> SearchKey.compare key = 0)
+                     |> Seq.tryLast
+                     |> Option.defaultValue slotNo)
+                    + 1
                 else
-                    while SearchKey.compare key (getKey page (slotNo - 1) keyType) = 0 do
-                        slotNo <- slotNo - 1
-                slotNo
+                    seq { slotNo - 1 .. -1 .. 0 }
+                    |> Seq.takeWhile (fun slot ->
+                        getKey page slot keyType
+                        |> SearchKey.compare key = 0)
+                    |> Seq.tryLast
+                    |> Option.defaultValue slotNo
 
             let siblingSlot = searchSibling page
             let siblingKey = getKey page siblingSlot keyType
@@ -262,7 +270,8 @@ module BTreeLeaf =
         |> insertSlot txRecovery keyType page key recordId
 
         if page.IsFull() then
-            if SearchKey.compare (getKey page 0 keyType) (getKey page (page.GetCountOfRecords() - 1) keyType) = 0 then
+            if getKey page (page.GetCountOfRecords() - 1) keyType
+               |> SearchKey.compare (getKey page 0 keyType) = 0 then
                 splitOverflow page
                 None
             else

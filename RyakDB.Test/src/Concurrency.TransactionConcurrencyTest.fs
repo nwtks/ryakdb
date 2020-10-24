@@ -22,6 +22,7 @@ let ``serializable, read modify`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -49,6 +50,7 @@ let ``serializable, read read`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -75,6 +77,7 @@ let ``serializable, modify read`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -100,6 +103,7 @@ let ``serializable, phantom`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -126,6 +130,7 @@ let ``repeatable read, read modify`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -152,6 +157,7 @@ let ``repeatable read, phantom`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -179,6 +185,7 @@ let ``read committed, end statement`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -200,6 +207,7 @@ let ``read committed, end statement`` () =
 let ``serializable, serializable`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -253,6 +261,7 @@ let ``serializable, serializable`` () =
 let ``serializable, repeatable read`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -311,6 +320,7 @@ let ``serializable, repeatable read`` () =
 let ``serializable, read committed`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 

@@ -154,7 +154,7 @@ module Scan =
         let resetIndex () =
             let joinValues =
                 joinFields
-                |> List.fold (fun values (f1, f2) -> values |> Map.add f2 (scan.GetVal f1)) Map.empty
+                |> List.fold (fun values (f1, f2) -> values |> Map.add f1 (scan.GetVal f2)) Map.empty
 
             IndexInfo.fieldNames indexInfo
             |> List.map (fun f -> joinValues.[f])

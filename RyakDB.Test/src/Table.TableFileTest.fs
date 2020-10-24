@@ -21,6 +21,7 @@ let ``insert read delete`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -34,14 +35,15 @@ let ``insert read delete`` () =
     use tf =
         newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
 
-    for i in 0 .. 300 do
+    [ 1 .. 100 ]
+    |> List.iter (fun i ->
         tf.Insert()
         tf.SetVal "cid" (IntDbConstant i)
         tf.SetVal "title" (DbConstant.newVarchar ("course" + i.ToString()))
-        tf.SetVal "deptid" (BigIntDbConstant(int64 (i % 3 + 1) * 1000L))
+        tf.SetVal "deptid" (BigIntDbConstant(int64 (i % 3 + 1) * 1000L)))
 
     tf.BeforeFirst()
-    let mutable readId = 0
+    let mutable readId = 1
     while tf.Next() do
         tf.GetVal "title"
         |> DbConstant.toString
@@ -56,7 +58,7 @@ let ``insert read delete`` () =
         |> should equal readId
 
         readId <- readId + 1
-    readId |> should equal 301
+    readId |> should equal 101
 
     tf.BeforeFirst()
     let mutable deletedCount = 0
@@ -64,18 +66,19 @@ let ``insert read delete`` () =
         if tf.GetVal "deptid" = BigIntDbConstant 3000L then
             tf.Delete()
             deletedCount <- deletedCount + 1
-    deletedCount |> should equal 100
+    deletedCount |> should equal 33
 
     tf.BeforeFirst()
     while tf.Next() do
         tf.GetVal "deptid"
         |> should not' (equal (BigIntDbConstant 3000L))
 
-    for i in 301 .. 456 do
+    [ 31 .. 45 ]
+    |> List.iter (fun i ->
         tf.Insert()
         tf.SetVal "cid" (IntDbConstant i)
         tf.SetVal "title" (DbConstant.newVarchar ("course" + i.ToString()))
-        tf.SetVal "deptid" (BigIntDbConstant(int64 (i % 3 + 1) * 1000L))
+        tf.SetVal "deptid" (BigIntDbConstant(int64 (i % 3 + 1) * 1000L)))
 
     tx.Commit()
 
@@ -85,6 +88,7 @@ let ``reuse slot`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -132,6 +136,7 @@ let ``undo insert`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -182,6 +187,7 @@ let ``undo delete`` () =
 
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 

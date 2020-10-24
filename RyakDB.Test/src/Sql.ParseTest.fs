@@ -169,7 +169,7 @@ let ``parse create table`` () =
     | _ -> failwith "cant parse create table"
 
 [<Fact>]
-let ``parse create index`` () =
+let ``parse create B-tree index`` () =
     let sql = """
         CREATE INDEX idx1
         ON tbl1 (col5, col12, col8)
@@ -182,6 +182,22 @@ let ``parse create index`` () =
         indexType |> should equal BTree
         tableName |> should equal "tbl1"
         fields |> should equal [ "col5"; "col12"; "col8" ]
+    | _ -> failwith "cant parse create index"
+
+[<Fact>]
+let ``parse create hash index`` () =
+    let sql = """
+        CREATE INDEX idx1
+        ON tbl1 (col5)
+        USING HASH
+        """
+
+    match Parser.updateCommand sql with
+    | CreateIndexData (indexName, indexType, tableName, fields) ->
+        indexName |> should equal "idx1"
+        indexType |> should equal Hash
+        tableName |> should equal "tbl1"
+        fields |> should equal [ "col5" ]
     | _ -> failwith "cant parse create index"
 
 [<Fact>]

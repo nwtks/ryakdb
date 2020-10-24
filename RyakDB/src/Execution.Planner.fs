@@ -90,23 +90,23 @@ module QueryPlanner =
     let addSelectPredicate predicate plan =
         Plan.pipeSelectPlan (Predicate.selectPredicate (Plan.schema plan) predicate) plan
 
-    let addJoinPredicate predicate plan joinedPlan =
+    let addJoinPredicate predicate joinedPlan plan =
         Plan.pipeSelectPlan (Predicate.joinPredicate (Plan.schema plan) (Plan.schema joinedPlan) predicate) plan
 
-    let makeIndexJoinPlan fileService catalogService tx joinedTableName predicate plan joinedPlan =
+    let makeIndexJoinPlan fileService catalogService tx joinedTableName predicate joinedPlan plan =
         let getJoinFields (schema: Schema) indexInfo =
             IndexInfo.fieldNames indexInfo
-            |> List.collect (fun f ->
-                Predicate.joinFields f predicate
+            |> List.collect (fun iif ->
+                Predicate.joinFields iif predicate
                 |> List.takeWhile schema.HasField
-                |> List.map (fun f2 -> f2, f))
+                |> List.map (fun f -> iif, f))
 
         let getIndexJoinPlan candidates =
             let indexInfo, joinFields =
                 candidates
                 |> List.maxBy (fun (_, pairs) -> List.length pairs)
 
-            Plan.pipeIndexJoinPlan fileService tx plan joinedPlan indexInfo joinFields
+            Plan.pipeIndexJoinPlan fileService tx joinedPlan indexInfo joinFields plan
 
         let schema = Plan.schema plan
         match catalogService.GetIndexInfosByTable tx joinedTableName
@@ -147,9 +147,9 @@ module QueryPlanner =
             |> List.fold (fun plan queryPlan ->
                 match queryPlan with
                 | TableQueryPlan (p, tn) ->
-                    makeIndexJoinPlan fileService catalogService tx tn predicate plan p
+                    makeIndexJoinPlan fileService catalogService tx tn predicate p plan
                     |> addJoinPredicate predicate p
-                | ViewQueryPlan p -> p |> Plan.pipeProductPlan plan
+                | ViewQueryPlan p -> Plan.pipeProductPlan p plan
                 |> addSelectPredicate predicate)
                    (match List.head queryPlans with
                     | TableQueryPlan (p, tn) ->
@@ -269,14 +269,14 @@ module UpdatePlanner =
 
                     let oldKey =
                         IndexInfo.fieldNames ii
-                        |> List.map (fun f -> if oldValues.ContainsKey f then oldValues.[f] else scan.GetVal f)
+                        |> List.map (fun f -> if Map.containsKey f oldValues then oldValues.[f] else scan.GetVal f)
                         |> SearchKey.newSearchKey
 
                     index.Delete true oldKey rid
 
                     let newKey =
                         IndexInfo.fieldNames ii
-                        |> List.map (fun f -> if newValues.ContainsKey f then newValues.[f] else scan.GetVal f)
+                        |> List.map (fun f -> if Map.containsKey f newValues then newValues.[f] else scan.GetVal f)
                         |> SearchKey.newSearchKey
 
                     index.Insert true newKey rid)

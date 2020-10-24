@@ -34,6 +34,7 @@ let createIndex db =
 let ``single key`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -95,6 +96,7 @@ let ``single key`` () =
 let ``varchar key`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -123,7 +125,8 @@ let ``varchar key`` () =
     let key4 =
         SearchKey.newSearchKey [ DbConstant.newVarchar "BAEBAEBAEBASAEBASZ1" ]
 
-    for i in 0 .. 999 do
+    [ 0 .. 99 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk
         |> index.Insert false key1
         RecordId.newRecordId (1000 + i) blk
@@ -131,33 +134,34 @@ let ``varchar key`` () =
         RecordId.newRecordId (2000 + i) blk
         |> index.Insert false key3
         RecordId.newRecordId (3000 + i) blk
-        |> index.Insert false key4
+        |> index.Insert false key4)
 
     let mutable cnt = 0
     SearchRange.newSearchRangeBySearchKey key1
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 1000
+    cnt |> should equal 100
     SearchRange.newSearchRangeBySearchKey key2
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 2000
+    cnt |> should equal 200
     SearchRange.newSearchRangeBySearchKey key3
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 3000
+    cnt |> should equal 300
     SearchRange.newSearchRangeBySearchKey key4
     |> index.BeforeFirst
     while index.Next() do
         cnt <- cnt + 1
-    cnt |> should equal 4000
+    cnt |> should equal 400
 
-    for i in 0 .. 999 do
+    [ 0 .. 99 ]
+    |> List.iter (fun i ->
         RecordId.newRecordId i blk
-        |> index.Delete false key1
+        |> index.Delete false key1)
 
     SearchRange.newSearchRangeBySearchKey key1
     |> index.BeforeFirst
@@ -182,6 +186,7 @@ let ``varchar key`` () =
 let ``multi key`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 

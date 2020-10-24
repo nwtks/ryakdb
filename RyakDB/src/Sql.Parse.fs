@@ -436,7 +436,7 @@ module Parser =
                 lex.EatDelimimiter '='
                 let newval = modifyExpression lex
                 if lex.MatchDelimiter ',' then lex.EatDelimimiter ','
-                map.Add(fldname, newval) |> eat
+                Map.add fldname newval map |> eat
             else
                 map
 
@@ -516,7 +516,7 @@ module Parser =
                 else
                     failwith "Syntax error: index type"
             else
-                Hash
+                BTree
 
         CreateIndexData(idxname, idxType, tblname, fldNames)
 

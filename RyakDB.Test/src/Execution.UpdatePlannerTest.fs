@@ -13,27 +13,27 @@ let createTable db =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    Schema.newSchema ()
-    |> (fun sch ->
-        sch.AddField "tid" IntDbType
-        sch.AddField "tname" (VarcharDbType 10)
-        sch.AddField "tdate" BigIntDbType
-        db.Catalog.CreateTable tx "updatetest" sch)
+    db.Planner.ExecuteUpdate tx "CREATE TABLE updatetest (tid INT, tname VARCHAR(100), tdate BIGINT)"
+    |> ignore
     tx.Commit()
 
 let createIndex db =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    db.Catalog.CreateIndex tx "updatetest_I1" BTree "updatetest" [ "tdate" ]
-    db.Catalog.CreateIndex tx "updatetest_I2" BTree "updatetest" [ "tname" ]
-    db.Catalog.CreateIndex tx "updatetest_I3" BTree "updatetest" [ "tid" ]
+    db.Planner.ExecuteUpdate tx "CREATE INDEX updatetest_I1 ON updatetest (tdate) USING BTREE"
+    |> ignore
+    db.Planner.ExecuteUpdate tx "CREATE INDEX updatetest_I2 ON updatetest (tname) USING BTREE"
+    |> ignore
+    db.Planner.ExecuteUpdate tx "CREATE INDEX updatetest_I3 ON updatetest (tid) USING BTREE"
+    |> ignore
     tx.Commit()
 
 [<Fact>]
 let insert () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -69,6 +69,7 @@ let insert () =
 let delete () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -117,6 +118,7 @@ let delete () =
 let modify () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -171,6 +173,7 @@ let modify () =
 let ``modify predicate`` () =
     use db =
         { Database.defaultConfig () with
+              BlockSize = 1024
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 

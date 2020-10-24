@@ -31,7 +31,7 @@ module Page =
                 let bytes =
                     contents |> FileBuffer.get offset ValSizeSize
 
-                offset + bytes.Length, System.BitConverter.ToInt32(System.ReadOnlySpan(bytes))
+                offset + Array.length bytes, System.BitConverter.ToInt32(System.ReadOnlySpan(bytes))
 
         contents
         |> FileBuffer.get off size
@@ -46,7 +46,7 @@ module Page =
             else
                 if offset
                    + ValSizeSize
-                   + bytes.Length > fileService.BlockSize then
+                   + Array.length bytes > fileService.BlockSize then
                     failwith
                         ("Page buffer overflow:offset="
                          + offset.ToString()
@@ -54,10 +54,10 @@ module Page =
                          + bytes.Length.ToString())
 
                 let sizebytes =
-                    bytes.Length |> System.BitConverter.GetBytes
+                    Array.length bytes |> System.BitConverter.GetBytes
 
                 contents |> FileBuffer.put offset sizebytes
-                offset + sizebytes.Length
+                offset + Array.length sizebytes
 
         contents |> FileBuffer.put off bytes
 
