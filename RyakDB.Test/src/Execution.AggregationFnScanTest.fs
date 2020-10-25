@@ -18,7 +18,7 @@ let count () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -51,7 +51,7 @@ let max () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -84,7 +84,7 @@ let min () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -117,7 +117,7 @@ let sum () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -150,7 +150,7 @@ let avg () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable

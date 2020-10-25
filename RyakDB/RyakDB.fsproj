@@ -42,6 +42,8 @@
     <Compile Include="src/Execution.Scan.fs" />
     <Compile Include="src/Execution.Plan.fs" />
     <Compile Include="src/Execution.MergeSort.fs" />
+    <Compile Include="src/Execution.QueryPlanner.fs" />
+    <Compile Include="src/Execution.UpdatePlanner.fs" />
     <Compile Include="src/Execution.Planner.fs" />
     <Compile Include="src/Database.fs" />
   </ItemGroup>

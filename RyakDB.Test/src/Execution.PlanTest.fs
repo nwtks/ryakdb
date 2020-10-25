@@ -21,7 +21,7 @@ let ``table plan`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -54,7 +54,7 @@ let ``select plan`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -88,7 +88,7 @@ let ``project plan`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -123,8 +123,8 @@ let ``product plan`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
-    TestInit.setupDeptTable db
+    setupStudentTable db
+    setupDeptTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -166,7 +166,7 @@ let ``group by plan`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -204,7 +204,7 @@ let ``sort plan`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx =
         db.Transaction.NewTransaction false Serializable
@@ -478,6 +478,9 @@ let ``index join plan`` () =
         scan.GetVal "join_key_2"
         |> DbConstant.toInt
         |> should equal 3
+        scan.GetVal "key_3"
+        |> should equal (scan.GetVal "join_key_3")
+
     i |> should equal 6
 
     tx.Commit()

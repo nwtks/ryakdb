@@ -3,8 +3,6 @@ module RyakDB.Test.Execution.UpdatePlannerTest
 open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
-open RyakDB.Table
-open RyakDB.Index
 open RyakDB.Transaction
 open RyakDB.Execution.Plan
 open RyakDB.Database

@@ -211,7 +211,7 @@ let ``serializable, serializable`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx1 =
         db.Transaction.NewTransaction false Serializable
@@ -265,7 +265,7 @@ let ``serializable, repeatable read`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx1 =
         db.Transaction.NewTransaction false Serializable
@@ -324,7 +324,7 @@ let ``serializable, read committed`` () =
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
-    TestInit.setupStudentTable db
+    setupStudentTable db
 
     let tx1 =
         db.Transaction.NewTransaction false Serializable

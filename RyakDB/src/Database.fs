@@ -7,9 +7,14 @@ open RyakDB.Buffer.BufferPool
 open RyakDB.Concurrency.LockService
 open RyakDB.Transaction
 open RyakDB.TransactionService
+open RyakDB.Catalog.TableCatalogService
+open RyakDB.Catalog.IndexCatalogService
+open RyakDB.Catalog.ViewCatalogService
 open RyakDB.Catalog.CatalogService
 open RyakDB.Recovery.RecoveryService
 open RyakDB.Recovery.CheckpointTask
+open RyakDB.Execution.QueryPlanner
+open RyakDB.Execution.UpdatePlanner
 open RyakDB.Execution.Planner
 
 type Database =
@@ -44,15 +49,6 @@ module Database =
           CheckpointPeriod = 300000
           CheckpointTxCount = 1000 }
 
-    let createPlanner fileService bufferPool catalogService =
-        let queryPlanner =
-            newQueryPlanner fileService bufferPool catalogService
-
-        let updatePlanner =
-            newUpdatePlanner fileService catalogService
-
-        newPlanner queryPlanner updatePlanner
-
     let shutdown fileService bufferPool transactionService taskService =
         taskService.CancelTasks()
         transactionService.RollbackAll()
@@ -68,7 +64,16 @@ let newDatabase dbPath config =
     let bufferPool =
         newBufferPool fileService logService config.BufferPoolSize config.BufferPoolWaitTime
 
-    let catalogService = newCatalogService fileService
+    let tableService = newTableCatalogService fileService
+
+    let indexService =
+        newIndexCatalogService fileService tableService
+
+    let viewService =
+        newViewCatalogService fileService tableService
+
+    let catalogService =
+        newCatalogService tableService indexService viewService
 
     let lockService = newLockService config.LockWaitTime
 
@@ -98,8 +103,13 @@ let newDatabase dbPath config =
     else newPeriodicCheckpointTask transactionService config.CheckpointPeriod
     |> taskService.RunTask
 
-    let planner =
-        Database.createPlanner fileService bufferPool catalogService
+    let queryPlanner =
+        newQueryPlanner fileService bufferPool catalogService
+
+    let updatePlanner =
+        newUpdatePlanner fileService catalogService
+
+    let planner = newPlanner queryPlanner updatePlanner
 
     { File = fileService
       BufferPool = bufferPool

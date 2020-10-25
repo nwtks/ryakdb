@@ -10,7 +10,7 @@ open RyakDB.Index.BTreePage
 
 type BTreeBranchEntry = BTreeBranchEntry of key: SearchKey * blockNo: int64
 
-let newBTreeBranchEntry key blockNo = BTreeBranchEntry(key, blockNo)
+let inline newBTreeBranchEntry key blockNo = BTreeBranchEntry(key, blockNo)
 
 type SearchPurpose =
     | Read

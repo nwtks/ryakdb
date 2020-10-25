@@ -21,15 +21,10 @@ type CatalogService =
       GetViewNamesByTable: Transaction -> string -> string list
       InitCatalogService: Transaction -> unit }
 
-let newCatalogService fileService =
-    let tableService: TableCatalogService = newTableCatalogService fileService
-
-    let indexService: IndexCatalogService =
-        newIndexCatalogService fileService tableService
-
-    let viewService: ViewCatalogService =
-        newViewCatalogService fileService tableService
-
+let newCatalogService (tableService: TableCatalogService)
+                      (indexService: IndexCatalogService)
+                      (viewService: ViewCatalogService)
+                      =
     { CreateTable = tableService.CreateTable
       DropTable =
           fun tx tableName ->
