@@ -19,56 +19,61 @@ module QueryPlanner =
         | ViewQueryPlan of plan: Plan
 
     let addSelectPredicate predicate plan =
-        Plan.pipeSelectPlan (Predicate.selectPredicate (Plan.schema plan) predicate) plan
+        plan
+        |> Plan.pipeSelectPlan
+            (predicate
+             |> Predicate.selectPredicate (plan |> Plan.schema))
 
     let addJoinPredicate predicate joinedPlan plan =
-        Plan.pipeSelectPlan (Predicate.joinPredicate (Plan.schema plan) (Plan.schema joinedPlan) predicate) plan
+        plan
+        |> Plan.pipeSelectPlan
+            (predicate
+             |> Predicate.joinPredicate (plan |> Plan.schema) (joinedPlan |> Plan.schema))
 
     let makeIndexSelectPlan fileService catalogService tx tableName predicate excludedFields =
         let getConstantRanges predicate indexInfo =
             let indexType = IndexInfo.indexType indexInfo
             IndexInfo.fieldNames indexInfo
-            |> List.map (fun f -> f, Predicate.toConstantRange f predicate)
-            |> List.takeWhile (fun (_, range) -> Option.isSome range)
-            |> List.map (fun (f, range) -> f, Option.get range)
+            |> List.map (fun f -> f, predicate |> Predicate.toConstantRange f)
+            |> List.takeWhile (snd >> Option.isSome)
+            |> List.map (fun (f, range) -> f, range |> Option.get)
             |> List.takeWhile (fun (_, range) ->
                 indexType = BTree
                 || indexType = Hash && range.IsConstant())
             |> List.fold (fun ranges (f, range) -> ranges |> Map.add f range) Map.empty
 
         let getIndexSelectPlan fileService tx ranges =
-            let index, constantRanges =
-                ranges
-                |> List.maxBy (fun (_, ranges) -> Map.count ranges)
+            let index, constantRanges = ranges |> List.maxBy (snd >> Map.count)
 
             SearchRange.newSearchRangeByFieldsRanges (IndexInfo.fieldNames index) constantRanges
             |> Plan.pipeIndexSelectPlan fileService tx index
 
         match catalogService.GetIndexInfosByTable tx tableName
-              |> List.filter (fun ii ->
-                  not
-                      (IndexInfo.fieldNames ii
-                       |> List.exists (fun f -> List.contains f excludedFields)))
+              |> List.filter
+                  (IndexInfo.fieldNames
+                   >> List.exists (fun f -> excludedFields |> List.contains f)
+                   >> not)
               |> List.map (fun ii -> ii, getConstantRanges predicate ii) with
         | [] -> None
         | ranges -> getIndexSelectPlan fileService tx ranges |> Some
 
     let makeIndexJoinPlan fileService catalogService tx joinedTableName predicate joinedPlan plan =
-        let getJoinFields (schema: Schema) indexInfo =
+        let getJoinFields schema indexInfo =
             IndexInfo.fieldNames indexInfo
             |> List.collect (fun iif ->
-                Predicate.joinFields iif predicate
+                predicate
+                |> Predicate.joinFields iif
                 |> List.takeWhile schema.HasField
                 |> List.map (fun f -> iif, f))
 
         let getIndexJoinPlan candidates =
             let indexInfo, joinFields =
-                candidates
-                |> List.maxBy (fun (_, pairs) -> List.length pairs)
+                candidates |> List.maxBy (snd >> List.length)
 
-            Plan.pipeIndexJoinPlan fileService tx joinedPlan indexInfo joinFields plan
+            plan
+            |> Plan.pipeIndexJoinPlan fileService tx joinedPlan indexInfo joinFields
 
-        let schema = Plan.schema plan
+        let schema = plan |> Plan.schema
         match catalogService.GetIndexInfosByTable tx joinedTableName
               |> List.map (fun ii -> ii, getJoinFields schema ii) with
         | [] ->
@@ -109,9 +114,9 @@ module QueryPlanner =
                 | TableQueryPlan (p, tn) ->
                     makeIndexJoinPlan fileService catalogService tx tn predicate p plan
                     |> addJoinPredicate predicate p
-                | ViewQueryPlan p -> Plan.pipeProductPlan p plan
+                | ViewQueryPlan p -> plan |> Plan.pipeProductPlan p
                 |> addSelectPredicate predicate)
-                   (match List.head queryPlans with
+                   (match queryPlans |> List.head with
                     | TableQueryPlan (p, tn) ->
                         p
                         |> (makeIndexSelectPlan fileService catalogService tx tn predicate []

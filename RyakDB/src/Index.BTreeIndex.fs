@@ -97,7 +97,7 @@ module BTreeIndex =
         let splitedLeaf = leaf.Insert key dataRecordId
         leaf.Close()
 
-        if Option.isSome splitedLeaf then
+        if splitedLeaf |> Option.isSome then
             branchesMayBeUpdated
             |> List.fold (fun splitedBranch branchBlockId ->
                 match splitedBranch with
@@ -105,8 +105,7 @@ module BTreeIndex =
                     use branch =
                         newBTreeBranch txBuffer txConcurrency txRecovery branchBlockId keyType
 
-                    let prevEntry = branch.Insert entry
-                    prevEntry
+                    branch.Insert entry
                 | _ -> None) splitedLeaf
             |> Option.iter (fun entry ->
                 use root =

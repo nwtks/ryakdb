@@ -16,30 +16,22 @@ type TableInfo = TableInfo of tableName: string * schema: Schema * fileName: str
 type RecordId = RecordId of slotNo: int32 * blockId: BlockId
 
 module Schema =
-    let addField fieldTypes fieldName dbType = Map.add fieldName dbType fieldTypes
+    let add fieldName schema =
+        schema.DbType fieldName |> Map.add fieldName
 
-    let add fieldTypes fieldName schema =
-        Map.add fieldName (schema.DbType fieldName) fieldTypes
-
-    let addAll fieldTypes schema =
+    let addAll schema fieldTypes =
         schema.Fields()
-        |> List.fold (fun fts f -> add fts f schema) fieldTypes
-
-    let fields fieldTypes = fieldTypes |> Map.toList |> List.map fst
-
-    let hasField fieldTypes fieldName = Map.containsKey fieldName fieldTypes
-
-    let dbType fieldTypes fieldName = Map.find fieldName fieldTypes
+        |> List.fold (fun fts f -> add f schema fts) fieldTypes
 
     let newSchema () =
         let mutable fieldTypes = Map.empty
 
-        { AddField = fun fieldName dbType -> fieldTypes <- addField fieldTypes fieldName dbType
-          Add = fun fieldName schema -> fieldTypes <- add fieldTypes fieldName schema
-          AddAll = fun schema -> fieldTypes <- addAll fieldTypes schema
-          Fields = fun () -> fields fieldTypes
-          HasField = fun fieldName -> hasField fieldTypes fieldName
-          DbType = fun fieldName -> dbType fieldTypes fieldName }
+        { AddField = fun fieldName dbType -> fieldTypes <- fieldTypes |> Map.add fieldName dbType
+          Add = fun fieldName schema -> fieldTypes <- fieldTypes |> add fieldName schema
+          AddAll = fun schema -> fieldTypes <- fieldTypes |> addAll schema
+          Fields = fun () -> fieldTypes |> Map.toList |> List.map fst
+          HasField = fun fieldName -> fieldTypes |> Map.containsKey fieldName
+          DbType = fun fieldName -> fieldTypes |> Map.find fieldName }
 
 module TableInfo =
     let inline tableName (TableInfo (tableName, _, _)) = tableName

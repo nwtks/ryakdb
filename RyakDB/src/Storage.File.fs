@@ -95,13 +95,13 @@ module FileService =
         { OpenFiles: System.Collections.Concurrent.ConcurrentDictionary<string, Channel>
           Anchors: obj [] }
 
-    let private prepareAnchor anchors a =
+    let private getAnchor a anchors =
         let h = hash a % Array.length anchors
         if h < 0 then h + Array.length anchors else h
         |> anchors.GetValue
 
     let private getChannel (dbDir: string) inMemory state fileName =
-        lock (prepareAnchor state.Anchors fileName) (fun () ->
+        lock (state.Anchors |> getAnchor fileName) (fun () ->
             let newFileChannel name =
                 if inMemory
                 then newMemoryChannel ()
@@ -130,7 +130,7 @@ module FileService =
         / (int64 blockSize)
 
     let close state fileName =
-        lock (prepareAnchor state.Anchors fileName) (fun () ->
+        lock (state.Anchors |> getAnchor fileName) (fun () ->
             let mutable channel = Unchecked.defaultof<Channel>
             if state.OpenFiles.TryRemove(fileName, &channel)
             then channel |> Channel.close)

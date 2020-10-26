@@ -25,8 +25,8 @@ module Plan =
     let rec schema plan =
         match plan with
         | TablePlan(tableInfo = ti) -> TableInfo.schema ti
-        | SelectPlan(plan = p) -> schema p
-        | IndexSelectPlan(plan = p) -> schema p
+        | SelectPlan(plan = p) -> p |> schema
+        | IndexSelectPlan(plan = p) -> p |> schema
         | ProductPlan(schema = sch) -> sch
         | ProjectPlan(schema = sch) -> sch
         | IndexJoinPlan(schema = sch) -> sch
@@ -36,34 +36,34 @@ module Plan =
     let rec openScan plan =
         match plan with
         | TablePlan (fs, tx, ti) -> Scan.newTableScan fs tx ti
-        | SelectPlan (p, pred) -> Scan.newSelectScan (openScan p) pred
+        | SelectPlan (p, pred) -> Scan.newSelectScan (p |> openScan) pred
         | IndexSelectPlan (fs, tx, p, ii, range) ->
-            Scan.newIndexSelectScan (openScan p) (IndexFactory.newIndex fs tx ii) range
-        | ProductPlan (p1, p2, _) -> Scan.newProductScan (openScan p1) (openScan p2)
+            Scan.newIndexSelectScan (p |> openScan) (IndexFactory.newIndex fs tx ii) range
+        | ProductPlan (p1, p2, _) -> Scan.newProductScan (p1 |> openScan) (p2 |> openScan)
         | ProjectPlan (p, schema) ->
             schema.Fields()
-            |> Scan.newProjectScan (openScan p)
+            |> Scan.newProjectScan (p |> openScan)
         | IndexJoinPlan (fs, tx, p1, p2, _, ii, fields) ->
-            Scan.newIndexJoinScan (openScan p1) (openScan p2) ii (IndexFactory.newIndex fs tx ii) fields
-        | GroupByPlan (sp, _, groupFlds, aggFns) -> Scan.newGroupByScan (openScan sp) groupFlds aggFns
-        | SortPlan (plan, schema, sortFields, newSortScan) -> openScan plan |> newSortScan schema sortFields
+            Scan.newIndexJoinScan (p1 |> openScan) (p2 |> openScan) ii (IndexFactory.newIndex fs tx ii) fields
+        | GroupByPlan (sp, _, groupFlds, aggFns) -> Scan.newGroupByScan (sp |> openScan) groupFlds aggFns
+        | SortPlan (plan, schema, sortFields, newSortScan) -> plan |> openScan |> newSortScan schema sortFields
 
     let newTablePlan fileService tx tableInfo = TablePlan(fileService, tx, tableInfo)
 
     let pipeSelectPlan predicate plan =
-        if Predicate.isEmpty predicate then plan else SelectPlan(plan, predicate)
+        if predicate |> Predicate.isEmpty then plan else SelectPlan(plan, predicate)
 
     let pipeIndexSelectPlan fileService tx indexInfo searchRange plan =
         IndexSelectPlan(fileService, tx, plan, indexInfo, searchRange)
 
     let pipeProductPlan plan1 plan2 =
         let sch = Schema.newSchema ()
-        schema plan1 |> sch.AddAll
-        schema plan2 |> sch.AddAll
+        plan1 |> schema |> sch.AddAll
+        plan2 |> schema |> sch.AddAll
         ProductPlan(plan1, plan2, sch)
 
     let pipeProjectPlan fieldNames plan =
-        if List.isEmpty fieldNames then
+        if fieldNames |> List.isEmpty then
             plan
         else
             let planSchema = schema plan
@@ -74,24 +74,24 @@ module Plan =
 
     let pipeIndexJoinPlan fileService tx joinedPlan indexInfo joinFields plan =
         let sch = Schema.newSchema ()
-        schema plan |> sch.AddAll
-        schema joinedPlan |> sch.AddAll
+        plan |> schema |> sch.AddAll
+        joinedPlan |> schema |> sch.AddAll
         IndexJoinPlan(fileService, tx, plan, joinedPlan, sch, indexInfo, joinFields)
 
     let pipeSortPlan newSortScan sortFields plan =
-        if List.isEmpty sortFields
+        if sortFields |> List.isEmpty
         then plan
-        else SortPlan(plan, schema plan, sortFields, newSortScan)
+        else SortPlan(plan, plan |> schema, sortFields, newSortScan)
 
     let pipeGroupByPlan newSortScan groupFlds aggFns plan =
-        if List.isEmpty aggFns then
+        if aggFns |> List.isEmpty then
             plan
         else
-            let planSchema = schema plan
+            let planSchema = plan |> schema
             let sch = Schema.newSchema ()
 
             let sp =
-                if List.isEmpty groupFlds then
+                if groupFlds |> List.isEmpty then
                     plan
                 else
                     groupFlds

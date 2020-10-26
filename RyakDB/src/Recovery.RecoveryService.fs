@@ -86,7 +86,9 @@ module RecoveryService =
 
     let logSetValCompensationRecord logService compTxNo (buffer: Buffer) offset newValue undoNextLogSeqNo =
         let blockId = buffer.BlockId()
-        if not (BlockId.fileName blockId |> FileService.isTempFile) then
+        if BlockId.fileName blockId
+           |> FileService.isTempFile
+           |> not then
             newSetValueCompensateRecord
                 compTxNo
                 blockId
@@ -201,10 +203,11 @@ module RecoveryService =
         |> Seq.filter (fun rlog -> transactionNo rlog = tx.TransactionNo)
         |> Seq.takeWhile (fun rlog -> operation rlog <> RecoveryLogOperation.Start)
         |> Seq.filter (fun rlog ->
-            Option.isNone undoNextLogSeqNo
+            undoNextLogSeqNo
+            |> Option.isNone
             || getLogSeqNo rlog
-            |> Option.map (fun lsn -> undoNextLogSeqNo |> Option.get > lsn)
-            |> Option.defaultValue false)
+               |> Option.map (fun lsn -> undoNextLogSeqNo |> Option.get > lsn)
+               |> Option.defaultValue false)
         |> Seq.iter (fun rlog ->
             undo fileService logService catalogService tx rlog
             undoNextLogSeqNo <-
@@ -220,62 +223,65 @@ module RecoveryService =
         let redoRecords, uncompletedTxs, _ =
             logService.Records()
             |> Seq.map fromLogRecord
-            |> Seq.takeWhile (fun _ -> not (inCheckpoint))
-            |> Seq.fold (fun (redoRecords, uncompletedTxs: Set<int64>, finishedTxs: Set<int64>) rlog ->
+            |> Seq.takeWhile (fun _ -> not inCheckpoint)
+            |> Seq.fold (fun (redoRecords, uncompletedTxs, finishedTxs) rlog ->
                 match rlog with
                 | CheckpointRecord(txNos = txNos) ->
                     inCheckpoint <- true
                     redoRecords,
                     txNos
-                    |> List.filter (fun txNo -> not (Set.contains txNo finishedTxs))
-                    |> List.fold (fun uncompletedTxs txNo -> Set.add txNo uncompletedTxs) uncompletedTxs,
+                    |> List.filter (fun txNo -> finishedTxs |> Set.contains txNo |> not)
+                    |> List.fold (fun uncompletedTxs txNo -> uncompletedTxs |> Set.add txNo) uncompletedTxs,
                     finishedTxs
                 | CommitRecord(txNo = txNo)
-                | RollbackRecord(txNo = txNo) -> rlog :: redoRecords, uncompletedTxs, Set.add txNo finishedTxs
-                | StartRecord(txNo = txNo) when not (Set.contains txNo finishedTxs) ->
-                    rlog :: redoRecords, Set.add txNo uncompletedTxs, finishedTxs
+                | RollbackRecord(txNo = txNo) -> rlog :: redoRecords, uncompletedTxs, finishedTxs |> Set.add txNo
+                | StartRecord(txNo = txNo) when finishedTxs |> Set.contains txNo |> not ->
+                    rlog :: redoRecords, uncompletedTxs |> Set.add txNo, finishedTxs
                 | _ -> rlog :: redoRecords, uncompletedTxs, finishedTxs) ([], Set.empty, Set.empty)
 
         redoRecords |> List.iter (redo tx)
 
         let mutable uncompletedTxs =
-            Set.remove tx.TransactionNo uncompletedTxs
+            uncompletedTxs |> Set.remove tx.TransactionNo
 
         let mutable undoNextLogSeqNos = Map.empty
 
         logService.Records()
         |> if stepsInUndo > 0 then Seq.truncate stepsInUndo else id
         |> Seq.map fromLogRecord
-        |> Seq.takeWhile (fun _ -> not (Seq.isEmpty uncompletedTxs))
+        |> Seq.takeWhile (fun _ -> uncompletedTxs |> Seq.isEmpty |> not)
         |> Seq.map (fun rlog -> rlog, transactionNo rlog)
         |> Seq.filter (fun (rlog, txNo) ->
-            Set.contains txNo uncompletedTxs
-            && (not (Map.containsKey txNo undoNextLogSeqNos)
+            uncompletedTxs
+            |> Set.contains txNo
+            && (undoNextLogSeqNos
+                |> Map.containsKey txNo
+                |> not
                 || getLogSeqNo rlog
-                |> Option.map (fun lsn -> undoNextLogSeqNos.[txNo] > lsn)
-                |> Option.defaultValue false))
+                   |> Option.map (fun lsn -> undoNextLogSeqNos.[txNo] > lsn)
+                   |> Option.defaultValue false))
         |> Seq.iter (fun (rlog, txNo) ->
             match rlog, getLogicalStartLogSeqNo rlog, getUndoNextLogSeqNo rlog with
             | CommitRecord _, _, _
             | RollbackRecord _, _, _ -> ()
-            | StartRecord _, _, _ -> uncompletedTxs <- Set.remove txNo uncompletedTxs
+            | StartRecord _, _, _ -> uncompletedTxs <- uncompletedTxs |> Set.remove txNo
             | _, Some startLsn, _ ->
                 undo fileService logService catalogService tx rlog
-                undoNextLogSeqNos <- Map.add txNo startLsn undoNextLogSeqNos
-            | _, _, Some undoNextLsn -> undoNextLogSeqNos <- Map.add txNo undoNextLsn undoNextLogSeqNos
+                undoNextLogSeqNos <- undoNextLogSeqNos |> Map.add txNo startLsn
+            | _, _, Some undoNextLsn -> undoNextLogSeqNos <- undoNextLogSeqNos |> Map.add txNo undoNextLsn
             | _, _, _ -> undo fileService logService catalogService tx rlog)
 
     let recover fileService logService catalogService tx =
         recoverPartially fileService logService catalogService tx -1
 
     let onCommit logService tx =
-        if not (tx.ReadOnly) then
+        if not tx.ReadOnly then
             newCommitRecord tx.TransactionNo
             |> writeToLog logService
             |> logService.Flush
 
     let onRollback fileService logService catalogService tx =
-        if not (tx.ReadOnly) then
+        if not tx.ReadOnly then
             rollback fileService logService catalogService tx
             newRollbackRecord tx.TransactionNo
             |> writeToLog logService

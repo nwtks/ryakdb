@@ -80,7 +80,7 @@ module IndexCatalogService =
                 else
                     None
 
-            if Option.isSome info
+            if info |> Option.isSome
             then info
             else findIcatfileByIndexName tableService tx tf indexName
         else

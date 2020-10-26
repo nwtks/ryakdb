@@ -135,8 +135,9 @@ module Predicate =
         allSchema.AddAll schema2
         terms
         |> List.filter (fun t ->
-            not (Term.isApplicableTo schema1 t)
-            && not (Term.isApplicableTo schema2 t)
+            Term.isApplicableTo schema1 t
+            |> not
+            && Term.isApplicableTo schema2 t |> not
             && Term.isApplicableTo allSchema t)
         |> Predicate
 
@@ -150,14 +151,16 @@ module Predicate =
                     let f = List.head transite
                     Term.operator f t, Term.oppositeField f t)
                 |> List.filter (fun (op, f) ->
-                    Option.exists (fun op -> op = EqualOperator) op
-                    && Option.exists (fun f -> not (List.contains f fields)) f)
-                |> List.map (fun (_, f) -> Option.get f)
+                    op
+                    |> Option.exists ((=) EqualOperator)
+                    && f
+                       |> Option.exists (fun f -> fields |> List.contains f |> not))
+                |> List.map (snd >> Option.get)
                 |> List.fold (fun (fields, transite) f -> (f :: fields, f :: transite)) (fields, List.tail transite)
                 |> transiteFields
 
         transiteFields ([ fieldName ], [ fieldName ])
-        |> List.filter (fun f -> f <> fieldName)
+        |> List.filter ((<>) fieldName)
 
     let toConstantRange fieldName (Predicate terms) =
         terms

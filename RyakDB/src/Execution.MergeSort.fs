@@ -48,11 +48,11 @@ let newTempTable fileService tx schema =
 
     { OpenScan = fun () -> TempTable.openScan fileService tx ti }
 
-module TempTablePage =
-    type TempTablePage =
-        { TablePage: TablePage
-          Schema: Schema }
+type TempTablePage =
+    { TablePage: TablePage
+      Schema: Schema }
 
+module TempTablePage =
     let moveToPageHead ttp = ttp.TablePage.MoveToSlotNo -1
 
     let insertFromScan scan ttp =
@@ -67,7 +67,7 @@ module TempTablePage =
         if ttp.TablePage.Next() then
             scan.Insert()
             ttp.Schema.Fields()
-            |> List.iter (fun fn -> ttp.TablePage.GetVal fn |> (scan.SetVal fn))
+            |> List.iter (fun fn -> ttp.TablePage.GetVal fn |> scan.SetVal fn)
             true
         else
             false
@@ -89,14 +89,13 @@ module TempTablePage =
     let findSmallestFrom sortFields startSlotNo ttp =
         let rec findMin minSlotNo =
             if ttp.TablePage.Next() then
-                ttp.TablePage.CurrentSlotNo()
-                |> fun slotNo ->
-                    if minSlotNo < 0
-                       || compareRecords sortFields minSlotNo slotNo ttp > 0 then
-                        slotNo
-                    else
-                        minSlotNo
-                    |> findMin
+                let slotNo = ttp.TablePage.CurrentSlotNo()
+                if minSlotNo < 0
+                   || compareRecords sortFields minSlotNo slotNo ttp > 0 then
+                    slotNo
+                else
+                    minSlotNo
+                |> findMin
             else
                 minSlotNo
 
@@ -151,95 +150,104 @@ module MergeSort =
     let rec loopInsertFromScan scan ttp =
         let f = ttp |> TempTablePage.insertFromScan scan
 
-        if f > 0 then loopInsertFromScan scan ttp else f
+        if f > 0 then ttp |> loopInsertFromScan scan else f
 
     let rec loopCopyToScan scan ttp =
-        if ttp |> TempTablePage.copyToScan scan then loopCopyToScan scan ttp
+        if ttp |> TempTablePage.copyToScan scan then ttp |> loopCopyToScan scan
 
-    let rec loopTempTablePage fileService tx schema src temps scan tblcount sortFields ttp =
-        let flag = ttp |> loopInsertFromScan src
+    let rec loopTempTablePage fileService tx schema srcScan tempTables destScan tblcount sortFields ttp =
+        let flag = ttp |> loopInsertFromScan srcScan
         ttp |> TempTablePage.sortBySelection sortFields
         ttp |> TempTablePage.moveToPageHead
-        ttp |> loopCopyToScan scan
+        ttp |> loopCopyToScan destScan
         ttp |> TempTablePage.close
-        scan.Close()
+        destScan.Close()
         if flag <> -1 then
-            let temp = newTempTable fileService tx schema
+            let tt = newTempTable fileService tx schema
             let nextTblcount = tblcount + 1
             newTempTablePage tx schema nextTblcount
-            |> loopTempTablePage fileService tx schema src (temp :: temps) (temp.OpenScan()) nextTblcount sortFields
+            |> loopTempTablePage
+                fileService
+                   tx
+                   schema
+                   srcScan
+                   (tt :: tempTables)
+                   (tt.OpenScan())
+                   nextTblcount
+                   sortFields
         else
-            List.rev temps
+            tempTables |> List.rev
 
-    let splitIntoRuns fileService tx schema sortFields src =
-        src.BeforeFirst()
-        if src.Next() then
-            let temp = newTempTable fileService tx schema
+    let splitIntoRuns fileService tx schema sortFields srcScan =
+        srcScan.BeforeFirst()
+        if srcScan.Next() then
+            let tt = newTempTable fileService tx schema
             newTempTablePage tx schema 0
-            |> loopTempTablePage fileService tx schema src [ temp ] (temp.OpenScan()) 0 sortFields
+            |> loopTempTablePage fileService tx schema srcScan [ tt ] (tt.OpenScan()) 0 sortFields
         else
             []
 
-    let copy schema src dest =
-        dest.Insert()
+    let copy schema srcScan destScan =
+        destScan.Insert()
         schema.Fields()
-        |> List.iter (fun fn -> src.GetVal fn |> dest.SetVal fn)
-        src.Next()
+        |> List.iter (fun fn -> srcScan.GetVal fn |> destScan.SetVal fn)
+        srcScan.Next()
 
-    let rec loopMerge schema comparator dest count srcs hasMores =
+    let rec loopMerge schema comparator count destScan srcScans hasMores =
         if count > 0 then
             let mutable target = -1
-            List.zip hasMores srcs
-            |> List.iteri (fun i (has, src) ->
-                if has
+            List.zip hasMores srcScans
+            |> List.iteri (fun i (hasMore, srcScan) ->
+                if hasMore
                    && (target < 0
-                       || comparator src.GetVal srcs.[target].GetVal < 0) then
+                       || comparator srcScan.GetVal srcScans.[target].GetVal < 0) then
                     target <- i)
-            let hasMore = copy schema srcs.[target] dest
+            let hasMore = copy schema srcScans.[target] destScan
             hasMores
             |> List.mapi (fun i v -> if i = target then hasMore else v)
-            |> loopMerge schema comparator dest (if hasMore then count else count - 1) srcs
+            |> loopMerge schema comparator (if hasMore then count else count - 1) destScan srcScans
 
-    let mergeTemps fileService tx schema comparator temps =
-        let srcs =
-            temps
+    let mergeTemps fileService tx schema comparator tempTables =
+        let srcScans =
+            tempTables
             |> List.map (fun tmp ->
                 let s = tmp.OpenScan()
                 s.BeforeFirst()
                 s)
 
         let result = newTempTable fileService tx schema
-        use dest = result.OpenScan()
-        let hasMores = srcs |> List.map (fun s -> s.Next())
+        use destScan = result.OpenScan()
+        let hasMores = srcScans |> List.map (fun s -> s.Next())
 
         let count =
             hasMores |> List.filter id |> List.length
 
-        loopMerge schema comparator dest count srcs hasMores
-        srcs |> List.iter (fun s -> s.Close())
+        loopMerge schema comparator count destScan srcScans hasMores
+        srcScans |> List.iter (fun s -> s.Close())
         result
 
-    let rec loopMergeRuns fileService tx schema comparator numofbuf temps results =
-        if List.length temps > numofbuf then
-            (mergeTemps fileService tx schema comparator temps.[..(numofbuf - 1)])
+    let rec loopMergeRuns fileService tx schema comparator numofbuf tempTables results =
+        if tempTables |> List.length > numofbuf then
+            (mergeTemps fileService tx schema comparator tempTables.[..(numofbuf - 1)])
             :: results
-            |> loopMergeRuns fileService tx schema comparator numofbuf temps.[numofbuf..]
+            |> loopMergeRuns fileService tx schema comparator numofbuf tempTables.[numofbuf..]
         else
-            temps, results
+            tempTables, results
 
     let mergeRuns fileService bufferPool tx schema comparator runs =
         let numofbuf =
             List.length runs
             |> BufferNeeds.bestRoot bufferPool
 
-        let temps, results =
+        let tempTables, results =
             loopMergeRuns fileService tx schema comparator numofbuf runs []
 
-        if List.length temps > 1 then
-            (mergeTemps fileService tx schema comparator temps)
+        if tempTables |> List.length > 1 then
+            (tempTables
+             |> mergeTemps fileService tx schema comparator)
             :: results
-        elif List.length temps = 1 then
-            List.head temps :: results
+        elif tempTables |> List.length = 1 then
+            List.head tempTables :: results
         else
             results
         |> List.rev
@@ -261,17 +269,20 @@ module MergeSort =
     let newSortScan fileService bufferPool tx =
         fun schema sortFields scan ->
             let mutable runs =
-                splitIntoRuns fileService tx schema sortFields scan
+                scan
+                |> splitIntoRuns fileService tx schema sortFields
 
-            if List.isEmpty runs then
+            if runs |> List.isEmpty then
                 scan
             else
                 scan.Close()
 
                 let comparator = newRecordComparator sortFields
 
-                while List.length runs > 2 do
-                    runs <- mergeRuns fileService bufferPool tx schema comparator runs
+                while runs |> List.length > 2 do
+                    runs <-
+                        runs
+                        |> mergeRuns fileService bufferPool tx schema comparator
 
                 let scan1 = runs.Head.OpenScan()
 

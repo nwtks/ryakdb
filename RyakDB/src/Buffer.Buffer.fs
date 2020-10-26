@@ -54,7 +54,7 @@ module Buffer =
                   IsModified = true
                   LastLogSeqNo =
                       match lsn with
-                      | Some n when n > state.LastLogSeqNo -> n
+                      | Some no when no > state.LastLogSeqNo -> no
                       | _ -> state.LastLogSeqNo }
 
         newstate.LastLogSeqNo

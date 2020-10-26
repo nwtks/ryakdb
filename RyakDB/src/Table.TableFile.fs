@@ -48,13 +48,13 @@ module FileHeaderPage =
     let OffsetTailSlotNo = OffsetTailBlockId + BlockId.BlockNoSize
 
     let getVal offset dbType state =
-        if not (FileService.isTempFile state.FileName)
+        if state.FileName |> FileService.isTempFile |> not
         then state.TxConcurrency.ReadBlock state.BlockId
 
         state.CurrentBuffer.GetVal offset dbType
 
     let setVal offset value state =
-        if not (FileService.isTempFile state.FileName)
+        if state.FileName |> FileService.isTempFile |> not
         then state.TxConcurrency.ModifyBlock state.BlockId
 
         state.TxRecovery.LogSetVal state.CurrentBuffer offset value
@@ -145,7 +145,7 @@ module TableFile =
             |> txBuffer.Unpin
 
     let fileSize fileService txConcurrency tableFileName =
-        if not (FileService.isTempFile tableFileName)
+        if tableFileName |> FileService.isTempFile |> not
         then txConcurrency.ReadFile tableFileName
 
         fileService.Size tableFileName
@@ -174,7 +174,7 @@ module TableFile =
             true
 
     let closeHeader txConcurrency tableFileName state =
-        if Option.isSome state.FileHeaderPage then
+        if state.FileHeaderPage |> Option.isSome then
             BlockId.newBlockId tableFileName 0L
             |> txConcurrency.LockTableFileHeader
 
@@ -195,8 +195,10 @@ module TableFile =
         | _ -> failwith "Must call next()"
 
     let setVal txReadOnly (TableInfo (_, schema, tableFileName)) state fieldName value =
-        if txReadOnly
-           && not (FileService.isTempFile tableFileName) then
+        if tableFileName
+           |> FileService.isTempFile
+           |> not
+           && txReadOnly then
             failwith "Transaction read only"
 
         let fieldType = schema.DbType fieldName
@@ -267,7 +269,7 @@ module TableFile =
 
     let initHeaderForModification txBuffer txConcurrency txRecovery tableFileName state =
         let openHeaderForModification txBuffer txConcurrency txRecovery tableFileName =
-            if not (FileService.isTempFile tableFileName) then
+            if tableFileName |> FileService.isTempFile |> not then
                 BlockId.newBlockId tableFileName 0L
                 |> txConcurrency.LockTableFileHeader
             newFileHeaderPage txBuffer txConcurrency txRecovery tableFileName
@@ -279,11 +281,11 @@ module TableFile =
         let (TableInfo (tableName, schema, tableFileName)) = tableInfo
 
         let atLastBlock state =
-            (fileSize fileService txConcurrency tableFileName
-             - 1L) = state.CurrentBlockNo
+            fileSize fileService txConcurrency tableFileName
+            - 1L = state.CurrentBlockNo
 
         let appendBlock () =
-            if not (FileService.isTempFile tableFileName)
+            if tableFileName |> FileService.isTempFile |> not
             then txConcurrency.ModifyFile tableFileName
 
             let buffer =
@@ -292,7 +294,7 @@ module TableFile =
 
             txBuffer.Unpin buffer
 
-            if not (FileService.isTempFile tableFileName)
+            if tableFileName |> FileService.isTempFile |> not
             then buffer.BlockId() |> txConcurrency.InsertBlock
 
         let rec appendSlot state =
@@ -356,7 +358,7 @@ module TableFile =
 
             newstate
 
-        if not (FileService.isTempFile tableFileName) then
+        if tableFileName |> FileService.isTempFile |> not then
             if txReadOnly then failwith "Transaction read only"
 
             txConcurrency.ModifyFile tableFileName
@@ -392,8 +394,10 @@ module TableFile =
             txRecovery.LogTableFileDeletionEnd tableName (RecordId.blockNo recordId) (RecordId.slotNo recordId)
             |> ignore
 
-        if txReadOnly
-           && not (FileService.isTempFile tableFileName) then
+        if tableFileName
+           |> FileService.isTempFile
+           |> not
+           && txReadOnly then
             failwith "Transaction read only"
 
         let fhp =
@@ -457,7 +461,7 @@ module TableFile =
                 newstate)
             |> Option.defaultValue newstate
 
-        if not (FileService.isTempFile tableFileName) then
+        if tableFileName |> FileService.isTempFile |> not then
             if txReadOnly then failwith "Transaction read only"
 
             txConcurrency.ModifyFile tableFileName
@@ -478,10 +482,10 @@ module TableFile =
                 { state with FileHeaderPage = Some fhp }
                 recordId
 
-        if not
-            (newstate.TablePage
-             |> Option.map (fun tp -> tp.UndoDelete())
-             |> Option.defaultValue false) then
+        if newstate.TablePage
+           |> Option.map (fun tp -> tp.UndoDelete())
+           |> Option.defaultValue false
+           |> not then
             failwith
                 ("Specified slot: "
                  + recordId.ToString()

@@ -19,7 +19,7 @@ module TransactionBuffer =
         + 50L > (int64 waitTime)
 
     let rec waitUnpinningBuffer bufferPool pinBufferPool timestamp buffer =
-        if Option.isSome buffer then
+        if buffer |> Option.isSome then
             buffer
         elif waitingTooLong timestamp bufferPool.WaitTime then
             None
@@ -30,34 +30,38 @@ module TransactionBuffer =
             pinBufferPool ()
             |> waitUnpinningBuffer bufferPool pinBufferPool timestamp
 
-    let pinNewBuffer (bufferPool: BufferPool) pinningBuffers pinBufferPool repinBuffer =
-        if Map.count pinningBuffers
+    let pinNewBuffer (bufferPool: BufferPool) pinBufferPool repinBuffer pinningBuffers =
+        if pinningBuffers
+           |> Map.count
            >= bufferPool.BufferPoolSize then
             failwith "Buffer pool full"
 
         let nextBuffers, newBuffer =
             match pinBufferPool ()
                   |> Option.orElseWith (fun () -> waitUnpinningBuffer bufferPool pinBufferPool System.DateTime.Now None) with
-            | Some buff -> Map.add (buff.BlockId()) { Buffer = buff; PinCount = 1 } pinningBuffers, buff
-            | _ -> repinBuffer pinningBuffers
+            | Some buff ->
+                pinningBuffers
+                |> Map.add (buff.BlockId()) { Buffer = buff; PinCount = 1 },
+                buff
+            | _ -> pinningBuffers |> repinBuffer
 
         lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
 
         nextBuffers, newBuffer
 
-    let pinExistBuffer pinningBuffers blockId =
-        let pinnedBuff = Map.find blockId pinningBuffers
+    let pinExistBuffer blockId pinningBuffers =
+        let pinnedBuff = pinningBuffers |> Map.find blockId
 
         let nextPinnedBuff =
             { pinnedBuff with
                   PinCount = pinnedBuff.PinCount + 1 }
 
-        Map.add blockId nextPinnedBuff pinningBuffers, nextPinnedBuff.Buffer
+        pinningBuffers |> Map.add blockId nextPinnedBuff, nextPinnedBuff.Buffer
 
-    let unpin (bufferPool: BufferPool) pinningBuffers buffer =
+    let unpin (bufferPool: BufferPool) buffer pinningBuffers =
         let blockId = buffer.BlockId()
-        if Map.containsKey blockId pinningBuffers then
-            let pinnedBuff = Map.find blockId pinningBuffers
+        if pinningBuffers |> Map.containsKey blockId then
+            let pinnedBuff = pinningBuffers |> Map.find blockId
 
             let nextPinnedBuff =
                 { pinnedBuff with
@@ -66,9 +70,9 @@ module TransactionBuffer =
             if nextPinnedBuff.PinCount = 0 then
                 bufferPool.Unpin buffer
                 lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
-                Map.remove blockId pinningBuffers
+                pinningBuffers |> Map.remove blockId
             else
-                Map.add blockId nextPinnedBuff pinningBuffers
+                pinningBuffers |> Map.add blockId nextPinnedBuff
         else
             pinningBuffers
 
@@ -76,17 +80,20 @@ module TransactionBuffer =
         let pinBufferPool () = bufferPool.Pin blockId
 
         let repinBuffer pinningBuffers =
-            repin bufferPool pinningBuffers
+            pinningBuffers
+            |> repin bufferPool
             |> pin bufferPool blockId
 
-        if Map.containsKey blockId pinningBuffers
-        then pinExistBuffer pinningBuffers blockId
-        else pinNewBuffer bufferPool pinningBuffers pinBufferPool repinBuffer
+        if pinningBuffers |> Map.containsKey blockId then
+            pinningBuffers |> pinExistBuffer blockId
+        else
+            pinningBuffers
+            |> pinNewBuffer bufferPool pinBufferPool repinBuffer
 
     and repin (bufferPool: BufferPool) pinningBuffers =
         let repinningBuffers =
             pinningBuffers
-            |> Map.fold (fun buffers _ buf -> unpin bufferPool buffers buf.Buffer) pinningBuffers
+            |> Map.fold (fun buffers _ buf -> unpin bufferPool buf.Buffer buffers) pinningBuffers
 
         lock bufferPool (fun () ->
             System.Threading.Monitor.Wait(bufferPool, bufferPool.WaitTime)
@@ -99,10 +106,12 @@ module TransactionBuffer =
         let pinBufferPool () = bufferPool.PinNew fileName formatter
 
         let repinBuffer pinningBuffers =
-            repin bufferPool pinningBuffers
+            pinningBuffers
+            |> repin bufferPool
             |> pinNew bufferPool fileName formatter
 
-        pinNewBuffer bufferPool pinningBuffers pinBufferPool repinBuffer
+        pinningBuffers
+        |> pinNewBuffer bufferPool pinBufferPool repinBuffer
 
     let unpinAll (bufferPool: BufferPool) pinningBuffers =
         pinningBuffers
@@ -116,16 +125,26 @@ let newTransactionBuffer bufferPool =
     { Pin =
           fun blockId ->
               let nextBuffers, buffer =
-                  TransactionBuffer.pin bufferPool blockId pinningBuffers
+                  pinningBuffers
+                  |> TransactionBuffer.pin bufferPool blockId
 
               pinningBuffers <- nextBuffers
               buffer
       PinNew =
           fun fileName formatter ->
               let nextBuffers, buffer =
-                  TransactionBuffer.pinNew bufferPool fileName formatter pinningBuffers
+                  pinningBuffers
+                  |> TransactionBuffer.pinNew bufferPool fileName formatter
 
               pinningBuffers <- nextBuffers
               buffer
-      Unpin = fun buffer -> pinningBuffers <- TransactionBuffer.unpin bufferPool pinningBuffers buffer
-      UnpinAll = fun () -> pinningBuffers <- TransactionBuffer.unpinAll bufferPool pinningBuffers }
+      Unpin =
+          fun buffer ->
+              pinningBuffers <-
+                  pinningBuffers
+                  |> TransactionBuffer.unpin bufferPool buffer
+      UnpinAll =
+          fun () ->
+              pinningBuffers <-
+                  pinningBuffers
+                  |> TransactionBuffer.unpinAll bufferPool }

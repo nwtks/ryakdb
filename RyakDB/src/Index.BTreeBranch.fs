@@ -195,7 +195,7 @@ module BTreeBranch =
 
     let insert txRecovery keyType (page: BTreePage) (BTreeBranchEntry (key, blockNo)) =
         if page.GetCountOfRecords() > 0
-        then (Some key |> findMatchingSlot keyType page) + 1
+        then 1 + (Some key |> findMatchingSlot keyType page)
         else 0
         |> insertSlot txRecovery keyType page key blockNo
 

@@ -36,14 +36,14 @@ module LockService =
           SIXLocker: int64
           ISLockers: Set<int64>
           IXLockers: Set<int64>
-          RequestSet: Set<int64> }
+          RequestSet: System.Collections.Concurrent.ConcurrentDictionary<int64, bool> }
 
     type LockServiceState =
         { LockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>
-          LockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>
-          TxnsToBeAborted: System.Collections.Concurrent.ConcurrentDictionary<int64, bool>
-          TxWaitMap: System.Collections.Concurrent.ConcurrentDictionary<int64, obj>
-          ToBeNotified: System.Collections.Concurrent.BlockingCollection<int64>
+          LockerKeySetMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>
+          TxNosToBeAborted: System.Collections.Concurrent.ConcurrentDictionary<int64, bool>
+          TxNosToBeNotified: System.Collections.Concurrent.BlockingCollection<int64>
+          TxAnchorMap: System.Collections.Concurrent.ConcurrentDictionary<int64, obj>
           Anchors: obj []
           WaitTime: int32 }
 
@@ -52,12 +52,12 @@ module LockService =
         / System.TimeSpan.TicksPerMillisecond
         + 50L > (int64 waitTime)
 
-    let private prepareAnchor anchors a =
+    let private getAnchor a anchors =
         let h = hash a % Array.length anchors
         if h < 0 then h + Array.length anchors else h
         |> anchors.GetValue
 
-    let prepareLockers (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) key =
+    let getLockers key (lockerMap: System.Collections.Concurrent.ConcurrentDictionary<LockerKey, Lockers>) =
         lockerMap.GetOrAdd
             (key,
              (fun _ ->
@@ -66,86 +66,126 @@ module LockService =
                    SIXLocker = -1L
                    ISLockers = Set.empty
                    IXLockers = Set.empty
-                   RequestSet = Set.empty }))
+                   RequestSet = System.Collections.Concurrent.ConcurrentDictionary() }))
 
-    let getLockSet (lockByTxMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
-                   txNo
-                   =
-        lockByTxMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
+    let getLockerKeySet txNo
+                        (lockerKeySetMap: System.Collections.Concurrent.ConcurrentDictionary<int64, System.Collections.Concurrent.ConcurrentDictionary<LockerKey, bool>>)
+                        =
+        lockerKeySetMap.GetOrAdd(txNo, (fun _ -> System.Collections.Concurrent.ConcurrentDictionary()))
 
-    let isSLocked lockers = not (Set.isEmpty lockers.SLockers)
+    let isSLocked lockers = lockers.SLockers |> Set.isEmpty |> not
 
     let isXLocked lockers = lockers.XLocker <> -1L
 
     let isSIXLocked lockers = lockers.SIXLocker <> -1L
 
-    let isISLocked lockers = not (Set.isEmpty lockers.ISLockers)
+    let isISLocked lockers = lockers.ISLockers |> Set.isEmpty |> not
 
-    let isIXLocked lockers = not (Set.isEmpty lockers.IXLockers)
+    let isIXLocked lockers = lockers.IXLockers |> Set.isEmpty |> not
 
-    let hasSLock lockers txNo = Set.contains txNo lockers.SLockers
+    let hasSLock txNo lockers = lockers.SLockers |> Set.contains txNo
 
-    let hasXLock lockers txNo = lockers.XLocker = txNo
+    let hasXLock txNo lockers = lockers.XLocker = txNo
 
-    let hasSIXLock lockers txNo = lockers.SIXLocker = txNo
+    let hasSIXLock txNo lockers = lockers.SIXLocker = txNo
 
-    let hasISLock lockers txNo = Set.contains txNo lockers.ISLockers
+    let hasISLock txNo lockers = lockers.ISLockers |> Set.contains txNo
 
-    let hasIXLock lockers txNo = Set.contains txNo lockers.IXLockers
+    let hasIXLock txNo lockers = lockers.IXLockers |> Set.contains txNo
 
-    let isTheOnlySLocker lockers txNo =
-        Set.count lockers.SLockers = 1
-        && Set.contains txNo lockers.SLockers
+    let isTheOnlySLocker txNo lockers =
+        lockers.SLockers
+        |> Set.count = 1
+        && lockers.SLockers |> Set.contains txNo
 
-    let isTheOnlyISLocker lockers txNo =
-        Set.count lockers.ISLockers = 1
-        && Set.contains txNo lockers.ISLockers
+    let isTheOnlyISLocker txNo lockers =
+        lockers.ISLockers
+        |> Set.count = 1
+        && lockers.ISLockers |> Set.contains txNo
 
-    let isTheOnlyIXLocker lockers txNo =
-        Set.count lockers.IXLockers = 1
-        && Set.contains txNo lockers.IXLockers
+    let isTheOnlyIXLocker txNo lockers =
+        lockers.IXLockers
+        |> Set.count = 1
+        && lockers.IXLockers |> Set.contains txNo
 
-    let isSLockable lockers txNo =
-        (not (isXLocked lockers) || hasXLock lockers txNo)
-        && (not (isSIXLocked lockers)
-            || hasSIXLock lockers txNo)
-        && (not (isIXLocked lockers)
-            || isTheOnlyIXLocker lockers txNo)
+    let isSLockable txNo lockers =
+        (lockers
+         |> isXLocked
+         |> not
+         || lockers |> hasXLock txNo)
+        && (lockers
+            |> isSIXLocked
+            |> not
+            || lockers |> hasSIXLock txNo)
+        && (lockers
+            |> isIXLocked
+            |> not
+            || lockers |> isTheOnlyIXLocker txNo)
 
-    let isXLockable lockers txNo =
-        (not (isSLocked lockers)
-         || isTheOnlySLocker lockers txNo)
-        && (not (isXLocked lockers) || hasXLock lockers txNo)
-        && (not (isSIXLocked lockers)
-            || hasSIXLock lockers txNo)
-        && (not (isISLocked lockers)
-            || isTheOnlyISLocker lockers txNo)
-        && (not (isIXLocked lockers)
-            || isTheOnlyIXLocker lockers txNo)
+    let isXLockable txNo lockers =
+        (lockers
+         |> isSLocked
+         |> not
+         || lockers |> isTheOnlySLocker txNo)
+        && (lockers
+            |> isXLocked
+            |> not
+            || lockers |> hasXLock txNo)
+        && (lockers
+            |> isSIXLocked
+            |> not
+            || lockers |> hasSIXLock txNo)
+        && (lockers
+            |> isISLocked
+            |> not
+            || lockers |> isTheOnlyISLocker txNo)
+        && (lockers
+            |> isIXLocked
+            |> not
+            || lockers |> isTheOnlyIXLocker txNo)
 
-    let isSIXLockable lockers txNo =
-        (not (isSLocked lockers)
-         || isTheOnlySLocker lockers txNo)
-        && (not (isXLocked lockers) || hasXLock lockers txNo)
-        && (not (isSIXLocked lockers)
-            || hasSIXLock lockers txNo)
-        && (not (isIXLocked lockers)
-            || isTheOnlyIXLocker lockers txNo)
+    let isSIXLockable txNo lockers =
+        (lockers
+         |> isSLocked
+         |> not
+         || lockers |> isTheOnlySLocker txNo)
+        && (lockers
+            |> isXLocked
+            |> not
+            || lockers |> hasXLock txNo)
+        && (lockers
+            |> isSIXLocked
+            |> not
+            || lockers |> hasSIXLock txNo)
+        && (lockers
+            |> isIXLocked
+            |> not
+            || lockers |> isTheOnlyIXLocker txNo)
 
-    let isISLockable lockers txNo =
-        not (isXLocked lockers) || hasXLock lockers txNo
+    let isISLockable txNo lockers =
+        lockers
+        |> isXLocked
+        |> not
+        || lockers |> hasXLock txNo
 
-    let isIXLockable lockers txNo =
-        (not (isSLocked lockers)
-         || isTheOnlySLocker lockers txNo)
-        && (not (isXLocked lockers) || hasXLock lockers txNo)
-        && (not (isSIXLocked lockers)
-            || hasSIXLock lockers txNo)
+    let isIXLockable txNo lockers =
+        (lockers
+         |> isSLocked
+         |> not
+         || lockers |> isTheOnlySLocker txNo)
+        && (lockers
+            |> isXLocked
+            |> not
+            || lockers |> hasXLock txNo)
+        && (lockers
+            |> isSIXLocked
+            |> not
+            || lockers |> hasSIXLock txNo)
 
-    let avoidDeadlock state lockType lockers txNo =
-        if state.TxnsToBeAborted.ContainsKey txNo then
+    let avoidDeadlock state lockType txNo lockers =
+        if state.TxNosToBeAborted.ContainsKey txNo then
             failwith
-                ("abort tx."
+                ("abort tx:"
                  + txNo.ToString()
                  + " for preventing deadlock")
 
@@ -153,70 +193,75 @@ module LockService =
            || lockType = SIXLock
            || lockType = XLock then
             lockers.SLockers
-            |> Seq.filter (fun n -> n > txNo)
-            |> Seq.iter (fun n -> if state.TxnsToBeAborted.TryAdd(n, true) then state.ToBeNotified.Add n)
+            |> Set.filter ((>) txNo)
+            |> Set.iter (fun no ->
+                if state.TxNosToBeAborted.TryAdd(no, true)
+                then state.TxNosToBeNotified.Add no)
 
         if lockType = SLock
            || lockType = SIXLock
            || lockType = XLock then
             lockers.IXLockers
-            |> Seq.filter (fun n -> n > txNo)
-            |> Seq.iter (fun n -> if state.TxnsToBeAborted.TryAdd(n, true) then state.ToBeNotified.Add n)
+            |> Set.filter ((>) txNo)
+            |> Set.iter (fun no ->
+                if state.TxNosToBeAborted.TryAdd(no, true)
+                then state.TxNosToBeNotified.Add no)
 
         if lockType = XLock then
             lockers.ISLockers
-            |> Seq.filter (fun n -> n > txNo)
-            |> Seq.iter (fun n -> if state.TxnsToBeAborted.TryAdd(n, true) then state.ToBeNotified.Add n)
+            |> Set.filter ((>) txNo)
+            |> Set.iter (fun no ->
+                if state.TxNosToBeAborted.TryAdd(no, true)
+                then state.TxNosToBeNotified.Add no)
 
         if lockType = IXLock
            || lockType = SLock
            || lockType = SIXLock
            || lockType = XLock then
             if lockers.SIXLocker > txNo then
-                if state.TxnsToBeAborted.TryAdd(lockers.SIXLocker, true)
-                then state.ToBeNotified.Add lockers.SIXLocker
+                if state.TxNosToBeAborted.TryAdd(lockers.SIXLocker, true)
+                then state.TxNosToBeNotified.Add lockers.SIXLocker
 
         if lockers.XLocker > txNo then
-            if state.TxnsToBeAborted.TryAdd(lockers.XLocker, true)
-            then state.ToBeNotified.Add lockers.XLocker
+            if state.TxNosToBeAborted.TryAdd(lockers.XLocker, true)
+            then state.TxNosToBeNotified.Add lockers.XLocker
 
     let createLock state lockType isLockable hasLock addTxNoToLockers =
+        let rec waitLock anchor timestamp txNo lockers =
+            if lockers
+               |> isLockable txNo
+               |> not
+               && waitingTooLong timestamp state.WaitTime |> not then
+                lockers |> avoidDeadlock state lockType txNo
+                lockers.RequestSet.TryAdd(txNo, true) |> ignore
+                System.Threading.Monitor.Wait(anchor, state.WaitTime)
+                |> ignore
+                lockers.RequestSet.TryRemove(txNo) |> ignore
+                waitLock anchor timestamp txNo lockers
+            else
+                lockers
+
         fun txNo key ->
-            let anchor = prepareAnchor state.Anchors key
-            state.TxWaitMap.TryAdd(txNo, anchor) |> ignore
+            let anchor = state.Anchors |> getAnchor key
+            state.TxAnchorMap.TryAdd(txNo, anchor) |> ignore
             lock anchor (fun () ->
-                let lockers = prepareLockers state.LockerMap key
-                if not (hasLock lockers txNo) then
-                    let timestamp = System.DateTime.Now
-                    let mutable loopLockers = lockers
-                    while not (isLockable loopLockers txNo)
-                          && not (waitingTooLong timestamp state.WaitTime) do
-                        avoidDeadlock state lockType loopLockers txNo
-
-                        loopLockers <-
-                            { loopLockers with
-                                  RequestSet = Set.add txNo lockers.RequestSet }
-
-                        System.Threading.Monitor.Wait(anchor, state.WaitTime)
-                        |> ignore
-
-                        loopLockers <-
-                            { loopLockers with
-                                  RequestSet = Set.remove txNo lockers.RequestSet }
-
-                    if not (isLockable loopLockers txNo) then failwith "Lock abort"
-
-                    let newLockers = addTxNoToLockers txNo loopLockers
-                    (getLockSet state.LockByTxMap txNo).TryAdd(key, true)
+                let lockers = state.LockerMap |> getLockers key
+                if lockers |> hasLock txNo |> not then
+                    if lockers
+                       |> waitLock anchor System.DateTime.Now txNo
+                       |> isLockable txNo
+                       |> not then
+                        failwith "Lock abort"
+                    (state.LockerKeySetMap |> getLockerKeySet txNo).TryAdd(key, true)
                     |> ignore
-                    state.LockerMap.TryUpdate(key, newLockers, lockers)
+                    state.LockerMap.TryUpdate(key, lockers |> addTxNoToLockers txNo, lockers)
                     |> ignore)
-            state.TxWaitMap.TryRemove txNo |> ignore
+            state.TxAnchorMap.TryRemove txNo |> ignore
 
     let sLock state =
         createLock state SLock isSLockable hasSLock (fun txNo lockers ->
             { lockers with
-                  SLockers = Set.add txNo lockers.SLockers })
+                  SLockers = lockers.SLockers |> Set.add txNo })
 
     let xLock state =
         createLock state XLock isXLockable hasXLock (fun txNo lockers -> { lockers with XLocker = txNo })
@@ -227,93 +272,99 @@ module LockService =
     let isLock state =
         createLock state ISLock isISLockable hasISLock (fun txNo lockers ->
             { lockers with
-                  ISLockers = Set.add txNo lockers.ISLockers })
+                  ISLockers = lockers.ISLockers |> Set.add txNo })
 
     let ixLock state =
         createLock state IXLock isIXLockable hasIXLock (fun txNo lockers ->
             { lockers with
-                  IXLockers = Set.add txNo lockers.IXLockers })
+                  IXLockers = lockers.IXLockers |> Set.add txNo })
 
-    let releaseLock lockers anchor lockType txNo =
+    let releaseLock anchor lockType txNo lockers =
         System.Threading.Monitor.PulseAll anchor
 
         match lockType with
         | XLock ->
             if lockers.XLocker = txNo then
-                let newLockers = { lockers with XLocker = -1L }
+                let unlockedLockers = { lockers with XLocker = -1L }
                 System.Threading.Monitor.PulseAll anchor
-                newLockers
+                unlockedLockers
             else
                 lockers
         | SIXLock ->
             if lockers.SIXLocker = txNo then
-                let newLockers = { lockers with SIXLocker = -1L }
+                let unlockedLockers = { lockers with SIXLocker = -1L }
                 System.Threading.Monitor.PulseAll anchor
-                newLockers
+                unlockedLockers
             else
                 lockers
         | SLock ->
-            if Set.contains txNo lockers.SLockers then
-                let newLockers =
+            if lockers.SLockers |> Set.contains txNo then
+                let unlockedLockers =
                     { lockers with
-                          SLockers = Set.remove txNo lockers.SLockers }
+                          SLockers = lockers.SLockers |> Set.remove txNo }
 
-                if Set.isEmpty newLockers.SLockers
+                if unlockedLockers.SLockers |> Set.isEmpty
                 then System.Threading.Monitor.PulseAll anchor
 
-                newLockers
+                unlockedLockers
             else
                 lockers
         | ISLock ->
-            if Set.contains txNo lockers.ISLockers then
-                let newLockers =
+            if lockers.ISLockers |> Set.contains txNo then
+                let unlockedLockers =
                     { lockers with
-                          ISLockers = Set.remove txNo lockers.ISLockers }
+                          ISLockers = lockers.ISLockers |> Set.remove txNo }
 
-                if Set.isEmpty newLockers.ISLockers
+                if unlockedLockers.ISLockers |> Set.isEmpty
                 then System.Threading.Monitor.PulseAll anchor
 
-                newLockers
+                unlockedLockers
             else
                 lockers
         | IXLock ->
-            if Set.contains txNo lockers.IXLockers then
-                let newLockers =
+            if lockers.IXLockers |> Set.contains txNo then
+                let unlockedLockers =
                     { lockers with
-                          IXLockers = Set.remove txNo lockers.IXLockers }
+                          IXLockers = lockers.IXLockers |> Set.remove txNo }
 
-                if Set.isEmpty newLockers.IXLockers
+                if unlockedLockers.IXLockers |> Set.isEmpty
                 then System.Threading.Monitor.PulseAll anchor
 
-                newLockers
+                unlockedLockers
             else
                 lockers
 
     let release state lockType txNo key =
-        let anchor = prepareAnchor state.Anchors key
+        let anchor = state.Anchors |> getAnchor key
         lock anchor (fun () ->
             let mutable lockers = Unchecked.defaultof<Lockers>
             if state.LockerMap.TryGetValue(key, &lockers) then
-                let newLockers = releaseLock lockers anchor lockType txNo
-                if not (hasSLock newLockers txNo)
-                   && not (hasXLock newLockers txNo)
-                   && not (hasSIXLock newLockers txNo)
-                   && not (hasISLock newLockers txNo)
-                   && not (hasIXLock newLockers txNo) then
-                    (getLockSet state.LockByTxMap txNo).TryRemove key
+                let releasedLockers =
+                    lockers |> releaseLock anchor lockType txNo
+
+                if releasedLockers
+                   |> hasSLock txNo
+                   |> not
+                   && releasedLockers |> hasXLock txNo |> not
+                   && releasedLockers |> hasSIXLock txNo |> not
+                   && releasedLockers |> hasISLock txNo |> not
+                   && releasedLockers |> hasIXLock txNo |> not then
+                    (state.LockerKeySetMap |> getLockerKeySet txNo).TryRemove key
                     |> ignore
-                    if not (isSLocked newLockers)
-                       && not (isXLocked newLockers)
-                       && not (isSIXLocked newLockers)
-                       && not (isISLocked newLockers)
-                       && not (isIXLocked newLockers)
-                       && Set.isEmpty newLockers.RequestSet then
+                    if releasedLockers
+                       |> isSLocked
+                       |> not
+                       && releasedLockers |> isXLocked |> not
+                       && releasedLockers |> isSIXLocked |> not
+                       && releasedLockers |> isISLocked |> not
+                       && releasedLockers |> isIXLocked |> not
+                       && releasedLockers.RequestSet.IsEmpty then
                         state.LockerMap.TryRemove key |> ignore
                     else
-                        state.LockerMap.TryUpdate(key, newLockers, lockers)
+                        state.LockerMap.TryUpdate(key, releasedLockers, lockers)
                         |> ignore
                 else
-                    state.LockerMap.TryUpdate(key, newLockers, lockers)
+                    state.LockerMap.TryUpdate(key, releasedLockers, lockers)
                     |> ignore)
 
     let releaseSLock state = release state SLock
@@ -327,43 +378,47 @@ module LockService =
     let releaseIXLock state = release state IXLock
 
     let releaseAll state txNo sLockOnly =
-        getLockSet state.LockByTxMap txNo
-        |> Seq.iter (fun e ->
-            let anchor = prepareAnchor state.Anchors e.Key
+        state.LockerKeySetMap
+        |> getLockerKeySet txNo
+        |> Seq.map (fun e -> e.Key)
+        |> Seq.iter (fun key ->
+            let anchor = state.Anchors |> getAnchor key
             lock anchor (fun () ->
                 let mutable lockers = Unchecked.defaultof<Lockers>
-                if state.LockerMap.TryGetValue(e.Key, &lockers) then
-                    if hasSLock lockers txNo
-                    then lockers <- releaseLock lockers anchor SLock txNo
+                if state.LockerMap.TryGetValue(key, &lockers) then
+                    while lockers |> hasSLock txNo do
+                        lockers <- lockers |> releaseLock anchor SLock txNo
 
-                    if hasXLock lockers txNo && not sLockOnly
-                    then lockers <- releaseLock lockers anchor XLock txNo
+                    while lockers |> hasXLock txNo && not sLockOnly do
+                        lockers <- lockers |> releaseLock anchor XLock txNo
 
-                    if hasSIXLock lockers txNo
-                    then lockers <- releaseLock lockers anchor SIXLock txNo
+                    while lockers |> hasSIXLock txNo do
+                        lockers <- lockers |> releaseLock anchor SIXLock txNo
 
-                    while hasISLock lockers txNo do
-                        lockers <- releaseLock lockers anchor ISLock txNo
+                    while lockers |> hasISLock txNo do
+                        lockers <- lockers |> releaseLock anchor ISLock txNo
 
-                    while hasIXLock lockers txNo && not sLockOnly do
-                        lockers <- releaseLock lockers anchor IXLock txNo
+                    while lockers |> hasIXLock txNo && not sLockOnly do
+                        lockers <- lockers |> releaseLock anchor IXLock txNo
 
-                    if not (isSLocked lockers)
-                       && not (isXLocked lockers)
-                       && not (isSIXLocked lockers)
-                       && not (isISLocked lockers)
-                       && not (isIXLocked lockers)
-                       && Set.isEmpty lockers.RequestSet then
-                        state.LockerMap.TryRemove e.Key |> ignore))
-        state.TxWaitMap.TryRemove txNo |> ignore
-        state.TxnsToBeAborted.TryRemove txNo |> ignore
-        state.LockByTxMap.TryRemove txNo |> ignore
+                    if lockers
+                       |> isSLocked
+                       |> not
+                       && lockers |> isXLocked |> not
+                       && lockers |> isSIXLocked |> not
+                       && lockers |> isISLocked |> not
+                       && lockers |> isIXLocked |> not
+                       && lockers.RequestSet.IsEmpty then
+                        state.LockerMap.TryRemove key |> ignore))
+        state.TxAnchorMap.TryRemove txNo |> ignore
+        state.TxNosToBeAborted.TryRemove txNo |> ignore
+        state.LockerKeySetMap.TryRemove txNo |> ignore
 
     let lockNotifier state =
         let rec notify () =
-            let txNo = state.ToBeNotified.Take()
+            let txNo = state.TxNosToBeNotified.Take()
             let mutable anchor = Unchecked.defaultof<_>
-            if state.TxWaitMap.TryGetValue(txNo, &anchor)
+            if state.TxAnchorMap.TryGetValue(txNo, &anchor)
             then lock anchor (fun () -> System.Threading.Monitor.PulseAll anchor)
             notify ()
 
@@ -372,10 +427,10 @@ module LockService =
 let newLockService waitTime =
     let state: LockService.LockServiceState =
         { LockerMap = System.Collections.Concurrent.ConcurrentDictionary()
-          LockByTxMap = System.Collections.Concurrent.ConcurrentDictionary()
-          TxnsToBeAborted = System.Collections.Concurrent.ConcurrentDictionary()
-          TxWaitMap = System.Collections.Concurrent.ConcurrentDictionary()
-          ToBeNotified = new System.Collections.Concurrent.BlockingCollection<int64>()
+          LockerKeySetMap = System.Collections.Concurrent.ConcurrentDictionary()
+          TxNosToBeAborted = System.Collections.Concurrent.ConcurrentDictionary()
+          TxNosToBeNotified = new System.Collections.Concurrent.BlockingCollection<int64>()
+          TxAnchorMap = System.Collections.Concurrent.ConcurrentDictionary()
           Anchors = Array.init 1019 (fun _ -> obj ())
           WaitTime = waitTime }
 

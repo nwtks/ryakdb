@@ -29,14 +29,14 @@ module LogSeqNo =
         LogSeqNo
             (page.GetVal position BigIntDbType
              |> DbConstant.toLong,
-             page.GetVal (position + BlockNoSize) BigIntDbType
+             page.GetVal (BlockNoSize + position) BigIntDbType
              |> DbConstant.toLong)
 
     let writeToPage position page (LogSeqNo (blockNo, offset)) =
         BigIntDbConstant blockNo |> page.SetVal position
 
         BigIntDbConstant offset
-        |> page.SetVal(position + BlockNoSize)
+        |> page.SetVal(BlockNoSize + position)
 
 let inline newLogSeqNo blockNo offset = LogSeqNo(blockNo, offset)
 
@@ -100,7 +100,7 @@ module LogService =
                     readPage.GetVal position1 IntDbType
                     |> DbConstant.toInt
 
-                (newLogRecord (BlockId.blockNo blockId1) (prevPosition + PointerSize) readPage, (blockId1, prevPosition))
+                (newLogRecord (BlockId.blockNo blockId1) (PointerSize + prevPosition) readPage, (blockId1, prevPosition))
                 |> Some
             else
                 None) (nextstate.CurrentBlockId, readLastRecordPosition readPage nextstate.CurrentBlockId)
@@ -116,13 +116,13 @@ module LogService =
             setLastRecordPosition page nextLastRecordPosition
 
         let recordSize =
-            (constants |> List.sumBy Page.size) + PointerSize
+            PointerSize + List.sumBy Page.size constants
 
         let lastRecordPosition = getLastRecordPosition logPage
 
         let position, nextstate =
-            if lastRecordPosition
-               + PointerSize
+            if PointerSize
+               + lastRecordPosition
                + recordSize
                >= fileService.BlockSize then
                 0,
@@ -132,11 +132,11 @@ module LogService =
                 lastRecordPosition, state
 
         constants
-        |> List.fold (appendVal logPage) (position + PointerSize)
+        |> List.fold (appendVal logPage) (PointerSize + position)
         |> finalizeRecord logPage position
 
         { nextstate with
-              LastLogSeqNo = newLogSeqNo (BlockId.blockNo nextstate.CurrentBlockId) (int64 (position + PointerSize)) }
+              LastLogSeqNo = newLogSeqNo (BlockId.blockNo nextstate.CurrentBlockId) (int64 (PointerSize + position)) }
 
     let flush logPage state lsn =
         if lsn >= state.LastFlushedLogSeqNo then flushLog logPage state else state

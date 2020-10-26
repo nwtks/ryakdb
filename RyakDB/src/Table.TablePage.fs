@@ -38,14 +38,14 @@ module TablePage =
 
     let offsetMap schema =
         schema.Fields()
-        |> List.fold (fun (map, pos) field -> Map.add field pos map, pos + (schema.DbType field |> Page.maxSize))
+        |> List.fold (fun (map, pos) field -> map |> Map.add field pos, pos + (field |> schema.DbType |> Page.maxSize))
                (Map.empty, 0)
         |> fst
 
     let slotSize schema =
         let pos =
             schema.Fields()
-            |> List.fold (fun pos field -> pos + (schema.DbType field |> Page.maxSize)) 0
+            |> List.fold (fun pos field -> pos + (field |> schema.DbType |> Page.maxSize)) 0
 
         FlagSize
         + if pos < DeletedSlotSize then DeletedSlotSize else pos
@@ -53,19 +53,23 @@ module TablePage =
     let currentPosition slotSize currentSlotNo = currentSlotNo * slotSize
 
     let fieldPosition offsetMap slotSize currentSlotNo fieldName =
-        (currentPosition slotSize currentSlotNo)
-        + FlagSize
-        + (Map.find fieldName offsetMap)
+        FlagSize
+        + currentPosition slotSize currentSlotNo
+        + Map.find fieldName offsetMap
 
     let getValue txConcurrency (currentBuffer: Buffer) blockId currentSlotNo offset dbType =
-        if not (BlockId.fileName blockId |> FileService.isTempFile) then
+        if BlockId.fileName blockId
+           |> FileService.isTempFile
+           |> not then
             RecordId.newRecordId currentSlotNo blockId
             |> txConcurrency.ReadRecord
 
         currentBuffer.GetVal offset dbType
 
     let setValue txConcurrency txRecovery doLog currentBuffer blockId offset value =
-        if not (BlockId.fileName blockId |> FileService.isTempFile) then
+        if BlockId.fileName blockId
+           |> FileService.isTempFile
+           |> not then
             BlockId.fileName blockId
             |> txConcurrency.ModifyFile
 
@@ -76,8 +80,8 @@ module TablePage =
 
     let searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo flag =
         let isValidSlot slotNo =
-            (currentPosition slotSize slotNo)
-            + slotSize
+            slotSize
+            + currentPosition slotSize slotNo
             <= currentBuffer.BufferSize
 
         let rec searchSlotNo blockId slotNo =
@@ -114,11 +118,10 @@ module TablePage =
 
     let getDeletedRecordId txConcurrency currentBuffer blockId slotSize currentSlotNo =
         let position =
-            (currentPosition slotSize currentSlotNo)
-            + FlagSize
+            FlagSize + currentPosition slotSize currentSlotNo
 
         RecordId.newBlockRecordId
-            (getValue txConcurrency currentBuffer blockId currentSlotNo (position + BlockId.BlockNoSize) IntDbType
+            (getValue txConcurrency currentBuffer blockId currentSlotNo (BlockId.BlockNoSize + position) IntDbType
              |> DbConstant.toInt)
             (BlockId.fileName blockId)
             (getValue txConcurrency currentBuffer blockId currentSlotNo position BigIntDbType
@@ -134,14 +137,13 @@ module TablePage =
                            (RecordId (slotNo, BlockId (_, blockNo)))
                            =
         let position =
-            (currentPosition slotSize currentSlotNo)
-            + FlagSize
+            FlagSize + currentPosition slotSize currentSlotNo
 
         BigIntDbConstant blockNo
         |> setValue txConcurrency txRecovery doLog currentBuffer blockId position
 
         IntDbConstant slotNo
-        |> setValue txConcurrency txRecovery doLog currentBuffer blockId (position + BlockId.BlockNoSize)
+        |> setValue txConcurrency txRecovery doLog currentBuffer blockId (BlockId.BlockNoSize + position)
 
     let next txConcurrency currentBuffer blockId slotSize currentSlotNo =
         searchFor txConcurrency currentBuffer blockId slotSize currentSlotNo InUseConst
@@ -323,9 +325,13 @@ module TablePageFormatter =
     let makeDefaultTablePage schema offsetMap buffer position =
         schema.Fields()
         |> List.iter (fun field ->
-            schema.DbType field
+            field
+            |> schema.DbType
             |> DbConstant.defaultConstant
-            |> buffer.SetValue(position + 4 + (Map.find field offsetMap)))
+            |> buffer.SetValue
+                (TablePage.FlagSize
+                 + position
+                 + Map.find field offsetMap))
 
 let newTablePageFormatter schema =
     let offsetMap = TablePage.offsetMap schema

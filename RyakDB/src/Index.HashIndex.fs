@@ -40,14 +40,14 @@ module HashIndex =
         [ 0 .. bucketsCount - 1 ]
         |> List.map (fun i -> indexName + i.ToString() + ".tbl")
         |> List.iter (fun tblName ->
-            [ 0L .. (fileSize fileService txConcurrency tblName) - 1L ]
+            [ 0L .. fileSize fileService txConcurrency tblName - 1L ]
             |> List.iter (fun j ->
                 BlockId.newBlockId tblName j
                 |> txBuffer.Pin
                 |> ignore))
 
     let beforeFirst fileService txBuffer txConcurrency txRecovery txReadOnly indexName keyType bucketsCount searchRange =
-        if not (searchRange.IsSingleValue()) then failwith "Not supported"
+        if searchRange.IsSingleValue() |> not then failwith "Not supported"
         let searchKey = searchRange.ToSearchKey()
         let bucket = searchKey.GetHashCode() % bucketsCount
         let tblName = indexName + bucket.ToString()
@@ -59,8 +59,9 @@ module HashIndex =
         let tf =
             newTableFile fileService txBuffer txConcurrency txRecovery txReadOnly false ti
 
-        if tf.FileSize() = 0L
-        then TableFile.formatFileHeader fileService txBuffer txConcurrency (TableInfo.tableFileName ti)
+        if tf.FileSize() = 0L then
+            TableInfo.tableFileName ti
+            |> TableFile.formatFileHeader fileService txBuffer txConcurrency
 
         tf.BeforeFirst()
         { SearchKey = searchKey

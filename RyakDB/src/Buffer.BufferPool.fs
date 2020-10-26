@@ -16,11 +16,11 @@ module BufferPool =
     type BufferPoolState =
         { BufferPool: Buffer []
           BlockMap: System.Collections.Concurrent.ConcurrentDictionary<BlockId, Buffer>
-          mutable LastReplacedBuff: int
+          mutable LastReplacedIndex: int
           mutable Available: int
           Anchors: obj [] }
 
-    let private prepareAnchor anchors a =
+    let private getAnchor a anchors =
         let h = hash a % Array.length anchors
         if h < 0 then h + Array.length anchors else h
         |> anchors.GetValue
@@ -52,8 +52,8 @@ module BufferPool =
             buffer.Pin())
 
     let pinNewBuffer state assignBuffer =
-        let rec clockwiseBuffer pin lastReplacedBuff currBlk =
-            let buffer = state.BufferPool.[currBlk]
+        let rec clockwiseBuffer pin lastReplacedIndex currentIndex =
+            let buffer = state.BufferPool.[currentIndex]
 
             let result =
                 if System.Threading.Monitor.TryEnter buffer then
@@ -61,7 +61,7 @@ module BufferPool =
                         if buffer.IsPinned() then
                             None
                         else
-                            System.Threading.Interlocked.Exchange(&state.LastReplacedBuff, currBlk)
+                            System.Threading.Interlocked.Exchange(&state.LastReplacedIndex, currentIndex)
                             |> ignore
                             pin buffer |> Some
                     finally
@@ -69,11 +69,13 @@ module BufferPool =
                 else
                     None
 
-            if Option.isSome result
-            then result
-            elif currBlk = lastReplacedBuff
-            then None
-            else clockwiseBuffer pin lastReplacedBuff ((currBlk + 1) % Array.length state.BufferPool)
+            if result |> Option.isSome then
+                result
+            elif currentIndex = lastReplacedIndex then
+                None
+            else
+                (currentIndex + 1) % Array.length state.BufferPool
+                |> clockwiseBuffer pin lastReplacedIndex
 
         let pinNew assignBuffer =
             fun buffer ->
@@ -85,10 +87,8 @@ module BufferPool =
                 pinBuffer state buffer
                 buffer
 
-        clockwiseBuffer
-            (pinNew assignBuffer)
-            state.LastReplacedBuff
-            ((state.LastReplacedBuff + 1) % Array.length state.BufferPool)
+        (state.LastReplacedIndex + 1) % Array.length state.BufferPool
+        |> clockwiseBuffer (pinNew assignBuffer) state.LastReplacedIndex
 
     let rec pin state blockId =
         let pinExistBuffer buffer =
@@ -101,8 +101,8 @@ module BufferPool =
         let assignBuffer buffer = buffer.AssignToBlock blockId
 
         lock
-            (BlockId.fileName blockId
-             |> prepareAnchor state.Anchors) (fun () ->
+            (state.Anchors
+             |> getAnchor (BlockId.fileName blockId)) (fun () ->
             match findExistingBuffer state blockId with
             | Some buffer -> pinExistBuffer buffer
             | _ -> pinNewBuffer state assignBuffer)
@@ -110,13 +110,13 @@ module BufferPool =
     let pinNew state fileName formatter =
         let assignBuffer buffer = buffer.AssignToNew fileName formatter
 
-        lock (prepareAnchor state.Anchors fileName) (fun () -> pinNewBuffer state assignBuffer)
+        lock (state.Anchors |> getAnchor fileName) (fun () -> pinNewBuffer state assignBuffer)
 
 let newBufferPool fileService logService size waitTime =
     let state: BufferPool.BufferPoolState =
         { BufferPool = Array.init size (fun _ -> newBuffer fileService logService)
           BlockMap = System.Collections.Concurrent.ConcurrentDictionary()
-          LastReplacedBuff = 0
+          LastReplacedIndex = 0
           Available = size
           Anchors = Array.init 1019 (fun _ -> obj ()) }
 

@@ -69,7 +69,7 @@ module BTreeLeaf =
         |> page.SetVal slotNo FieldSlotNo
 
         keys
-        |> List.iteri (fun i k -> page.SetVal slotNo (KeyPrefix + i.ToString()) k)
+        |> List.iteri (fun i k -> k |> page.SetVal slotNo (KeyPrefix + i.ToString()))
 
     let deleteSlot txRecovery keyType page slotNo =
         txRecovery.LogIndexPageDeletion false keyType page.BlockId slotNo
@@ -238,13 +238,13 @@ module BTreeLeaf =
                 let slotNo = page.GetCountOfRecords() / 2
                 let key = getKey page slotNo keyType
                 if getKey page 0 keyType |> SearchKey.compare key = 0 then
-                    (seq { slotNo + 1 .. page.GetCountOfRecords() - 1 }
-                     |> Seq.takeWhile (fun slot ->
-                         getKey page slot keyType
-                         |> SearchKey.compare key = 0)
-                     |> Seq.tryLast
-                     |> Option.defaultValue slotNo)
-                    + 1
+                    1
+                    + (seq { slotNo + 1 .. page.GetCountOfRecords() - 1 }
+                       |> Seq.takeWhile (fun slot ->
+                           getKey page slot keyType
+                           |> SearchKey.compare key = 0)
+                       |> Seq.tryLast
+                       |> Option.defaultValue slotNo)
                 else
                     seq { slotNo - 1 .. -1 .. 0 }
                     |> Seq.takeWhile (fun slot ->

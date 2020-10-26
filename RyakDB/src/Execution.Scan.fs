@@ -44,7 +44,7 @@ module Scan =
         let next () =
             let rec searchNext () =
                 if scan.Next() then
-                    if Predicate.isSatisfied scan.GetVal predicate
+                    if predicate |> Predicate.isSatisfied scan.GetVal
                     then true
                     else searchNext ()
                 else
@@ -98,7 +98,7 @@ module Scan =
 
         let beforeFirst () =
             scan1.BeforeFirst()
-            isScan1Empty <- not (scan1.Next())
+            isScan1Empty <- scan1.Next() |> not
             scan2.BeforeFirst()
 
         let next () =
@@ -107,7 +107,7 @@ module Scan =
             elif scan2.Next() then
                 true
             else
-                isScan1Empty <- not (scan1.Next())
+                isScan1Empty <- scan1.Next() |> not
                 if not isScan1Empty then
                     scan2.BeforeFirst()
                     scan2.Next()
@@ -170,7 +170,7 @@ module Scan =
 
         let beforeFirst () =
             scan.BeforeFirst()
-            isScanEmpty <- not (scan.Next())
+            isScanEmpty <- scan.Next() |> not
             if not isScanEmpty then resetIndex ()
 
         let rec next () =
@@ -181,7 +181,7 @@ module Scan =
                 |> joinedScan.MoveToRecordId
                 true
             else
-                isScanEmpty <- not (scan.Next())
+                isScanEmpty <- scan.Next() |> not
                 if not isScanEmpty then
                     resetIndex ()
                     next ()
@@ -296,7 +296,7 @@ module Scan =
         let next () =
             let getGroupVal () =
                 groupFields
-                |> List.fold (fun gv f -> Map.add f (scan.GetVal f) gv) Map.empty
+                |> List.fold (fun gv f -> gv |> Map.add f (scan.GetVal f)) Map.empty
 
             let rec searchMoreGroups () =
                 if scan.Next() then

@@ -11,21 +11,26 @@ open RyakDB.Recovery.TransactionRecovery
 open RyakDB.Table.TablePage
 
 module BTreePageFormatter =
+    let CountOfRecordsPosition = 0
+    let CountOfRecordsSize = 4
+    let FlagPosition = CountOfRecordsSize
+    let FlagSize = 8
+
     let makeDefaultRecord schema offsetMap buffer position =
         schema.Fields()
         |> List.iter (fun field ->
-            buffer.SetValue (position + (Map.find field offsetMap)) (schema.DbType field |> DbConstant.defaultConstant))
+            buffer.SetValue (position + Map.find field offsetMap) (schema.DbType field |> DbConstant.defaultConstant))
 
 let newBTreePageFormatter schema flags =
     let offsetMap = TablePage.offsetMap schema
     fun buffer ->
-        let mutable position = 0
-        buffer.SetValue position (IntDbConstant 0)
-        position <- position + 4
+        IntDbConstant 0
+        |> buffer.SetValue BTreePageFormatter.CountOfRecordsPosition
+        let mutable position = BTreePageFormatter.FlagPosition
         flags
-        |> List.iter (fun f ->
-            buffer.SetValue position (BigIntDbConstant f)
-            position <- position + 8)
+        |> List.iter (fun flag ->
+            BigIntDbConstant flag |> buffer.SetValue position
+            position <- position + BTreePageFormatter.FlagSize)
         let slotSize = TablePage.slotSize schema
         [ position .. slotSize .. buffer.BufferSize - slotSize - 1 ]
         |> List.iter (BTreePageFormatter.makeDefaultRecord schema offsetMap buffer)
@@ -64,7 +69,7 @@ module BTreePage =
     let slotSize schema buffer =
         let size =
             schema.Fields()
-            |> List.fold (fun size f -> size + (schema.DbType f |> Page.maxSize)) 0
+            |> List.fold (fun size f -> size + (f |> schema.DbType |> Page.maxSize)) 0
 
         if size < 0 || size > buffer.BufferSize
         then failwith ("Slot size overflow:" + size.ToString())
@@ -82,23 +87,24 @@ module BTreePage =
     let slotPosition headerSize slotSize slotNo = headerSize + slotNo * slotSize
 
     let fieldPosition headerSize slotSize offsetMap slotNo fieldName =
-        (slotPosition headerSize slotSize slotNo)
-        + (Map.find fieldName offsetMap)
+        slotPosition headerSize slotSize slotNo
+        + Map.find fieldName offsetMap
 
     let setValueUnchecked txRecovery schema buffer headerSize slotSize offsetMap slotNo fieldName value =
         DbConstant.castTo (schema.DbType fieldName) value
         |> setValue txRecovery buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
     let getCountOfRecords buffer =
-        getValue buffer 0 IntDbType |> DbConstant.toInt
+        getValue buffer BTreePageFormatter.CountOfRecordsPosition IntDbType
+        |> DbConstant.toInt
 
     let setCountOfRecords txRecovery buffer value =
         IntDbConstant value
-        |> setValue txRecovery buffer 0
+        |> setValue txRecovery buffer BTreePageFormatter.CountOfRecordsPosition
 
     let setCountOfRecordsWithoutLogging buffer value =
         IntDbConstant value
-        |> setValueWithoutLogging buffer 0
+        |> setValueWithoutLogging buffer BTreePageFormatter.CountOfRecordsPosition
 
     let getVal schema buffer headerSize slotSize offsetMap slotNo fieldName =
         if slotNo >= getCountOfRecords buffer
@@ -121,22 +127,32 @@ module BTreePage =
         |> setValueWithoutLogging buffer (fieldPosition headerSize slotSize offsetMap slotNo fieldName)
 
     let getFlag buffer no =
-        getValue buffer (4 + 8 * no) BigIntDbType
+        getValue
+            buffer
+            (BTreePageFormatter.FlagPosition
+             + BTreePageFormatter.FlagSize
+             * no)
+            BigIntDbType
         |> DbConstant.toLong
 
     let setFlag txRecovery buffer no value =
         BigIntDbConstant value
-        |> setValue txRecovery buffer (4 + 8 * no)
+        |> setValue
+            txRecovery
+               buffer
+               (BTreePageFormatter.FlagPosition
+                + BTreePageFormatter.FlagSize
+                * no)
 
     let isFull buffer headerSize slotSize =
-        (getCountOfRecords buffer)
-        + 1
+        1
+        + getCountOfRecords buffer
         |> slotPosition headerSize slotSize
         >= buffer.BufferSize
 
     let willFull buffer headerSize slotSize =
-        (getCountOfRecords buffer)
-        + 2
+        2
+        + getCountOfRecords buffer
         |> slotPosition headerSize slotSize
         >= buffer.BufferSize
 
@@ -163,14 +179,18 @@ module BTreePage =
 
             [ countOfRecords .. -1 .. slotNo + 1 ]
             |> List.iter (fun i -> copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap (i - 1) i)
-            setCountOfRecordsWithoutLogging buffer (countOfRecords + 1))
+            countOfRecords
+            + 1
+            |> setCountOfRecordsWithoutLogging buffer)
 
     let delete schema buffer headerSize slotSize offsetMap slotNo =
         buffer.LockFlushing(fun () ->
             let countOfRecords = getCountOfRecords buffer
             [ slotNo + 1 .. countOfRecords - 1 ]
             |> List.iter (fun i -> copyRecordWithoutLogging schema buffer headerSize slotSize offsetMap i (i - 1))
-            setCountOfRecordsWithoutLogging buffer (countOfRecords - 1))
+            countOfRecords
+            - 1
+            |> setCountOfRecordsWithoutLogging buffer)
 
     let transferRecords txRecovery
                         schema
@@ -202,8 +222,12 @@ module BTreePage =
         [ startSlotNo + minCount .. countOfRecords - 1 ]
         |> List.iter (fun i -> copyRecord txRecovery schema buffer headerSize slotSize offsetMap i (i - minCount))
 
-        setCountOfRecords txRecovery buffer (countOfRecords - minCount)
-        destPage.SetCountOfRecords(destCountOfRecords + minCount)
+        countOfRecords
+        - minCount
+        |> setCountOfRecords txRecovery buffer
+        destCountOfRecords
+        + minCount
+        |> destPage.SetCountOfRecords
 
     let split txBuffer
               txConcurrency
@@ -224,7 +248,7 @@ module BTreePage =
             appendBlock txBuffer txConcurrency schema (BlockId.fileName blockId) flags
 
         use newPage =
-            newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (List.length flags)
+            newBTreePage txBuffer txConcurrency txRecovery schema newBlockId (flags |> List.length)
 
         transferRecords
             txRecovery
@@ -243,7 +267,11 @@ module BTreePage =
         currentBuffer |> Option.iter txBuffer.Unpin
 
 let rec newBTreePage txBuffer txConcurrency txRecovery schema blockId countOfFlags =
-    let headerSize = 4 + countOfFlags * 8
+    let headerSize =
+        BTreePageFormatter.CountOfRecordsSize
+        + countOfFlags
+        * BTreePageFormatter.FlagSize
+
     let buffer = txBuffer.Pin blockId
     let offsetMap = TablePage.offsetMap schema
     let slotSize = BTreePage.slotSize schema buffer

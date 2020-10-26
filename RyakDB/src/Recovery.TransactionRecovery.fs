@@ -57,7 +57,7 @@ module TransactionRecovery =
             |> Some
 
 let newTransactionRecovery logService txNo isReadOnly =
-    if not (isReadOnly) then
+    if not isReadOnly then
         newStartRecord txNo
         |> writeToLog logService
         |> ignore

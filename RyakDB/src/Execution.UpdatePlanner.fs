@@ -66,7 +66,7 @@ module UpdatePlanner =
                 let nextScan =
                     if useIndex then
                         scan.Close()
-                        let nextScan = Plan.openScan selectPlan
+                        let nextScan = selectPlan |> Plan.openScan
                         nextScan.BeforeFirst()
                         nextScan
                     else
@@ -89,7 +89,7 @@ module UpdatePlanner =
             |> Option.defaultValue id newIndexSelecPlan
             |> Plan.pipeSelectPlan predicate
 
-        let scan = Plan.openScan selectPlan
+        let scan = selectPlan |> Plan.openScan
         scan.BeforeFirst()
 
         let scan, count =
@@ -117,14 +117,14 @@ module UpdatePlanner =
 
                     let oldKey =
                         IndexInfo.fieldNames ii
-                        |> List.map (fun f -> if Map.containsKey f oldValues then oldValues.[f] else scan.GetVal f)
+                        |> List.map (fun f -> if oldValues |> Map.containsKey f then oldValues.[f] else scan.GetVal f)
                         |> SearchKey.newSearchKey
 
                     index.Delete true oldKey rid
 
                     let newKey =
                         IndexInfo.fieldNames ii
-                        |> List.map (fun f -> if Map.containsKey f newValues then newValues.[f] else scan.GetVal f)
+                        |> List.map (fun f -> if newValues |> Map.containsKey f then newValues.[f] else scan.GetVal f)
                         |> SearchKey.newSearchKey
 
                     index.Insert true newKey rid)

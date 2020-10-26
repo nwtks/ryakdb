@@ -62,10 +62,7 @@ module SearchKeyType =
 
     let inline newSearchKeyTypeByTypes types = SearchKeyType types
 
-    let inline newSearchKeyType schema indexedFields =
-        indexedFields
-        |> List.map schema.DbType
-        |> SearchKeyType
+    let inline newSearchKeyType schema = List.map schema.DbType >> SearchKeyType
 
 module SearchRange =
     let isValid (ranges: DbConstantRange list) =
@@ -73,7 +70,7 @@ module SearchRange =
 
     let getLow ranges =
         let values = ranges |> List.map (fun r -> r.Low())
-        if List.contains None values then
+        if values |> List.contains None then
             None
         else
             values
@@ -83,7 +80,7 @@ module SearchRange =
 
     let getHigh ranges =
         let values = ranges |> List.map (fun r -> r.High())
-        if List.contains None values then
+        if values |> List.contains None then
             None
         else
             values
@@ -104,13 +101,11 @@ module SearchRange =
            |> Option.map (fun max -> SearchKey.compare key max <= 0)
            |> Option.defaultValue true
 
-    let isSingleValue ranges =
-        ranges |> List.forall (fun r -> r.IsConstant())
+    let isSingleValue = List.forall (fun r -> r.IsConstant())
 
-    let toSearchKey ranges =
-        ranges
-        |> List.map (fun r -> r.ToConstant())
-        |> SearchKey.newSearchKey
+    let toSearchKey =
+        List.map (fun r -> r.ToConstant())
+        >> SearchKey.newSearchKey
 
     let newSearchRangeByRanges ranges =
         { Size = fun () -> List.length ranges

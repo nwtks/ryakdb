@@ -127,7 +127,8 @@ let newReadCommitted txNo lockService =
       OnTxRollback = fun () -> lockService.ReleaseAll txNo false
       OnTxEndStatement =
           fun () ->
-              List.rev toReleaseSLockAtEndStatement
+              toReleaseSLockAtEndStatement
+              |> List.rev
               |> List.iter (lockService.ReleaseSLock txNo)
               toReleaseSLockAtEndStatement <- [] }
 
@@ -227,7 +228,8 @@ let newRepeatableRead txNo lockService =
       OnTxRollback = fun () -> lockService.ReleaseAll txNo false
       OnTxEndStatement =
           fun () ->
-              List.rev toReleaseSLockAtEndStatement
+              toReleaseSLockAtEndStatement
+              |> List.rev
               |> List.iter (lockService.ReleaseSLock txNo)
               toReleaseSLockAtEndStatement <- [] }
 

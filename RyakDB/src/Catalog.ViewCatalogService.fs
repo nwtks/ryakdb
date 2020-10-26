@@ -57,7 +57,7 @@ module ViewCatalogService =
                 |> DbConstant.toString
                 |> Parser.queryCommand
 
-            if List.contains tableName tables then
+            if tables |> List.contains tableName then
                 (tf.GetVal VcatVname |> DbConstant.toString)
                 :: viewNames
             else

@@ -15,18 +15,16 @@ module Page =
     let ValSizeSize = 4
 
     let maxSize dbType =
-        if dbType |> DbType.isFixedSize then dbType |> DbType.maxSize else ValSizeSize + (dbType |> DbType.maxSize)
+        if dbType |> DbType.isFixedSize then DbType.maxSize dbType else ValSizeSize + DbType.maxSize dbType
 
     let size constant =
         let dbType = constant |> DbConstant.dbType
-        if dbType |> DbType.isFixedSize
-        then dbType |> DbType.maxSize
-        else ValSizeSize + (constant |> DbConstant.size)
+        if dbType |> DbType.isFixedSize then DbType.maxSize dbType else ValSizeSize + DbConstant.size constant
 
     let getVal contents offset dbType =
         let off, size =
             if dbType |> DbType.isFixedSize then
-                offset, dbType |> DbType.maxSize
+                offset, DbType.maxSize dbType
             else
                 let bytes =
                     contents |> FileBuffer.get offset ValSizeSize
@@ -44,8 +42,8 @@ module Page =
             if value |> DbConstant.dbType |> DbType.isFixedSize then
                 offset
             else
-                if offset
-                   + ValSizeSize
+                if ValSizeSize
+                   + offset
                    + Array.length bytes > fileService.BlockSize then
                     failwith
                         ("Page buffer overflow:offset="
@@ -54,7 +52,9 @@ module Page =
                          + bytes.Length.ToString())
 
                 let sizebytes =
-                    Array.length bytes |> System.BitConverter.GetBytes
+                    bytes
+                    |> Array.length
+                    |> System.BitConverter.GetBytes
 
                 contents |> FileBuffer.put offset sizebytes
                 offset + Array.length sizebytes
