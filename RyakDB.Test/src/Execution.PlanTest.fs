@@ -18,6 +18,7 @@ let ``table plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -51,6 +52,7 @@ let ``select plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -85,6 +87,7 @@ let ``project plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -120,6 +123,7 @@ let ``product plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -163,6 +167,7 @@ let ``group by plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -172,7 +177,7 @@ let ``group by plan`` () =
         db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.File db.BufferPool tx
+        MergeSort.newSortScanFactory db.File db.BufferPool tx
 
     use scan =
         db.Catalog.GetTableInfo tx "student"
@@ -201,6 +206,7 @@ let ``sort plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -210,7 +216,7 @@ let ``sort plan`` () =
         db.Transaction.NewTransaction false Serializable
 
     let newSortScan =
-        MergeSort.newSortScan db.File db.BufferPool tx
+        MergeSort.newSortScanFactory db.File db.BufferPool tx
 
     use scan =
         db.Catalog.GetTableInfo tx "student"
@@ -329,6 +335,7 @@ let ``index select plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -377,6 +384,7 @@ let ``range index select plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 
@@ -421,6 +429,7 @@ let ``index join plan`` () =
     use db =
         { Database.defaultConfig () with
               BlockSize = 1024
+              BufferPoolSize = 200
               InMemory = true }
         |> newDatabase ("test_dbs_" + System.DateTime.Now.Ticks.ToString())
 

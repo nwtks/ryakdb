@@ -125,7 +125,7 @@ module QueryPlanner =
                     | ViewQueryPlan p -> p)
 
         let newSortScan =
-            MergeSort.newSortScan fileService bufferPool tx
+            MergeSort.newSortScanFactory fileService bufferPool tx
 
         tables
         |> getQueryPlans
