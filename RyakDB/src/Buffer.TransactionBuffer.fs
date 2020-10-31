@@ -67,12 +67,12 @@ module TransactionBuffer =
                 { pinnedBuff with
                       PinCount = pinnedBuff.PinCount - 1 }
 
-            if nextPinnedBuff.PinCount = 0 then
+            match nextPinnedBuff.PinCount with
+            | 0 ->
                 bufferPool.Unpin buffer
                 lock bufferPool (fun () -> System.Threading.Monitor.PulseAll(bufferPool))
                 pinningBuffers |> Map.remove blockId
-            else
-                pinningBuffers |> Map.add blockId nextPinnedBuff
+            | _ -> pinningBuffers |> Map.add blockId nextPinnedBuff
         else
             pinningBuffers
 

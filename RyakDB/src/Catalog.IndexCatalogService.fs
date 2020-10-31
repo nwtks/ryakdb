@@ -19,6 +19,7 @@ module IndexCatalogService =
     let IcatIdxName = "idx_name"
     let IcatTblName = "tbl_name"
     let IcatIdxType = "idx_type"
+    let IcatBucketCnt = "bucket_cnt"
 
     let Kcat = "cat_idx_key"
     let KcatIdxName = "idx_name"
@@ -34,6 +35,8 @@ module IndexCatalogService =
         |> icatSchema.AddField IcatTblName
 
         icatSchema.AddField IcatIdxType IntDbType
+
+        icatSchema.AddField IcatBucketCnt IntDbType
 
         tableService.CreateTable tx Icat icatSchema
 
@@ -59,9 +62,12 @@ module IndexCatalogService =
             let indexTypeNum =
                 tf.GetVal IcatIdxType |> DbConstant.toInt
 
+            let bucketsCount =
+                tf.GetVal IcatBucketCnt |> DbConstant.toInt
+
             let indeType =
                 match indexTypeNum with
-                | 1 -> Hash
+                | 1 -> Hash bucketsCount
                 | 2 -> BTree
                 | _ ->
                     failwith
@@ -157,10 +163,13 @@ module IndexCatalogService =
                 |> tf.SetVal IcatTblName
 
                 match indexType with
-                | Hash -> 1
-                | BTree -> 2
-                |> IntDbConstant
-                |> tf.SetVal IcatIdxType)
+                | Hash bucketsCount ->
+                    IntDbConstant 1 |> tf.SetVal IcatIdxType
+                    IntDbConstant bucketsCount
+                    |> tf.SetVal IcatBucketCnt
+                | BTree ->
+                    IntDbConstant 2 |> tf.SetVal IcatIdxType
+                    IntDbConstant -1 |> tf.SetVal IcatBucketCnt)
 
         let createKcatfile tableService =
             tableService.GetTableInfo tx Kcat

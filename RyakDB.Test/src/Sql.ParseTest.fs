@@ -189,13 +189,13 @@ let ``parse create hash index`` () =
     let sql = """
         CREATE INDEX idx1
         ON tbl1 (col5)
-        USING HASH
+        USING HASH 120
         """
 
     match Parser.updateCommand sql with
     | CreateIndexData (indexName, indexType, tableName, fields) ->
         indexName |> should equal "idx1"
-        indexType |> should equal Hash
+        indexType |> should equal (Hash 120)
         tableName |> should equal "tbl1"
         fields |> should equal [ "col5" ]
     | _ -> failwith "cant parse create index"

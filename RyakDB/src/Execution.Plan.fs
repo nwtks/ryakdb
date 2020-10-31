@@ -63,9 +63,9 @@ module Plan =
         ProductPlan(plan1, plan2, sch)
 
     let pipeProjectPlan fieldNames plan =
-        if fieldNames |> List.isEmpty then
-            plan
-        else
+        match fieldNames with
+        | [] -> plan
+        | _ ->
             let planSchema = schema plan
             let sch = Schema.newSchema ()
             fieldNames
@@ -79,21 +79,21 @@ module Plan =
         IndexJoinPlan(fileService, tx, plan, joinedPlan, sch, indexInfo, joinFields)
 
     let pipeSortPlan newSortScan sortFields plan =
-        if sortFields |> List.isEmpty
-        then plan
-        else SortPlan(plan, plan |> schema, sortFields, newSortScan)
+        match sortFields with
+        | [] -> plan
+        | _ -> SortPlan(plan, plan |> schema, sortFields, newSortScan)
 
     let pipeGroupByPlan newSortScan groupFlds aggFns plan =
-        if aggFns |> List.isEmpty then
-            plan
-        else
+        match aggFns with
+        | [] -> plan
+        | _ ->
             let planSchema = plan |> schema
             let sch = Schema.newSchema ()
 
             let sp =
-                if groupFlds |> List.isEmpty then
-                    plan
-                else
+                match groupFlds with
+                | [] -> plan
+                | _ ->
                     groupFlds
                     |> List.map (fun f ->
                         planSchema |> sch.Add f

@@ -30,7 +30,7 @@ let ``create index`` () =
 
     let i1 = "test_create_index_I1"
     db.Catalog.DropIndex tx i1
-    db.Catalog.CreateIndex tx i1 Hash tbl [ "AAA" ]
+    db.Catalog.CreateIndex tx i1 (Hash 100) tbl [ "AAA" ]
 
     let i2 = "test_create_index_I2"
     db.Catalog.DropIndex tx i2
@@ -38,7 +38,7 @@ let ``create index`` () =
 
     let i3 = "test_create_index_I3"
     db.Catalog.DropIndex tx i3
-    db.Catalog.CreateIndex tx i3 Hash tbl [ "CCC" ]
+    db.Catalog.CreateIndex tx i3 (Hash 100) tbl [ "CCC" ]
 
     let index1 = db.Catalog.GetIndexInfoByName tx i1
     index1

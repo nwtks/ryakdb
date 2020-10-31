@@ -99,22 +99,19 @@ module BTreeLeaf =
             else
                 startSlot
 
-        let countOfRecords = page.GetCountOfRecords()
-        if countOfRecords = 0 then
-            -1
-        else
-            match searchRange.GetLow() with
-            | Some searchMin ->
-                if SearchKey.compare (getKey page (countOfRecords - 1) keyType) searchMin < 0 then
-                    countOfRecords - 1
+        match page.GetCountOfRecords(), searchRange.GetLow() with
+        | 0, _ -> -1
+        | countOfRecords, Some searchMin ->
+            if SearchKey.compare (getKey page (countOfRecords - 1) keyType) searchMin < 0 then
+                countOfRecords - 1
+            else
+                let slotNo = binarySearch 0 countOfRecords searchMin
+                if SearchKey.compare (getKey page slotNo keyType) searchMin
+                   >= 0 then
+                    slotNo - 1
                 else
-                    let slotNo = binarySearch 0 countOfRecords searchMin
-                    if SearchKey.compare (getKey page slotNo keyType) searchMin
-                       >= 0 then
-                        slotNo - 1
-                    else
-                        slotNo
-            | _ -> -1
+                    slotNo
+        | _ -> -1
 
     let beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType searchRange =
         let page =
@@ -211,18 +208,18 @@ module BTreeLeaf =
                 else
                     endSlot - 1
 
-            let countOfRecords = page.GetCountOfRecords()
-            if countOfRecords = 0 then
-                0
-            elif SearchKey.compare (getKey page 0 keyType) searchKey > 0 then
-                0
-            else
-                let slotNo = binarySearch 0 countOfRecords searchKey
-                if SearchKey.compare (getKey page slotNo keyType) searchKey
-                   <= 0 then
-                    slotNo + 1
+            match page.GetCountOfRecords() with
+            | 0 -> 0
+            | countOfRecords ->
+                if SearchKey.compare (getKey page 0 keyType) searchKey > 0 then
+                    0
                 else
-                    slotNo
+                    let slotNo = binarySearch 0 countOfRecords searchKey
+                    if SearchKey.compare (getKey page slotNo keyType) searchKey
+                       <= 0 then
+                        slotNo + 1
+                    else
+                        slotNo
 
         let splitOverflow page =
             let overflowBlockNo = getOverflowBlockNo page

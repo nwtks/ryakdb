@@ -38,8 +38,9 @@ module QueryPlanner =
             |> List.takeWhile (snd >> Option.isSome)
             |> List.map (fun (f, range) -> f, range |> Option.get)
             |> List.takeWhile (fun (_, range) ->
-                indexType = BTree
-                || indexType = Hash && range.IsConstant())
+                match indexType with
+                | BTree -> true
+                | Hash _ -> range.IsConstant())
             |> List.fold (fun ranges (f, range) -> ranges |> Map.add f range) Map.empty
 
         let getIndexSelectPlan fileService tx ranges =

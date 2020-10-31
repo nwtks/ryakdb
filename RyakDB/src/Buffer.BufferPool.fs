@@ -40,13 +40,13 @@ module BufferPool =
     let unpin state (buffer: Buffer) =
         lock buffer (fun () ->
             buffer.Unpin()
-            if not (buffer.IsPinned()) then
+            if buffer.IsPinned() |> not then
                 System.Threading.Interlocked.Increment(&state.Available)
                 |> ignore)
 
     let pinBuffer state buffer =
         lock buffer (fun () ->
-            if not (buffer.IsPinned()) then
+            if buffer.IsPinned() |> not then
                 System.Threading.Interlocked.Decrement(&state.Available)
                 |> ignore
             buffer.Pin())

@@ -94,7 +94,9 @@ module LogService =
         Seq.unfold (fun (blockId, position) ->
             if position > 0 || BlockId.blockNo blockId > 0L then
                 let blockId1, position1 =
-                    if position = 0 then prevBlockRecordPosition readPage blockId else blockId, position
+                    match position with
+                    | 0 -> prevBlockRecordPosition readPage blockId
+                    | _ -> blockId, position
 
                 let prevPosition =
                     readPage.GetVal position1 IntDbType
@@ -147,11 +149,12 @@ module LogService =
           LastFlushedLogSeqNo = LogSeqNo.DefaltValue }
 
 let newLogService fileService logFileName =
-    let logsize = fileService.Size logFileName
     let logPage = newPage fileService
 
     let mutable state: LogService.LogServiceState =
-        if logsize > 0L then
+        match fileService.Size logFileName with
+        | 0L -> LogService.createNewLog logFileName logPage
+        | logsize ->
             let blockId =
                 BlockId.newBlockId logFileName (logsize - 1L)
 
@@ -160,8 +163,6 @@ let newLogService fileService logFileName =
             { CurrentBlockId = blockId
               LastLogSeqNo = LogSeqNo.DefaltValue
               LastFlushedLogSeqNo = LogSeqNo.DefaltValue }
-        else
-            LogService.createNewLog logFileName logPage
 
     { LogFile = logFileName
       Records =

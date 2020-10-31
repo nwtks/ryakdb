@@ -15,13 +15,13 @@
     <Compile Include="src/Buffer.TransactionBufferTest.fs" />
     <Compile Include="src/Concurrency.LockServiceTest.fs" />
     <Compile Include="src/Concurrency.TransactionConcurrencyTest.fs" />
+    <Compile Include="src/TransactionTest.fs" />
     <Compile Include="src/Table.TablePageTest.fs" />
     <Compile Include="src/Table.TableFileTest.fs" />
     <Compile Include="src/Index.HashIndexTest.fs" />
     <Compile Include="src/Index.BTreePageTest.fs" />
     <Compile Include="src/Index.BTreeLeafTest.fs" />
     <Compile Include="src/Index.BTreeIndexTest.fs" />
-    <Compile Include="src/TransactionTest.fs" />
     <Compile Include="src/Catalog.TableCatalogServiceTest.fs" />
     <Compile Include="src/Catalog.IndexCatalogServiceTest.fs" />
     <Compile Include="src/Catalog.ViewCatalogServiceTest.fs" />

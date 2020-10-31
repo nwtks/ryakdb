@@ -1,6 +1,5 @@
 module RyakDB.Index.IndexFactory
 
-open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Index.BTreeIndex
 open RyakDB.Index.HashIndex
@@ -12,5 +11,6 @@ let inline newIndex fileService tx indexInfo =
         |> SearchKeyType.newSearchKeyType (IndexInfo.schema indexInfo)
 
     match IndexInfo.indexType indexInfo with
-    | Hash -> newHashIndex fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType 1000
+    | Hash bucketsCount ->
+        newHashIndex fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType bucketsCount
     | BTree -> newBTreeIndex fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly indexInfo keyType

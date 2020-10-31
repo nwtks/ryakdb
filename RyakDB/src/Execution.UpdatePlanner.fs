@@ -25,16 +25,16 @@ module UpdatePlanner =
     let executeInsert fileService catalogService tx tableName fieldNames values =
         let fieldValues = List.zip fieldNames values |> Map.ofList
 
-        use scan =
-            match catalogService.GetTableInfo tx tableName with
-            | Some ti -> Plan.newTablePlan fileService tx ti
-            | _ -> failwith ("Not found table:" + tableName)
-            |> Plan.openScan
-
-        scan.Insert()
-        fieldNames
-        |> List.iter (fun field -> scan.SetVal field fieldValues.[field])
-        let rid = scan.GetRecordId()
+        let rid =
+            using
+                (match catalogService.GetTableInfo tx tableName with
+                 | Some ti -> Plan.newTablePlan fileService tx ti
+                 | _ -> failwith ("Not found table:" + tableName)
+                 |> Plan.openScan) (fun scan ->
+                scan.Insert()
+                fieldNames
+                |> List.iter (fun field -> scan.SetVal field fieldValues.[field])
+                scan.GetRecordId())
 
         catalogService.GetIndexInfosByTable tx tableName
         |> List.iter (fun ii ->
@@ -76,9 +76,6 @@ module UpdatePlanner =
             else
                 scan, i
 
-        let indexInfos =
-            catalogService.GetIndexInfosByTable tx tableName
-
         let newIndexSelecPlan =
             QueryPlanner.makeIndexSelectPlan fileService catalogService tx tableName predicate []
 
@@ -93,7 +90,12 @@ module UpdatePlanner =
         scan.BeforeFirst()
 
         let scan, count =
-            deleteAll indexInfos selectPlan (Option.isSome newIndexSelecPlan) scan 0
+            deleteAll
+                (catalogService.GetIndexInfosByTable tx tableName)
+                selectPlan
+                (Option.isSome newIndexSelecPlan)
+                scan
+                0
 
         scan.Close()
         count
@@ -133,9 +135,6 @@ module UpdatePlanner =
             else
                 i
 
-        let indexInfos =
-            catalogService.GetIndexInfosByTable tx tableName
-
         let newIndexSelecPlan =
             QueryPlanner.makeIndexSelectPlan
                 fileService
@@ -154,7 +153,7 @@ module UpdatePlanner =
             |> Plan.openScan
 
         scan.BeforeFirst()
-        modifyAll indexInfos scan 0
+        modifyAll (catalogService.GetIndexInfosByTable tx tableName) scan 0
 
     let executeCreateTable catalogService tx tableName schema =
         catalogService.CreateTable tx tableName schema

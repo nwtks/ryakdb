@@ -151,9 +151,7 @@ module MergeSort =
 
             let ttp = newTempTablePage tx schema count
             let flag = ttp |> insertFromScan srcScan
-            let destScan = tt.OpenScan()
-            ttp |> copySortedToScan destScan
-            destScan.Close()
+            using (tt.OpenScan()) (fun destScan -> ttp |> copySortedToScan destScan)
             if flag < 0 then
                 tt :: tempTables |> List.rev
             else
@@ -260,29 +258,23 @@ module MergeSort =
             |> Option.defaultValue 0
 
     let newSortScanFactory fileService bufferPool tx =
-        fun schema sortFields scan ->
-            let mutable runs =
-                scan
-                |> splitIntoRuns fileService tx schema sortFields
-
-            if runs |> List.isEmpty then
-                scan
+        let rec loopMergeRuns schema comparator runs =
+            if runs |> List.length > 2 then
+                runs
+                |> mergeRuns fileService tx schema comparator (bufferPool.Available())
+                |> loopMergeRuns schema comparator
             else
+                runs
+
+        fun schema sortFields scan ->
+            match scan
+                  |> splitIntoRuns fileService tx schema sortFields with
+            | [] -> scan
+            | runs ->
                 scan.Close()
 
                 let comparator = newRecordComparator sortFields
-
-                while runs |> List.length > 2 do
-                    runs <-
-                        runs
-                        |> mergeRuns fileService tx schema comparator (bufferPool.Available())
-
-                let scan1 = runs.Head.OpenScan()
-
-                let scan2 =
-                    runs
-                    |> List.tail
-                    |> List.tryHead
-                    |> Option.map (fun s -> s.OpenScan())
-
-                Scan.newSortScan scan1 scan2 comparator
+                match loopMergeRuns schema comparator runs with
+                | [ tt1 ] -> Scan.newSortScan (tt1.OpenScan()) None comparator
+                | [ tt1; tt2 ] -> Scan.newSortScan (tt1.OpenScan()) (tt2.OpenScan() |> Some) comparator
+                | _ -> failwith "no runs"

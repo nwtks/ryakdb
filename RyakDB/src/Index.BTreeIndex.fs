@@ -20,18 +20,12 @@ module BTreeIndex =
         newBTreeBranch txBuffer txConcurrency txRecovery (BlockId.newBlockId branchFileName 0L) keyType
 
     let search txBuffer txConcurrency txRecovery indexInfo keyType branchFileName purpose leafFileName searchKey =
-        use root =
-            getRoot txBuffer txConcurrency txRecovery keyType branchFileName
+        let leafBlockId, branchesMayBeUpdated =
+            using (getRoot txBuffer txConcurrency txRecovery keyType branchFileName) (fun root ->
+                root.Search purpose leafFileName searchKey, root.BranchesMayBeUpdated())
 
-        let leafBlockId =
-            root.Search purpose leafFileName searchKey
-
-        let branchesMayBeUpdated = root.BranchesMayBeUpdated()
-
-        let leaf =
-            newBTreeLeaf txBuffer txConcurrency txRecovery (IndexInfo.tableFileName indexInfo) leafBlockId keyType
-
-        leaf, branchesMayBeUpdated
+        newBTreeLeaf txBuffer txConcurrency txRecovery (IndexInfo.tableFileName indexInfo) leafBlockId keyType,
+        branchesMayBeUpdated
 
     let preLoadToMemory fileService txBuffer txConcurrency branchFileName leafFileName =
         let branchSize =

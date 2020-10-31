@@ -509,7 +509,8 @@ module Parser =
                 lex.EatKeyword "using"
                 if lex.MatchKeyword "hash" then
                     lex.EatKeyword "hash"
-                    Hash
+                    let bucketsCount = lex.EatNumericConstant() |> int32
+                    Hash bucketsCount
                 elif lex.MatchKeyword "btree" then
                     lex.EatKeyword "btree"
                     BTree

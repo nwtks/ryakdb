@@ -18,7 +18,7 @@ type SearchRange =
       ToSearchKey: unit -> SearchKey }
 
 type IndexType =
-    | Hash
+    | Hash of bucketsCount: int32
     | BTree
 
 type IndexInfo = IndexInfo of indexName: string * indexType: IndexType * tableInfo: TableInfo * fieldNames: string list
@@ -42,8 +42,9 @@ module SearchKey =
             | _, [] -> 1
             | [], _ -> -1
             | h1 :: t1, h2 :: t2 ->
-                let comp = DbConstant.compare h1 h2
-                if comp = 0 then searchCompares t1 t2 else comp
+                match DbConstant.compare h1 h2 with
+                | 0 -> searchCompares t1 t2
+                | comp -> comp
 
         searchCompares key1 key2
 

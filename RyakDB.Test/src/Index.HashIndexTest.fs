@@ -25,9 +25,9 @@ let createIndex db =
     let tx =
         db.Transaction.NewTransaction false Serializable
 
-    db.Catalog.CreateIndex tx "HITable_SI1" Hash "HITable" [ "cid" ]
-    db.Catalog.CreateIndex tx "HITable_SI2" Hash "HITable" [ "title" ]
-    db.Catalog.CreateIndex tx "HITable_MI1" Hash "HITable" [ "cid"; "deptid" ]
+    db.Catalog.CreateIndex tx "HITable_SI1" (Hash 100) "HITable" [ "cid" ]
+    db.Catalog.CreateIndex tx "HITable_SI2" (Hash 100) "HITable" [ "title" ]
+    db.Catalog.CreateIndex tx "HITable_MI1" (Hash 100) "HITable" [ "cid"; "deptid" ]
     tx.Commit()
 
 [<Fact>]

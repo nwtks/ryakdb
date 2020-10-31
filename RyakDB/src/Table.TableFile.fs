@@ -226,27 +226,25 @@ module TableFile =
                   |> Option.map (fun tp -> tp.Next()) with
             | Some true -> state, true
             | _ ->
-                let newstate, result =
-                    moveTo
-                        fileService
-                        txBuffer
-                        txConcurrency
-                        txRecovery
-                        doLog
-                        tableFileName
-                        schema
-                        state
-                        (state.CurrentBlockNo + 1L)
+                match moveTo
+                          fileService
+                          txBuffer
+                          txConcurrency
+                          txRecovery
+                          doLog
+                          tableFileName
+                          schema
+                          state
+                          (state.CurrentBlockNo + 1L) with
+                | nextstate, true -> searchNext nextstate
+                | result -> result
 
-                if result then searchNext newstate else newstate, false
-
-        if state.CurrentBlockNo = 0L then
-            let newstate, result =
-                moveTo fileService txBuffer txConcurrency txRecovery doLog tableFileName schema state 1L
-
-            if result then searchNext newstate else newstate, false
-        else
-            searchNext state
+        match state.CurrentBlockNo with
+        | 0L ->
+            match moveTo fileService txBuffer txConcurrency txRecovery doLog tableFileName schema state 1L with
+            | nextstate, true -> searchNext nextstate
+            | result -> result
+        | _ -> searchNext state
 
     let moveToRecordId fileService
                        txBuffer

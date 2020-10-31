@@ -143,9 +143,9 @@ module Predicate =
 
     let joinFields fieldName (Predicate terms) =
         let rec transiteFields (fields, transite) =
-            if List.isEmpty transite then
-                fields
-            else
+            match transite with
+            | [] -> fields
+            | _ ->
                 terms
                 |> List.map (fun t ->
                     let f = List.head transite
