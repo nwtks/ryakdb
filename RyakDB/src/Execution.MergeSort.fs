@@ -5,9 +5,9 @@ open RyakDB.Table
 open RyakDB.Query
 open RyakDB.Storage.File
 open RyakDB.Buffer.BufferPool
+open RyakDB.Transaction
 open RyakDB.Table.TablePage
 open RyakDB.Table.TableFile
-open RyakDB.Transaction
 open RyakDB.Execution.Scan
 
 type TempTable = { OpenScan: unit -> Scan }
@@ -113,7 +113,7 @@ module TempTablePage =
     let close ttp = ttp.TablePage.Close()
 
     let newTempTablePage tx blockId schema =
-        { TablePage = newTablePage tx.Buffer tx.Concurrency tx.Recovery blockId schema false
+        { TablePage = newTablePage tx blockId schema false
           Schema = schema }
 
 module MergeSort =

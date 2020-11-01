@@ -6,8 +6,8 @@ open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Index
-open RyakDB.Table.TableFile
 open RyakDB.Transaction
+open RyakDB.Table.TableFile
 open RyakDB.Database
 open RyakDB.Recovery.RecoveryService
 
@@ -257,7 +257,7 @@ let ``table record`` () =
     use tf1 =
         db.Catalog.GetTableInfo tx1 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.File tx1.Buffer tx1.Concurrency tx1.Recovery tx1.ReadOnly true
+        |> newTableFile db.File tx1 true
 
     tf1.Insert()
     tf1.SetVal "cid" (IntDbConstant 1)
@@ -272,7 +272,7 @@ let ``table record`` () =
     use tf2 =
         db.Catalog.GetTableInfo tx2 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.File tx2.Buffer tx2.Concurrency tx2.Recovery tx2.ReadOnly true
+        |> newTableFile db.File tx2 true
 
     tf2.BeforeFirst()
     tf2.Next() |> should be True
@@ -289,7 +289,7 @@ let ``table record`` () =
     use tf3 =
         db.Catalog.GetTableInfo tx3 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.File tx3.Buffer tx3.Concurrency tx3.Recovery tx3.ReadOnly true
+        |> newTableFile db.File tx3 true
 
     tf3.BeforeFirst()
     tf3.Next() |> should be True
@@ -311,7 +311,7 @@ let ``table record`` () =
     use tf4 =
         db.Catalog.GetTableInfo tx4 "RecoveryTest"
         |> Option.get
-        |> newTableFile db.File tx4.Buffer tx4.Concurrency tx4.Recovery tx4.ReadOnly true
+        |> newTableFile db.File tx4 true
 
     tf4.BeforeFirst()
     tf4.Next() |> should be True

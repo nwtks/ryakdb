@@ -6,7 +6,6 @@ open RyakDB.Index
 open RyakDB.Query
 open RyakDB.Query.Predicate
 open RyakDB.Table.TableFile
-open RyakDB.Transaction
 open RyakDB.Execution.AggregationFnScan
 
 [<ReferenceEquality>]
@@ -27,7 +26,7 @@ type Scan =
 module Scan =
     let newTableScan fileService tx tableInfo =
         let tableFile =
-            newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tableInfo
+            newTableFile fileService tx true tableInfo
 
         { GetVal = tableFile.GetVal
           BeforeFirst = tableFile.BeforeFirst

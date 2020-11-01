@@ -136,6 +136,7 @@ let ``varchar key`` () =
         RecordId.newRecordId (3000 + i) blk
         |> index.Insert false key4)
 
+    index.LoadToBuffer()
     let mutable cnt = 0
     SearchRange.newSearchRangeBySearchKey key1
     |> index.BeforeFirst

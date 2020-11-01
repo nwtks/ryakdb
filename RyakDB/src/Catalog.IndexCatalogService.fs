@@ -3,8 +3,8 @@ module RyakDB.Catalog.IndexCatalogService
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Index
-open RyakDB.Table.TableFile
 open RyakDB.Transaction
+open RyakDB.Table.TableFile
 open RyakDB.Catalog.TableCatalogService
 
 type IndexCatalogService =
@@ -95,9 +95,7 @@ module IndexCatalogService =
     let findIcatByIndexName fileService tableService tx indexName =
         tableService.GetTableInfo tx Icat
         |> Option.bind (fun ti ->
-            use tf =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+            use tf = newTableFile fileService tx true ti
             tf.BeforeFirst()
             findIcatfileByIndexName tableService tx tf indexName)
 
@@ -117,9 +115,7 @@ module IndexCatalogService =
     let findIcatByTableName fileService tableService tx tableName =
         tableService.GetTableInfo tx Icat
         |> Option.map (fun ti ->
-            use tf =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+            use tf = newTableFile fileService tx true ti
             tf.BeforeFirst()
             findIcatfileByTableName tableService tx tf tableName []
             |> List.rev)
@@ -140,9 +136,7 @@ module IndexCatalogService =
     let findFields fileService tableService tx indexName =
         tableService.GetTableInfo tx Kcat
         |> Option.map (fun ti ->
-            use tf =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+            use tf = newTableFile fileService tx true ti
             tf.BeforeFirst()
             findKcatfile tf indexName [] |> List.rev)
         |> Option.defaultValue []
@@ -151,9 +145,7 @@ module IndexCatalogService =
         let createIcatfile tableService =
             tableService.GetTableInfo tx Icat
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 tf.Insert()
 
                 DbConstant.newVarchar indexName
@@ -174,9 +166,7 @@ module IndexCatalogService =
         let createKcatfile tableService =
             tableService.GetTableInfo tx Kcat
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 fields
                 |> List.iter (fun field ->
                     tf.Insert()
@@ -201,9 +191,7 @@ module IndexCatalogService =
         let dropIcat tableService =
             tableService.GetTableInfo tx Icat
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 tf.BeforeFirst()
                 deleteIcatfile tf indexName)
 
@@ -217,9 +205,7 @@ module IndexCatalogService =
         let dropKcat tableService =
             tableService.GetTableInfo tx Kcat
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 tf.BeforeFirst()
                 deleteKcatfile tf indexName)
 

@@ -3,8 +3,8 @@ module RyakDB.Test.TestInit
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Index
-open RyakDB.Table.TableFile
 open RyakDB.Transaction
+open RyakDB.Table.TableFile
 open RyakDB.Database
 
 module TestInit =
@@ -30,7 +30,7 @@ let setupDeptTable db =
     use tf =
         db.Catalog.GetTableInfo tx "dept"
         |> Option.get
-        |> newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> newTableFile db.File tx true
 
     use idx1 =
         db.Catalog.GetIndexInfoByName tx "dept_idx1"
@@ -67,7 +67,7 @@ let setupCourseTable db =
     use tf =
         db.Catalog.GetTableInfo tx "course"
         |> Option.get
-        |> newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> newTableFile db.File tx true
 
     [ 1 .. TestInit.courseMax ]
     |> List.iter (fun i ->
@@ -98,7 +98,7 @@ let setupStudentTable db =
     use tf =
         db.Catalog.GetTableInfo tx "student"
         |> Option.get
-        |> newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> newTableFile db.File tx true
 
     use idx1 =
         db.Catalog.GetIndexInfoByName tx "student_idx1"
@@ -140,7 +140,7 @@ let setupSelectionTable db =
     use tf =
         db.Catalog.GetTableInfo tx "section"
         |> Option.get
-        |> newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> newTableFile db.File tx true
 
     [ 1 .. TestInit.sectionMax ]
     |> List.iter (fun i ->
@@ -172,7 +172,7 @@ let setupEnrollTable db =
     use tf =
         db.Catalog.GetTableInfo tx "enroll"
         |> Option.get
-        |> newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> newTableFile db.File tx true
 
     [ 1 .. TestInit.enrollMax ]
     |> List.iter (fun i ->

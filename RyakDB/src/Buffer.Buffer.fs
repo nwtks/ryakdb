@@ -59,9 +59,7 @@ module Buffer =
 
         newstate.LastLogSeqNo
         |> LogSeqNo.writeToPage 0 page
-
         page.SetVal (DataStartOffset + offset) value
-
         newstate
 
     let pin state = { state with Pins = state.Pins + 1 }

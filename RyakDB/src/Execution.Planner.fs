@@ -17,6 +17,7 @@ module Planner =
 
     let executeUpdate updatePlanner tx cmd =
         if tx.ReadOnly then failwith "Read only transaction"
+
         match Parser.updateCommand cmd with
         | InsertData (tableName, fields, values) -> updatePlanner.ExecuteInsert tx tableName fields values
         | DeleteData (tableName, pred) -> updatePlanner.ExecuteDelete tx tableName pred

@@ -4,8 +4,7 @@ open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Index
-open RyakDB.Concurrency.TransactionConcurrency
-open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Transaction
 open RyakDB.Index.BTreePage
 open RyakDB.Index.BTreeBranch
 
@@ -33,8 +32,7 @@ module BTreeLeaf =
 
     let getFileName indexName = indexName + "_leaf.idx"
 
-    let initBTreePage txBuffer txConcurrency txRecovery schema blockId =
-        newBTreePage txBuffer txConcurrency txRecovery schema blockId 2
+    let initBTreePage tx schema blockId = newBTreePage tx schema blockId 2
 
     let keyTypeToSchema (SearchKeyType types) =
         let sch = Schema.newSchema ()
@@ -56,8 +54,8 @@ module BTreeLeaf =
             (page.GetVal slotNo FieldBlockNo
              |> DbConstant.toLong)
 
-    let insertSlot txRecovery keyType page (SearchKey keys) (RecordId (recordSlotNo, BlockId (_, recordBlockNo))) slotNo =
-        txRecovery.LogIndexPageInsertion false keyType page.BlockId slotNo
+    let insertSlot tx keyType page (SearchKey keys) (RecordId (recordSlotNo, BlockId (_, recordBlockNo))) slotNo =
+        tx.Recovery.LogIndexPageInsertion false keyType page.BlockId slotNo
         |> ignore
 
         page.Insert slotNo
@@ -71,8 +69,8 @@ module BTreeLeaf =
         keys
         |> List.iteri (fun i k -> k |> page.SetVal slotNo (KeyPrefix + i.ToString()))
 
-    let deleteSlot txRecovery keyType page slotNo =
-        txRecovery.LogIndexPageDeletion false keyType page.BlockId slotNo
+    let deleteSlot tx keyType page slotNo =
+        tx.Recovery.LogIndexPageDeletion false keyType page.BlockId slotNo
         |> ignore
 
         page.Delete slotNo
@@ -113,26 +111,22 @@ module BTreeLeaf =
                     slotNo
         | _ -> -1
 
-    let beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType searchRange =
-        let page =
-            initBTreePage txBuffer txConcurrency txRecovery schema blockId
-
+    let beforeFirst tx schema blockId keyType searchRange =
+        let page = initBTreePage tx schema blockId
         { CurrentPage = page
           CurrentSlot = moveSlotBefore keyType searchRange page
           MoveFrom = -1L
           OverflowFrom = -1L
           SearchRange = searchRange }
 
-    let next txBuffer txConcurrency txRecovery schema keyType state =
-        let moveTo txBuffer txConcurrency txRecovery schema currentPage blockNo =
+    let next tx schema keyType state =
+        let moveTo tx schema currentPage blockNo =
             let blockId =
                 BlockId.newBlockId (BlockId.fileName currentPage.BlockId) blockNo
 
-            txConcurrency.ReadLeafBlock blockId
-
+            tx.Concurrency.ReadLeafBlock blockId
             currentPage.Close()
-
-            initBTreePage txBuffer txConcurrency txRecovery schema blockId
+            initBTreePage tx schema blockId
 
         let rec searchNext state =
             let nextSlot = state.CurrentSlot + 1
@@ -146,7 +140,7 @@ module BTreeLeaf =
                     let nextBlockNo = getOverflowBlockNo state.CurrentPage
 
                     let nextPage =
-                        moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage nextBlockNo
+                        moveTo tx schema state.CurrentPage nextBlockNo
 
                     if nextBlockNo = state.OverflowFrom then
                         { state with
@@ -166,8 +160,7 @@ module BTreeLeaf =
                 if siblingBlockNo >= 0L then
                     searchNext
                         { state with
-                              CurrentPage =
-                                  moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage siblingBlockNo
+                              CurrentPage = moveTo tx schema state.CurrentPage siblingBlockNo
                               CurrentSlot = -1
                               MoveFrom = fromBlockNo }
                 else
@@ -178,8 +171,7 @@ module BTreeLeaf =
                 true,
                 (if nextSlot = 0 && overflowBlockNo >= 0L then
                     { state with
-                          CurrentPage =
-                              moveTo txBuffer txConcurrency txRecovery schema state.CurrentPage overflowBlockNo
+                          CurrentPage = moveTo tx schema state.CurrentPage overflowBlockNo
                           CurrentSlot = 0
                           MoveFrom = fromBlockNo
                           OverflowFrom = fromBlockNo }
@@ -193,7 +185,7 @@ module BTreeLeaf =
 
         searchNext state
 
-    let insert txBuffer txConcurrency txRecovery schema blockId keyType key recordId =
+    let insert tx schema blockId keyType key recordId =
         let getSlotNo keyType searchKey page =
             let rec binarySearch startSlot endSlot target =
                 if startSlot < endSlot then
@@ -257,15 +249,11 @@ module BTreeLeaf =
                 page.Split siblingSlot [ -1L; getSiblingBlockNo page ]
 
             setSiblingBlockNo page siblingBlockNo
-
             newBTreeBranchEntry siblingKey siblingBlockNo
 
-        let page =
-            initBTreePage txBuffer txConcurrency txRecovery schema blockId
-
+        let page = initBTreePage tx schema blockId
         getSlotNo keyType key page
-        |> insertSlot txRecovery keyType page key recordId
-
+        |> insertSlot tx keyType page key recordId
         if page.IsFull() then
             if getKey page (page.GetCountOfRecords() - 1) keyType
                |> SearchKey.compare (getKey page 0 keyType) = 0 then
@@ -276,14 +264,12 @@ module BTreeLeaf =
         else
             None
 
-    let delete txBuffer txConcurrency txRecovery dataFileName schema blockId keyType key recordId =
+    let delete tx dataFileName schema blockId keyType key recordId =
         let rec searchDelete state =
-            let result, newstate =
-                next txBuffer txConcurrency txRecovery schema keyType state
-
+            let result, newstate = next tx schema keyType state
             if result then
                 if recordId = getDataRecordId dataFileName newstate.CurrentPage newstate.CurrentSlot then
-                    deleteSlot txRecovery keyType newstate.CurrentPage newstate.CurrentSlot
+                    deleteSlot tx keyType newstate.CurrentPage newstate.CurrentSlot
                     true, newstate
                 else
                     searchDelete newstate
@@ -293,7 +279,7 @@ module BTreeLeaf =
         let fixOverflowFlag page fromBlockNo =
             use fromPage =
                 BlockId.newBlockId (BlockId.fileName page.BlockId) fromBlockNo
-                |> initBTreePage txBuffer txConcurrency txRecovery schema
+                |> initBTreePage tx schema
 
             let overflowBlockNo = getOverflowBlockNo page
             if overflowBlockNo = fromBlockNo then -1L else overflowBlockNo
@@ -301,7 +287,7 @@ module BTreeLeaf =
 
         let deleted, state =
             SearchRange.newSearchRangeBySearchKey key
-            |> beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType
+            |> beforeFirst tx schema blockId keyType
             |> searchDelete
 
         if deleted
@@ -310,21 +296,20 @@ module BTreeLeaf =
            && state.CurrentPage.GetCountOfRecords() = 0 then
             fixOverflowFlag state.CurrentPage state.MoveFrom
 
-let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType =
+let newBTreeLeaf tx dataFileName blockId keyType =
     let schema = BTreeLeaf.keyTypeToSchema keyType
     let mutable state: BTreeLeaf.BTreeLeafState option = None
 
     { BeforeFirst =
           fun searchRange ->
               state <-
-                  BTreeLeaf.beforeFirst txBuffer txConcurrency txRecovery schema blockId keyType searchRange
+                  BTreeLeaf.beforeFirst tx schema blockId keyType searchRange
                   |> Some
       Next =
           fun () ->
               match state with
               | Some st ->
-                  let result, newstate =
-                      BTreeLeaf.next txBuffer txConcurrency txRecovery schema keyType st
+                  let result, newstate = BTreeLeaf.next tx schema keyType st
 
                   state <- Some newstate
                   result
@@ -334,11 +319,8 @@ let newBTreeLeaf txBuffer txConcurrency txRecovery dataFileName blockId keyType 
               match state with
               | Some st -> BTreeLeaf.getDataRecordId dataFileName st.CurrentPage st.CurrentSlot
               | _ -> failwith "Closed leaf"
-      Insert =
-          fun key recordId -> BTreeLeaf.insert txBuffer txConcurrency txRecovery schema blockId keyType key recordId
-      Delete =
-          fun key recordId ->
-              BTreeLeaf.delete txBuffer txConcurrency txRecovery dataFileName schema blockId keyType key recordId
+      Insert = fun key recordId -> BTreeLeaf.insert tx schema blockId keyType key recordId
+      Delete = fun key recordId -> BTreeLeaf.delete tx dataFileName schema blockId keyType key recordId
       Close =
           fun () ->
               state

@@ -263,7 +263,7 @@ let setupIndexedData db =
     use tf =
         db.Catalog.GetTableInfo tx "testing_table"
         |> Option.get
-        |> TableFile.newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> TableFile.newTableFile db.File tx true
 
     use idx =
         db.Catalog.GetIndexInfoByName tx "testing_index"
@@ -306,7 +306,7 @@ let setupIndexedData db =
     use tf2 =
         db.Catalog.GetTableInfo tx "testing_join_table"
         |> Option.get
-        |> TableFile.newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true
+        |> TableFile.newTableFile db.File tx true
 
     [ 1 .. 10 ]
     |> List.iter (fun i ->

@@ -3,8 +3,8 @@ module RyakDB.Catalog.ViewCatalogService
 open RyakDB.DataType
 open RyakDB.Table
 open RyakDB.Sql.Parse
-open RyakDB.Table.TableFile
 open RyakDB.Transaction
+open RyakDB.Table.TableFile
 open RyakDB.Catalog.TableCatalogService
 
 type ViewCatalogService =
@@ -44,9 +44,7 @@ module ViewCatalogService =
     let findViewDefByViewName fileService tableService tx viewName =
         tableService.GetTableInfo tx Vcat
         |> Option.bind (fun ti ->
-            use tf =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+            use tf = newTableFile fileService tx true ti
             tf.BeforeFirst()
             findVcatfileByViewName tf viewName)
 
@@ -69,9 +67,7 @@ module ViewCatalogService =
     let findViewNamestByTableName fileService tableService tx tableName =
         tableService.GetTableInfo tx Vcat
         |> Option.map (fun ti ->
-            use tf =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+            use tf = newTableFile fileService tx true ti
             tf.BeforeFirst()
             findVcatfileByTableName tf tableName []
             |> List.rev)
@@ -81,9 +77,7 @@ module ViewCatalogService =
         let createVcatfile tableService =
             tableService.GetTableInfo tx Vcat
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 tf.Insert()
 
                 DbConstant.newVarchar viewName
@@ -105,9 +99,7 @@ module ViewCatalogService =
         let dropVcat tableService =
             tableService.GetTableInfo tx Vcat
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 tf.BeforeFirst()
                 deleteVcatfile tf viewName)
 

@@ -11,7 +11,7 @@ module TaskService =
         new System.Threading.CancellationTokenSource()
 
     let runTask (task: Task) =
-        System.Threading.Tasks.Task.Run(task, tokenSource.Token)
+        System.Threading.Tasks.Task.Factory.StartNew(task, tokenSource.Token)
         |> ignore
 
     let cancelTasks () = tokenSource.Cancel()

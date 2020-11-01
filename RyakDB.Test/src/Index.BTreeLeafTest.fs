@@ -6,9 +6,9 @@ open RyakDB.DataType
 open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Index
+open RyakDB.Transaction
 open RyakDB.Index.BTreePage
 open RyakDB.Index.BTreeLeaf
-open RyakDB.Transaction
 open RyakDB.Database
 
 [<Fact>]
@@ -36,14 +36,14 @@ let insert () =
     [ 0 .. 20 ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
         |> ignore)
 
     use leaf =
-        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx indexFilename blockId keyType
 
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
                                              (IntDbConstant 0 |> Some)
@@ -84,7 +84,7 @@ let delete () =
     [ 0 .. 20 ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
@@ -93,13 +93,13 @@ let delete () =
     [ 0 .. 20 ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ]))
 
     use leaf =
-        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx indexFilename blockId keyType
 
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
                                              (IntDbConstant 0 |> Some)
@@ -145,7 +145,7 @@ let ``split sibling`` () =
     [ 0 .. count ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert(SearchKey.newSearchKey [ IntDbConstant i ])
@@ -154,7 +154,7 @@ let ``split sibling`` () =
     if Option.isNone newEntry then failwith "Not split"
 
     use leaf =
-        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx indexFilename blockId keyType
 
     let mutable cnt = 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
@@ -170,7 +170,7 @@ let ``split sibling`` () =
     [ 0 .. count ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Delete(SearchKey.newSearchKey [ IntDbConstant i ]))
@@ -213,14 +213,14 @@ let ``split overflow`` () =
     [ 0 .. count ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Insert insertkey
         |> ignore)
 
     use leaf =
-        newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+        newBTreeLeaf tx indexFilename blockId keyType
 
     let mutable cnt = 0
     SearchRange.newSearchRangeByRanges [ DbConstantRange.newConstantRange
@@ -236,7 +236,7 @@ let ``split overflow`` () =
     [ 0 .. count ]
     |> List.iter (fun i ->
         use leaf =
-            newBTreeLeaf tx.Buffer tx.Concurrency tx.Recovery indexFilename blockId keyType
+            newBTreeLeaf tx indexFilename blockId keyType
 
         RecordId.newRecordId i indexBlockId
         |> leaf.Delete insertkey)

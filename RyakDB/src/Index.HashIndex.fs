@@ -5,9 +5,7 @@ open RyakDB.Storage
 open RyakDB.Table
 open RyakDB.Index
 open RyakDB.Storage.File
-open RyakDB.Buffer.TransactionBuffer
-open RyakDB.Concurrency.TransactionConcurrency
-open RyakDB.Recovery.TransactionRecovery
+open RyakDB.Transaction
 open RyakDB.Table.TableFile
 
 module HashIndex =
@@ -19,8 +17,8 @@ module HashIndex =
     let FieldSlotNo = "slot_no"
     let KeyPrefix = "key"
 
-    let fileSize fileService txConcurrency fileName =
-        txConcurrency.ReadFile fileName
+    let fileSize fileService tx fileName =
+        tx.Concurrency.ReadFile fileName
         fileService.Size fileName
 
     let keyTypeToSchema (SearchKeyType types) =
@@ -36,17 +34,17 @@ module HashIndex =
         |> List.mapi (fun i _ -> tableFile.GetVal(KeyPrefix + i.ToString()))
         |> SearchKey.newSearchKey
 
-    let preLoadToMemory fileService txBuffer txConcurrency indexName bucketsCount =
+    let loadToBuffer fileService tx indexName bucketsCount =
         [ 0 .. bucketsCount - 1 ]
         |> List.map (fun i -> indexName + i.ToString() + ".tbl")
         |> List.iter (fun tblName ->
-            [ 0L .. fileSize fileService txConcurrency tblName - 1L ]
+            [ 0L .. fileSize fileService tx tblName - 1L ]
             |> List.iter (fun j ->
                 BlockId.newBlockId tblName j
-                |> txBuffer.Pin
+                |> tx.Buffer.Pin
                 |> ignore))
 
-    let beforeFirst fileService txBuffer txConcurrency txRecovery txReadOnly indexName keyType bucketsCount searchRange =
+    let beforeFirst fileService tx indexName keyType bucketsCount searchRange =
         if searchRange.IsSingleValue() |> not then failwith "Not supported"
         let searchKey = searchRange.ToSearchKey()
         let bucket = searchKey.GetHashCode() % bucketsCount
@@ -56,12 +54,10 @@ module HashIndex =
             keyTypeToSchema keyType
             |> TableInfo.newTableInfo tblName
 
-        let tf =
-            newTableFile fileService txBuffer txConcurrency txRecovery txReadOnly false ti
-
+        let tf = newTableFile fileService tx false ti
         if tf.FileSize() = 0L then
             TableInfo.tableFileName ti
-            |> TableFile.formatFileHeader fileService txBuffer txConcurrency
+            |> TableFile.formatFileHeader fileService tx
 
         tf.BeforeFirst()
         { SearchKey = searchKey
@@ -94,8 +90,8 @@ module HashIndex =
             RecordId.newBlockRecordId slotNo tableFileName blockNo
         | _ -> failwith "Must call beforeFirst()"
 
-    let insert txRecovery indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
-        if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
+    let insert tx indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
+        if doLogicalLogging then tx.Recovery.LogLogicalStart() |> ignore
 
         tableFile.Insert()
 
@@ -110,10 +106,10 @@ module HashIndex =
         |> List.iteri (fun i t -> tableFile.SetVal (KeyPrefix + i.ToString()) t)
 
         if doLogicalLogging then
-            txRecovery.LogIndexInsertionEnd indexName key blockNo slotNo
+            tx.Recovery.LogIndexInsertionEnd indexName key blockNo slotNo
             |> ignore
 
-    let delete txRecovery indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
+    let delete tx indexName tableFile doLogicalLogging key (RecordId (slotNo, BlockId (_, blockNo))) =
         let rec searchDelete tableFile blockNo slotNo =
             if tableFile.Next() then
                 let tfBlockNo =
@@ -127,19 +123,19 @@ module HashIndex =
                 else
                     searchDelete tableFile blockNo slotNo
 
-        if doLogicalLogging then txRecovery.LogLogicalStart() |> ignore
+        if doLogicalLogging then tx.Recovery.LogLogicalStart() |> ignore
 
         searchDelete tableFile blockNo slotNo
 
         if doLogicalLogging then
-            txRecovery.LogIndexDeletionEnd indexName key blockNo slotNo
+            tx.Recovery.LogIndexDeletionEnd indexName key blockNo slotNo
             |> ignore
 
     let close state =
         state
         |> Option.iter (fun s -> s.TableFile.Close())
 
-let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexInfo keyType bucketsCount =
+let newHashIndex fileService tx indexInfo keyType bucketsCount =
     let indexName = IndexInfo.indexName indexInfo
     let tableFileName = IndexInfo.tableFileName indexInfo
     let mutable state = None
@@ -148,16 +144,7 @@ let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexI
           fun searchRange ->
               HashIndex.close state
               state <-
-                  HashIndex.beforeFirst
-                      fileService
-                      txBuffer
-                      txConcurrency
-                      txRecovery
-                      txReadOnly
-                      indexName
-                      keyType
-                      bucketsCount
-                      searchRange
+                  HashIndex.beforeFirst fileService tx indexName keyType bucketsCount searchRange
                   |> Some
       Next = fun () -> HashIndex.next keyType state
       GetDataRecordId = fun () -> HashIndex.getDataRecordId tableFileName state
@@ -168,17 +155,9 @@ let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexI
 
               let st =
                   SearchRange.newSearchRangeBySearchKey key
-                  |> HashIndex.beforeFirst
-                      fileService
-                         txBuffer
-                         txConcurrency
-                         txRecovery
-                         txReadOnly
-                         indexName
-                         keyType
-                         bucketsCount
+                  |> HashIndex.beforeFirst fileService tx indexName keyType bucketsCount
 
-              HashIndex.insert txRecovery indexName st.TableFile doLogicalLogging key dataRecordId
+              HashIndex.insert tx indexName st.TableFile doLogicalLogging key dataRecordId
       Delete =
           fun doLogicalLogging key dataRecordId ->
               HashIndex.close state
@@ -186,19 +165,11 @@ let newHashIndex fileService txBuffer txConcurrency txRecovery txReadOnly indexI
 
               let st =
                   SearchRange.newSearchRangeBySearchKey key
-                  |> HashIndex.beforeFirst
-                      fileService
-                         txBuffer
-                         txConcurrency
-                         txRecovery
-                         txReadOnly
-                         indexName
-                         keyType
-                         bucketsCount
+                  |> HashIndex.beforeFirst fileService tx indexName keyType bucketsCount
 
-              HashIndex.delete txRecovery indexName st.TableFile doLogicalLogging key dataRecordId
+              HashIndex.delete tx indexName st.TableFile doLogicalLogging key dataRecordId
       Close =
           fun () ->
               HashIndex.close state
               state <- None
-      PreLoadToMemory = fun () -> HashIndex.preLoadToMemory fileService txBuffer txConcurrency indexName bucketsCount }
+      LoadToBuffer = fun () -> HashIndex.loadToBuffer fileService tx indexName bucketsCount }

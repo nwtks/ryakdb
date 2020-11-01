@@ -4,8 +4,8 @@ open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.TableFile
 open RyakDB.Transaction
+open RyakDB.Table.TableFile
 open RyakDB.Database
 
 let createTableInfo () =
@@ -31,9 +31,7 @@ let ``insert read delete`` () =
     FileHeaderFormatter.format
     |> tx.Buffer.PinNew(TableInfo.tableFileName ti)
     |> tx.Buffer.Unpin
-
-    use tf =
-        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    use tf = newTableFile db.File tx true ti
 
     [ 1 .. 100 ]
     |> List.iter (fun i ->
@@ -96,10 +94,8 @@ let ``reuse slot`` () =
         db.Transaction.NewTransaction false Serializable
 
     TableInfo.tableFileName ti
-    |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
-
-    use tf =
-        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    |> TableFile.formatFileHeader db.File tx
+    use tf = newTableFile db.File tx true ti
 
     tf.Insert()
     tf.SetVal "cid" (IntDbConstant 1)
@@ -144,10 +140,8 @@ let ``undo insert`` () =
         db.Transaction.NewTransaction false Serializable
 
     TableInfo.tableFileName ti
-    |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
-
-    use tf =
-        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    |> TableFile.formatFileHeader db.File tx
+    use tf = newTableFile db.File tx true ti
 
     tf.Insert()
     tf.SetVal "cid" (IntDbConstant 1)
@@ -195,10 +189,8 @@ let ``undo delete`` () =
         db.Transaction.NewTransaction false Serializable
 
     TableInfo.tableFileName ti
-    |> TableFile.formatFileHeader db.File tx.Buffer tx.Concurrency
-
-    use tf =
-        newTableFile db.File tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
+    |> TableFile.formatFileHeader db.File tx
+    use tf = newTableFile db.File tx true ti
 
     tf.Insert()
     tf.SetVal "cid" (IntDbConstant 1)

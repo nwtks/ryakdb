@@ -4,8 +4,8 @@ open Xunit
 open FsUnit.Xunit
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.TablePage
 open RyakDB.Transaction
+open RyakDB.Table.TablePage
 open RyakDB.Database
 
 let createSchema () =
@@ -35,7 +35,7 @@ let ``insert read delete`` () =
     tx.Buffer.Unpin buff
 
     use tp1 =
-        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+        newTablePage tx (buff.BlockId()) schema true
 
     let mutable count = 0
     let mutable insertId = 0
@@ -47,7 +47,7 @@ let ``insert read delete`` () =
         count <- count + 1
 
     use tp2 =
-        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+        newTablePage tx (buff.BlockId()) schema true
 
     let mutable readId = 0
     while tp2.Next() do
@@ -67,7 +67,7 @@ let ``insert read delete`` () =
     readId |> should equal count
 
     use tp3 =
-        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+        newTablePage tx (buff.BlockId()) schema true
 
     let mutable deletedCount = 0
     while tp3.Next() do
@@ -78,7 +78,7 @@ let ``insert read delete`` () =
     deletedCount |> should equal (count / 3)
 
     use tp4 =
-        newTablePage tx.Buffer tx.Concurrency tx.Recovery (buff.BlockId()) schema true
+        newTablePage tx (buff.BlockId()) schema true
 
     while tp4.Next() do
         tp4.GetVal "deptid"

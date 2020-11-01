@@ -30,7 +30,7 @@ type Index =
       Insert: bool -> SearchKey -> RecordId -> unit
       Delete: bool -> SearchKey -> RecordId -> unit
       Close: unit -> unit
-      PreLoadToMemory: unit -> unit }
+      LoadToBuffer: unit -> unit }
     interface System.IDisposable with
         member this.Dispose() = this.Close()
 

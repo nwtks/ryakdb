@@ -2,8 +2,8 @@ module RyakDB.Catalog.TableCatalogService
 
 open RyakDB.DataType
 open RyakDB.Table
-open RyakDB.Table.TableFile
 open RyakDB.Transaction
+open RyakDB.Table.TableFile
 
 type TableCatalogService =
     { CreateTable: Transaction -> string -> Schema -> unit
@@ -26,7 +26,7 @@ module TableCatalogService =
     let formatFileHeader fileService tx tableName =
         tableName
         + ".tbl"
-        |> TableFile.formatFileHeader fileService tx.Buffer tx.Concurrency
+        |> TableFile.formatFileHeader fileService tx
 
     let newTcatInfo () =
         let tcatSchema = Schema.newSchema ()
@@ -64,7 +64,7 @@ module TableCatalogService =
 
         let findTcatInfo tcatInfo =
             use tcatfile =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
+                newTableFile fileService tx true tcatInfo
 
             tcatfile.BeforeFirst()
             findTcatfile tcatfile
@@ -85,7 +85,7 @@ module TableCatalogService =
 
         let createSchema fcatInfo =
             use fcatfile =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
+                newTableFile fileService tx true fcatInfo
 
             fcatfile.BeforeFirst()
             Schema.newSchema () |> addField fcatfile
@@ -101,7 +101,7 @@ module TableCatalogService =
     let createTable fileService tx tableName schema =
         let addTcatInfo tcatInfo =
             use tcatfile =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
+                newTableFile fileService tx true tcatInfo
 
             tcatfile.Insert()
 
@@ -128,7 +128,7 @@ module TableCatalogService =
 
         let addFcatInfo fcatInfo =
             use fcatfile =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
+                newTableFile fileService tx true fcatInfo
 
             schema.Fields()
             |> List.iter (addFieldName fcatfile)
@@ -143,9 +143,7 @@ module TableCatalogService =
         let removeTableFile fileService =
             getTableInfo fileService tx tableName
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 tf.Remove())
 
         let rec deleteTcatfile tcatfile =
@@ -157,7 +155,7 @@ module TableCatalogService =
 
         let deleteTcatInfo tcatInfo =
             use tcatfile =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true tcatInfo
+                newTableFile fileService tx true tcatInfo
 
             tcatfile.BeforeFirst()
             deleteTcatfile tcatfile
@@ -171,7 +169,7 @@ module TableCatalogService =
 
         let deleteFcatInfo fcatInfo =
             use fcatfile =
-                newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true fcatInfo
+                newTableFile fileService tx true fcatInfo
 
             fcatfile.BeforeFirst()
             deleteFcatfile fcatfile

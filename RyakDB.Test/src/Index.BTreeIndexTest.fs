@@ -139,6 +139,7 @@ let ``varchar key`` () =
         RecordId.newRecordId (300 + i) blk
         |> index.Insert false key4)
 
+    index.LoadToBuffer()
     let mutable cnt = 0
     SearchRange.newSearchRangeBySearchKey key1
     |> index.BeforeFirst
@@ -303,6 +304,7 @@ let ``branch overflow`` () =
     let key12 =
         SearchKey.newSearchKey [ IntDbConstant 12 ]
 
+    index.LoadToBuffer()
     let mutable cnt = 0
     SearchRange.newSearchRangeBySearchKey key12
     |> index.BeforeFirst
@@ -357,8 +359,8 @@ let ``search range`` () =
         RecordId.newRecordId i blk23
         |> index.Insert false key7)
 
+    index.LoadToBuffer()
     let mutable cnt = 0
-
     SearchRange.newSearchRangeBySearchKey key7
     |> index.BeforeFirst
     while index.Next() do

@@ -2,18 +2,18 @@ module RyakDB.Recovery.RecoveryService
 
 open RyakDB.DataType
 open RyakDB.Storage
+open RyakDB.Table
+open RyakDB.Index
 open RyakDB.Storage.File
 open RyakDB.Storage.Log
 open RyakDB.Buffer.Buffer
 open RyakDB.Buffer.BufferPool
-open RyakDB.Table
-open RyakDB.Index
 open RyakDB.Buffer.TransactionBuffer
 open RyakDB.Recovery.RecoveryLog
+open RyakDB.Transaction
 open RyakDB.Table.TableFile
 open RyakDB.Index.BTreeBranch
 open RyakDB.Index.BTreeLeaf
-open RyakDB.Transaction
 open RyakDB.Catalog.CatalogService
 
 type RecoveryService =
@@ -27,7 +27,7 @@ module RecoveryService =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
         use page =
-            BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+            BTreeBranch.initBTreePage tx schema blockId
 
         page.Insert slotNo
 
@@ -35,7 +35,7 @@ module RecoveryService =
         let schema = BTreeBranch.keyTypeToSchema keyType
 
         use page =
-            BTreeBranch.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+            BTreeBranch.initBTreePage tx schema blockId
 
         page.Delete slotNo
 
@@ -43,7 +43,7 @@ module RecoveryService =
         let schema = BTreeLeaf.keyTypeToSchema keyType
 
         use page =
-            BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+            BTreeLeaf.initBTreePage tx schema blockId
 
         page.Insert slotNo
 
@@ -51,7 +51,7 @@ module RecoveryService =
         let schema = BTreeLeaf.keyTypeToSchema keyType
 
         use page =
-            BTreeLeaf.initBTreePage tx.Buffer tx.Concurrency tx.Recovery schema blockId
+            BTreeLeaf.initBTreePage tx schema blockId
 
         page.Delete slotNo
 
@@ -107,18 +107,14 @@ module RecoveryService =
         | TableFileInsertEndRecord (txNo, tableName, blockNo, slotNo, startLsn, _) ->
             catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 RecordId.newBlockRecordId slotNo (TableInfo.tableFileName ti) blockNo
                 |> tf.UndoInsert)
             logLogicalUndo logService txNo startLsn
         | TableFileDeleteEndRecord (txNo, tableName, blockNo, slotNo, startLsn, _) ->
             catalogService.GetTableInfo tx tableName
             |> Option.iter (fun ti ->
-                use tf =
-                    newTableFile fileService tx.Buffer tx.Concurrency tx.Recovery tx.ReadOnly true ti
-
+                use tf = newTableFile fileService tx true ti
                 RecordId.newBlockRecordId slotNo (TableInfo.tableFileName ti) blockNo
                 |> tf.UndoDelete)
             logLogicalUndo logService txNo startLsn
