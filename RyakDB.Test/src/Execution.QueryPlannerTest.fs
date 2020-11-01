@@ -19,11 +19,11 @@ let query () =
     setupStudentTable db
     setupDeptTable db
 
-    let tx =
-        db.Transaction.NewTransaction false Serializable
+    let tx1 =
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
-        db.Planner.CreateQueryPlan tx """
+        db.Planner.CreateQueryPlan tx1 """
             select s_id, s_name, d_name, grad_year
             from student, dept
             where s_id < 200 and major_id=d_id and d_name='dept 20'
@@ -104,10 +104,14 @@ let query () =
 
     scan.Next() |> should be False
 
-    db.Catalog.DropTable tx "student"
-    db.Catalog.DropTable tx "dept"
-    tx.Commit()
+    tx1.Commit()
 
+    let tx2 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx2 "student"
+    db.Catalog.DropTable tx2 "dept"
+    tx2.Commit()
 
 [<Fact>]
 let view () =
@@ -120,10 +124,10 @@ let view () =
     setupStudentTable db
     setupDeptTable db
 
-    let tx =
+    let tx1 =
         db.Transaction.NewTransaction false Serializable
 
-    db.Planner.ExecuteUpdate tx """
+    db.Planner.ExecuteUpdate tx1 """
         create view student_dept20 as
         select s_id, s_name, major_id, d_name, grad_year
         from student, dept
@@ -131,8 +135,13 @@ let view () =
         """
     |> ignore
 
+    tx1.Commit()
+
+    let tx2 =
+        db.Transaction.NewTransaction true Serializable
+
     use scan =
-        db.Planner.CreateQueryPlan tx """
+        db.Planner.CreateQueryPlan tx2 """
             select s_id, s_name, d_name, grad_year
             from student_dept20
             where s_id < 100
@@ -185,6 +194,11 @@ let view () =
 
     scan.Next() |> should be False
 
-    db.Catalog.DropTable tx "student"
-    db.Catalog.DropTable tx "dept"
-    tx.Commit()
+    tx2.Commit()
+
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx3 "student"
+    db.Catalog.DropTable tx3 "dept"
+    tx3.Commit()

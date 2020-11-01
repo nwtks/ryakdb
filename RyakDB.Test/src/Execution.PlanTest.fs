@@ -25,7 +25,7 @@ let ``table plan`` () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
         db.Catalog.GetTableInfo tx "student"
@@ -59,7 +59,7 @@ let ``select plan`` () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let pred =
         [ Term(EqualOperator, FieldNameExpression "major_id", IntDbConstant 20 |> ConstantExpression) ]
@@ -94,7 +94,7 @@ let ``project plan`` () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
         db.Catalog.GetTableInfo tx "student"
@@ -131,7 +131,7 @@ let ``product plan`` () =
     setupDeptTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let pred =
         [ Term(EqualOperator, FieldNameExpression "major_id", FieldNameExpression "d_id") ]
@@ -174,7 +174,7 @@ let ``group by plan`` () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
@@ -213,7 +213,7 @@ let ``sort plan`` () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
@@ -342,7 +342,7 @@ let ``index select plan`` () =
     setupIndexedData db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let ii =
         db.Catalog.GetIndexInfoByName tx "testing_index"
@@ -391,7 +391,7 @@ let ``range index select plan`` () =
     setupIndexedData db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let ii =
         db.Catalog.GetIndexInfoByName tx "testing_index"
@@ -436,7 +436,7 @@ let ``index join plan`` () =
     setupIndexedData db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let pred =
         Predicate [ Term(EqualOperator, FieldNameExpression("join_key_1"), ConstantExpression(IntDbConstant 10))

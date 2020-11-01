@@ -38,14 +38,18 @@ let insert () =
     createTable db
     createIndex db
 
-    let tx =
+    let tx1 =
         db.Transaction.NewTransaction false Serializable
 
-    db.Planner.ExecuteUpdate tx "INSERT INTO updatetest(tid, tname, tdate) VALUES (1, 'basketry', 9890033330000)"
+    db.Planner.ExecuteUpdate tx1 "INSERT INTO updatetest(tid, tname, tdate) VALUES (1, 'basketry', 9890033330000)"
     |> should equal 1
+    tx1.Commit()
+
+    let tx2 =
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
-        db.Planner.CreateQueryPlan tx "select tid, tname, tdate from updatetest where tid = 1"
+        db.Planner.CreateQueryPlan tx2 "select tid, tname, tdate from updatetest where tid = 1"
         |> Plan.openScan
 
     let mutable i = 0
@@ -59,9 +63,13 @@ let insert () =
         scan.GetVal "tdate"
         |> should equal (BigIntDbConstant 9890033330000L)
     i |> should equal 1
+    tx2.Commit()
 
-    db.Catalog.DropTable tx "updatetest"
-    tx.Commit()
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx3 "updatetest"
+    tx3.Commit()
 
 [<Fact>]
 let delete () =
@@ -74,13 +82,13 @@ let delete () =
     createTable db
     createIndex db
 
-    let tx =
+    let tx1 =
         db.Transaction.NewTransaction false Serializable
 
     [ 1 .. 5 ]
     |> List.iter (fun tid ->
         db.Planner.ExecuteUpdate
-            tx
+            tx1
             ("insert into updatetest(tid,tname,tdate) values("
              + tid.ToString()
              + ",'test"
@@ -89,12 +97,15 @@ let delete () =
              + tid.ToString()
              + ")")
         |> ignore)
-
-    db.Planner.ExecuteUpdate tx "delete from updatetest where tid > 1"
+    db.Planner.ExecuteUpdate tx1 "delete from updatetest where tid > 1"
     |> should equal 4
+    tx1.Commit()
+
+    let tx2 =
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
-        db.Planner.CreateQueryPlan tx "select tid,tname,tdate from updatetest"
+        db.Planner.CreateQueryPlan tx2 "select tid,tname,tdate from updatetest"
         |> Plan.openScan
 
     let mutable i = 0
@@ -108,9 +119,13 @@ let delete () =
         scan.GetVal "tdate"
         |> should equal (BigIntDbConstant 10000000000001L)
     i |> should equal 1
+    tx2.Commit()
 
-    db.Catalog.DropTable tx "updatetest"
-    tx.Commit()
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx3 "updatetest"
+    tx3.Commit()
 
 [<Fact>]
 let modify () =
@@ -123,13 +138,13 @@ let modify () =
     createTable db
     createIndex db
 
-    let tx =
+    let tx1 =
         db.Transaction.NewTransaction false Serializable
 
     [ 1 .. 5 ]
     |> List.iter (fun tid ->
         db.Planner.ExecuteUpdate
-            tx
+            tx1
             ("insert into updatetest(tid,tname,tdate) values("
              + tid.ToString()
              + ",'test"
@@ -138,12 +153,15 @@ let modify () =
              + tid.ToString()
              + ")")
         |> ignore)
-
-    db.Planner.ExecuteUpdate tx "update updatetest set tname = 'kkk', tdate=99999 where tid < 5"
+    db.Planner.ExecuteUpdate tx1 "update updatetest set tname = 'kkk', tdate=99999 where tid < 5"
     |> should equal 4
+    tx1.Commit()
+
+    let tx2 =
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
-        db.Planner.CreateQueryPlan tx "select tid,tname,tdate from updatetest"
+        db.Planner.CreateQueryPlan tx2 "select tid,tname,tdate from updatetest"
         |> Plan.openScan
 
     let mutable i = 0
@@ -163,9 +181,13 @@ let modify () =
             scan.GetVal "tdate"
             |> should equal (BigIntDbConstant 99999L)
     i |> should equal 5
+    tx2.Commit()
 
-    db.Catalog.DropTable tx "updatetest"
-    tx.Commit()
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx3 "updatetest"
+    tx3.Commit()
 
 [<Fact>]
 let ``modify predicate`` () =
@@ -178,13 +200,13 @@ let ``modify predicate`` () =
     createTable db
     createIndex db
 
-    let tx =
+    let tx1 =
         db.Transaction.NewTransaction false Serializable
 
     [ 1 .. 5 ]
     |> List.iter (fun tid ->
         db.Planner.ExecuteUpdate
-            tx
+            tx1
             ("insert into updatetest(tid,tname,tdate) values("
              + tid.ToString()
              + ",'test"
@@ -193,12 +215,15 @@ let ``modify predicate`` () =
              + tid.ToString()
              + ")")
         |> ignore)
-
-    db.Planner.ExecuteUpdate tx "update updatetest set tid=111,tname='kkk',tdate=99999 where 2<=tid and tid<=4"
+    db.Planner.ExecuteUpdate tx1 "update updatetest set tid=111,tname='kkk',tdate=99999 where 2<=tid and tid<=4"
     |> should equal 3
+    tx1.Commit()
+
+    let tx2 =
+        db.Transaction.NewTransaction true Serializable
 
     use scan =
-        db.Planner.CreateQueryPlan tx "select tid,tname,tdate from updatetest where tid=111"
+        db.Planner.CreateQueryPlan tx2 "select tid,tname,tdate from updatetest where tid=111"
         |> Plan.openScan
 
     let mutable i = 0
@@ -212,6 +237,10 @@ let ``modify predicate`` () =
         scan.GetVal "tdate"
         |> should equal (BigIntDbConstant 99999L)
     i |> should equal 3
+    tx2.Commit()
 
-    db.Catalog.DropTable tx "updatetest"
-    tx.Commit()
+    let tx3 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx3 "updatetest"
+    tx3.Commit()

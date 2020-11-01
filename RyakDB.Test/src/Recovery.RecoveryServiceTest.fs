@@ -105,56 +105,60 @@ let recover () =
     let tx1 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx1.Buffer.Pin blockId
-    tx1.Recovery.LogSetVal buff 104 (IntDbConstant 1234)
-    |> buff.SetVal 104 (IntDbConstant 1234)
-    tx1.Buffer.Unpin buff
+    let buff1 = tx1.Buffer.Pin blockId
+    tx1.Recovery.LogSetVal buff1 104 (IntDbConstant 1234)
+    |> buff1.SetVal 104 (IntDbConstant 1234)
+    tx1.Buffer.Unpin buff1
 
     let tx2 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx2.Buffer.Pin blockId
-    tx2.Recovery.LogSetVal buff 120 (DbConstant.newVarchar "xyz")
-    |> buff.SetVal 120 (DbConstant.newVarchar "xyz")
-    tx2.Buffer.Unpin buff
+    let buff2 = tx2.Buffer.Pin blockId
+    tx2.Recovery.LogSetVal buff2 120 (DbConstant.newVarchar "xyz")
+    |> buff2.SetVal 120 (DbConstant.newVarchar "xyz")
+    tx2.Buffer.Unpin buff2
 
     let tx3 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx3.Buffer.Pin blockId
-    tx3.Recovery.LogSetVal buff 140 (DbConstant.newVarchar "rst")
-    |> buff.SetVal 140 (DbConstant.newVarchar "rst")
-    tx3.Buffer.Unpin buff
+    let buff3 = tx3.Buffer.Pin blockId
+    tx3.Recovery.LogSetVal buff3 140 (DbConstant.newVarchar "rst")
+    |> buff3.SetVal 140 (DbConstant.newVarchar "rst")
+    tx3.Buffer.Unpin buff3
 
     tx2.Commit()
 
     let tx4 =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
-    let buff = tx4.Buffer.Pin blockId
-    buff.GetVal 104 IntDbType
+    let buff4 = tx4.Buffer.Pin blockId
+    buff4.GetVal 104 IntDbType
     |> should equal (IntDbConstant 1234)
-    buff.GetVal 120 (VarcharDbType 0)
+    buff4.GetVal 120 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "xyz")
-    buff.GetVal 140 (VarcharDbType 0)
+    buff4.GetVal 140 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "rst")
-    tx4.Buffer.Unpin buff
+    tx4.Buffer.Unpin buff4
+    tx4.Commit()
 
     let tx5 =
         db.Transaction.NewTransaction false Serializable
 
     db.Recovery.RecoverSystem tx5
-
-    let buff = tx5.Buffer.Pin blockId
-    buff.GetVal 104 IntDbType
-    |> should equal (IntDbConstant 9999)
-    buff.GetVal 120 (VarcharDbType 0)
-    |> should equal (DbConstant.newVarchar "xyz")
-    buff.GetVal 140 (VarcharDbType 0)
-    |> should equal (DbConstant.newVarchar "kjih")
-    tx5.Buffer.Unpin buff
-
     tx5.Commit()
+
+    let tx6 =
+        db.Transaction.NewTransaction true Serializable
+
+    let buff6 = tx6.Buffer.Pin blockId
+    buff6.GetVal 104 IntDbType
+    |> should equal (IntDbConstant 9999)
+    buff6.GetVal 120 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "xyz")
+    buff6.GetVal 140 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "kjih")
+    tx6.Buffer.Unpin buff6
+    tx6.Commit()
 
 [<Fact>]
 let checkpoint () =
@@ -167,34 +171,34 @@ let checkpoint () =
     let tx1 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx1.Buffer.Pin blockId
-    tx1.Recovery.LogSetVal buff 204 (IntDbConstant 3538)
-    |> buff.SetVal 204 (IntDbConstant 3538)
-    tx1.Buffer.Unpin buff
+    let buff1 = tx1.Buffer.Pin blockId
+    tx1.Recovery.LogSetVal buff1 204 (IntDbConstant 3538)
+    |> buff1.SetVal 204 (IntDbConstant 3538)
+    tx1.Buffer.Unpin buff1
 
     let tx2 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx2.Buffer.Pin blockId
-    tx2.Recovery.LogSetVal buff 220 (DbConstant.newVarchar "twel")
-    |> buff.SetVal 220 (DbConstant.newVarchar "twel")
-    tx2.Buffer.Unpin buff
+    let buff2 = tx2.Buffer.Pin blockId
+    tx2.Recovery.LogSetVal buff2 220 (DbConstant.newVarchar "twel")
+    |> buff2.SetVal 220 (DbConstant.newVarchar "twel")
+    tx2.Buffer.Unpin buff2
 
     let tx3 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx3.Buffer.Pin blockId
-    tx3.Recovery.LogSetVal buff 240 (DbConstant.newVarchar "tfth")
-    |> buff.SetVal 240 (DbConstant.newVarchar "tfth")
-    tx3.Buffer.Unpin buff
+    let buff3 = tx3.Buffer.Pin blockId
+    tx3.Recovery.LogSetVal buff3 240 (DbConstant.newVarchar "tfth")
+    |> buff3.SetVal 240 (DbConstant.newVarchar "tfth")
+    tx3.Buffer.Unpin buff3
 
     let tx4 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx4.Buffer.Pin blockId
-    tx4.Recovery.LogSetVal buff 304 (IntDbConstant 9323)
-    |> buff.SetVal 304 (IntDbConstant 9323)
-    tx4.Buffer.Unpin buff
+    let buff4 = tx4.Buffer.Pin blockId
+    tx4.Recovery.LogSetVal buff4 304 (IntDbConstant 9323)
+    |> buff4.SetVal 304 (IntDbConstant 9323)
+    tx4.Buffer.Unpin buff4
 
     tx2.Commit()
     tx3.Rollback()
@@ -206,18 +210,18 @@ let checkpoint () =
     let tx5 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx5.Buffer.Pin blockId
-    tx5.Recovery.LogSetVal buff 320 (DbConstant.newVarchar "sixt")
-    |> buff.SetVal 320 (DbConstant.newVarchar "sixt")
-    tx5.Buffer.Unpin buff
+    let buff5 = tx5.Buffer.Pin blockId
+    tx5.Recovery.LogSetVal buff5 320 (DbConstant.newVarchar "sixt")
+    |> buff5.SetVal 320 (DbConstant.newVarchar "sixt")
+    tx5.Buffer.Unpin buff5
 
     let tx6 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx6.Buffer.Pin blockId
-    tx6.Recovery.LogSetVal buff 240 (DbConstant.newVarchar "eenth")
-    |> buff.SetVal 240 (DbConstant.newVarchar "eenth")
-    tx6.Buffer.Unpin buff
+    let buff6 = tx6.Buffer.Pin blockId
+    tx6.Recovery.LogSetVal buff6 240 (DbConstant.newVarchar "eenth")
+    |> buff6.SetVal 240 (DbConstant.newVarchar "eenth")
+    tx6.Buffer.Unpin buff6
 
     tx5.Commit()
 
@@ -225,23 +229,26 @@ let checkpoint () =
         db.Transaction.NewTransaction false Serializable
 
     db.Recovery.RecoverSystem tx7
-
-    let buff = tx7.Buffer.Pin blockId
-    buff.GetVal 204 IntDbType
-    |> should equal (IntDbConstant 3538)
-    buff.GetVal 220 (VarcharDbType 0)
-    |> should equal (DbConstant.newVarchar "twel")
-    buff.GetVal 240 (VarcharDbType 0)
-    |> should equal (DbConstant.newVarchar "urth")
-    buff.GetVal 304 IntDbType
-    |> should equal (IntDbConstant 9265)
-    buff.GetVal 320 (VarcharDbType 0)
-    |> should equal (DbConstant.newVarchar "sixt")
-    buff.GetVal 340 (VarcharDbType 0)
-    |> should equal (DbConstant.newVarchar "ghth")
-    tx7.Buffer.Unpin buff
-
     tx7.Commit()
+
+    let tx8 =
+        db.Transaction.NewTransaction true Serializable
+
+    let buff8 = tx8.Buffer.Pin blockId
+    buff8.GetVal 204 IntDbType
+    |> should equal (IntDbConstant 3538)
+    buff8.GetVal 220 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "twel")
+    buff8.GetVal 240 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "urth")
+    buff8.GetVal 304 IntDbType
+    |> should equal (IntDbConstant 9265)
+    buff8.GetVal 320 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "sixt")
+    buff8.GetVal 340 (VarcharDbType 0)
+    |> should equal (DbConstant.newVarchar "ghth")
+    tx8.Buffer.Unpin buff8
+    tx8.Commit()
 
 [<Fact>]
 let ``table record`` () =
@@ -306,7 +313,7 @@ let ``table record`` () =
     tx3.Rollback()
 
     let tx4 =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     use tf4 =
         db.Catalog.GetTableInfo tx4 "RecoveryTest"
@@ -319,9 +326,13 @@ let ``table record`` () =
     |> DbConstant.toString
     |> should equal "course1"
     tf4.Next() |> should be False
-
-    db.Catalog.DropTable tx4 "RecoveryTest"
     tx4.Commit()
+
+    let tx5 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx5 "RecoveryTest"
+    tx5.Commit()
 
 [<Fact>]
 let ``B-tree index`` () =
@@ -367,38 +378,31 @@ let ``B-tree index`` () =
     let tx2 =
         db.Transaction.NewTransaction false Serializable
 
-    use index2 =
-        db.Catalog.GetIndexInfosByTable tx2 "RecoveryTest"
-        |> List.head
-        |> IndexFactory.newIndex db.File tx2
-
-    let mutable cnt = 0
-    SearchRange.newSearchRangeBySearchKey key5
-    |> index2.BeforeFirst
-    while index2.Next() do
-        cnt <- cnt + 1
-    cnt |> should equal 10
-
-    SearchRange.newSearchRangeBySearchKey key7
-    |> index2.BeforeFirst
-    index2.Next() |> should be True
-    index2.GetDataRecordId() |> should equal rid2
-    index2.Next() |> should be False
-
+    db.Recovery.RecoverSystem tx2
     tx2.Commit()
 
     let tx3 =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     use index3 =
         db.Catalog.GetIndexInfosByTable tx3 "RecoveryTest"
         |> List.head
         |> IndexFactory.newIndex db.File tx3
 
-    index3.Delete true key7 rid2
-    index3.Insert true key777 rid3
+    let mutable cnt = 0
+    SearchRange.newSearchRangeBySearchKey key5
+    |> index3.BeforeFirst
+    while index3.Next() do
+        cnt <- cnt + 1
+    cnt |> should equal 10
 
-    tx3.Rollback()
+    SearchRange.newSearchRangeBySearchKey key7
+    |> index3.BeforeFirst
+    index3.Next() |> should be True
+    index3.GetDataRecordId() |> should equal rid2
+    index3.Next() |> should be False
+
+    tx3.Commit()
 
     let tx4 =
         db.Transaction.NewTransaction false Serializable
@@ -408,17 +412,35 @@ let ``B-tree index`` () =
         |> List.head
         |> IndexFactory.newIndex db.File tx4
 
+    index4.Delete true key7 rid2
+    index4.Insert true key777 rid3
+
+    tx4.Rollback()
+
+    let tx5 =
+        db.Transaction.NewTransaction true Serializable
+
+    use index5 =
+        db.Catalog.GetIndexInfosByTable tx5 "RecoveryTest"
+        |> List.head
+        |> IndexFactory.newIndex db.File tx5
+
     SearchRange.newSearchRangeBySearchKey key7
-    |> index4.BeforeFirst
-    index4.Next() |> should be True
-    index4.GetDataRecordId() |> should equal rid2
+    |> index5.BeforeFirst
+    index5.Next() |> should be True
+    index5.GetDataRecordId() |> should equal rid2
 
     SearchRange.newSearchRangeBySearchKey key777
-    |> index4.BeforeFirst
-    index4.Next() |> should be False
+    |> index5.BeforeFirst
+    index5.Next() |> should be False
 
-    db.Catalog.DropTable tx4 "RecoveryTest"
-    tx4.Commit()
+    tx5.Commit()
+
+    let tx6 =
+        db.Transaction.NewTransaction false Serializable
+
+    db.Catalog.DropTable tx6 "RecoveryTest"
+    tx6.Commit()
 
 [<Fact>]
 let ``crash during rollback`` () =
@@ -437,40 +459,46 @@ let ``crash during rollback`` () =
     let tx3 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx1.Buffer.Pin blockId
-    tx1.Recovery.LogSetVal buff 504 (IntDbConstant 1111)
-    |> buff.SetVal 504 (IntDbConstant 1111)
+    let buff1 = tx1.Buffer.Pin blockId
+    let buff2 = tx2.Buffer.Pin blockId
+    let buff3 = tx3.Buffer.Pin blockId
 
-    tx2.Recovery.LogSetVal buff 520 (DbConstant.newVarchar "bbbb")
-    |> buff.SetVal 520 (DbConstant.newVarchar "bbbb")
+    tx1.Recovery.LogSetVal buff1 504 (IntDbConstant 1111)
+    |> buff1.SetVal 504 (IntDbConstant 1111)
 
-    tx3.Recovery.LogSetVal buff 540 (DbConstant.newVarchar "BBBB")
-    |> buff.SetVal 540 (DbConstant.newVarchar "BBBB")
+    tx2.Recovery.LogSetVal buff2 520 (DbConstant.newVarchar "bbbb")
+    |> buff2.SetVal 520 (DbConstant.newVarchar "bbbb")
 
-    tx1.Recovery.LogSetVal buff 504 (IntDbConstant 2222)
-    |> buff.SetVal 504 (IntDbConstant 2222)
+    tx3.Recovery.LogSetVal buff3 540 (DbConstant.newVarchar "BBBB")
+    |> buff3.SetVal 540 (DbConstant.newVarchar "BBBB")
 
-    tx2.Recovery.LogSetVal buff 520 (DbConstant.newVarchar "cccc")
-    |> buff.SetVal 520 (DbConstant.newVarchar "cccc")
+    tx1.Recovery.LogSetVal buff1 504 (IntDbConstant 2222)
+    |> buff1.SetVal 504 (IntDbConstant 2222)
 
-    tx3.Recovery.LogSetVal buff 540 (DbConstant.newVarchar "CCCC")
-    |> buff.SetVal 540 (DbConstant.newVarchar "CCCC")
+    tx2.Recovery.LogSetVal buff2 520 (DbConstant.newVarchar "cccc")
+    |> buff2.SetVal 520 (DbConstant.newVarchar "cccc")
 
-    tx1.Buffer.Unpin buff
+    tx3.Recovery.LogSetVal buff3 540 (DbConstant.newVarchar "CCCC")
+    |> buff3.SetVal 540 (DbConstant.newVarchar "CCCC")
+
+    tx1.Buffer.Unpin buff1
+    tx2.Buffer.Unpin buff2
+    tx3.Buffer.Unpin buff3
 
     tx3.Commit()
 
     let tx4 =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
-    let buff = tx4.Buffer.Pin blockId
-    buff.GetVal 504 IntDbType
+    let buff4 = tx4.Buffer.Pin blockId
+    buff4.GetVal 504 IntDbType
     |> should equal (IntDbConstant 2222)
-    buff.GetVal 520 (VarcharDbType 0)
+    buff4.GetVal 520 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "cccc")
-    buff.GetVal 540 (VarcharDbType 0)
+    buff4.GetVal 540 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "CCCC")
-    tx4.Buffer.Unpin buff
+    tx4.Buffer.Unpin buff4
+    tx4.Commit()
 
     RecoveryService.rollbackPartially db.File db.Log db.Catalog tx1 5
     RecoveryService.rollbackPartially db.File db.Log db.Catalog tx2 6
@@ -479,15 +507,20 @@ let ``crash during rollback`` () =
         db.Transaction.NewTransaction false Serializable
 
     db.Recovery.RecoverSystem tx5
+    tx5.Commit()
 
-    let buff = tx5.Buffer.Pin blockId
-    buff.GetVal 504 IntDbType
+    let tx6 =
+        db.Transaction.NewTransaction true Serializable
+
+    let buff6 = tx6.Buffer.Pin blockId
+    buff6.GetVal 504 IntDbType
     |> should equal (IntDbConstant 0)
-    buff.GetVal 520 (VarcharDbType 0)
+    buff6.GetVal 520 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "aaaa")
-    buff.GetVal 540 (VarcharDbType 0)
+    buff6.GetVal 540 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "CCCC")
-    tx5.Buffer.Unpin buff
+    tx6.Buffer.Unpin buff6
+    tx6.Commit()
 
 [<Fact>]
 let ``crash during recovery`` () =
@@ -506,56 +539,68 @@ let ``crash during recovery`` () =
     let tx3 =
         db.Transaction.NewTransaction false Serializable
 
-    let buff = tx1.Buffer.Pin blockId
-    tx1.Recovery.LogSetVal buff 404 (IntDbConstant 1111)
-    |> buff.SetVal 404 (IntDbConstant 1111)
+    let buff1 = tx1.Buffer.Pin blockId
+    let buff2 = tx2.Buffer.Pin blockId
+    let buff3 = tx3.Buffer.Pin blockId
 
-    tx2.Recovery.LogSetVal buff 420 (DbConstant.newVarchar "bbbb")
-    |> buff.SetVal 420 (DbConstant.newVarchar "bbbb")
+    tx1.Recovery.LogSetVal buff1 404 (IntDbConstant 1111)
+    |> buff1.SetVal 404 (IntDbConstant 1111)
 
-    tx3.Recovery.LogSetVal buff 440 (DbConstant.newVarchar "BBBB")
-    |> buff.SetVal 440 (DbConstant.newVarchar "BBBB")
+    tx2.Recovery.LogSetVal buff2 420 (DbConstant.newVarchar "bbbb")
+    |> buff2.SetVal 420 (DbConstant.newVarchar "bbbb")
 
-    tx1.Recovery.LogSetVal buff 404 (IntDbConstant 2222)
-    |> buff.SetVal 404 (IntDbConstant 2222)
+    tx3.Recovery.LogSetVal buff3 440 (DbConstant.newVarchar "BBBB")
+    |> buff3.SetVal 440 (DbConstant.newVarchar "BBBB")
 
-    tx2.Recovery.LogSetVal buff 420 (DbConstant.newVarchar "cccc")
-    |> buff.SetVal 420 (DbConstant.newVarchar "cccc")
+    tx1.Recovery.LogSetVal buff1 404 (IntDbConstant 2222)
+    |> buff1.SetVal 404 (IntDbConstant 2222)
 
-    tx3.Recovery.LogSetVal buff 440 (DbConstant.newVarchar "CCCC")
-    |> buff.SetVal 440 (DbConstant.newVarchar "CCCC")
+    tx2.Recovery.LogSetVal buff2 420 (DbConstant.newVarchar "cccc")
+    |> buff2.SetVal 420 (DbConstant.newVarchar "cccc")
 
-    tx1.Buffer.Unpin buff
+    tx3.Recovery.LogSetVal buff3 440 (DbConstant.newVarchar "CCCC")
+    |> buff3.SetVal 440 (DbConstant.newVarchar "CCCC")
+
+    tx1.Buffer.Unpin buff1
+    tx2.Buffer.Unpin buff2
+    tx3.Buffer.Unpin buff3
 
     tx3.Commit()
 
     let tx4 =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
-    let buff = tx4.Buffer.Pin blockId
-    buff.GetVal 404 IntDbType
+    let buff4 = tx4.Buffer.Pin blockId
+    buff4.GetVal 404 IntDbType
     |> should equal (IntDbConstant 2222)
-    buff.GetVal 420 (VarcharDbType 0)
+    buff4.GetVal 420 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "cccc")
-    buff.GetVal 440 (VarcharDbType 0)
+    buff4.GetVal 440 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "CCCC")
-    tx4.Buffer.Unpin buff
+    tx4.Buffer.Unpin buff4
+    tx4.Commit()
 
     let tx5 =
         db.Transaction.NewTransaction false Serializable
 
     RecoveryService.recoverPartially db.File db.Log db.Catalog tx5 7
+    tx5.Commit()
 
     let tx6 =
         db.Transaction.NewTransaction false Serializable
 
     db.Recovery.RecoverSystem tx6
+    tx6.Commit()
 
-    let buff = tx6.Buffer.Pin blockId
-    buff.GetVal 404 IntDbType
+    let tx7 =
+        db.Transaction.NewTransaction true Serializable
+
+    let buff7 = tx7.Buffer.Pin blockId
+    buff7.GetVal 404 IntDbType
     |> should equal (IntDbConstant 0)
-    buff.GetVal 420 (VarcharDbType 0)
+    buff7.GetVal 420 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "aaaa")
-    buff.GetVal 440 (VarcharDbType 0)
+    buff7.GetVal 440 (VarcharDbType 0)
     |> should equal (DbConstant.newVarchar "CCCC")
-    tx6.Buffer.Unpin buff
+    tx7.Buffer.Unpin buff7
+    tx7.Commit()

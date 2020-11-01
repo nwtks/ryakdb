@@ -21,7 +21,7 @@ let count () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
@@ -54,7 +54,7 @@ let max () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
@@ -87,7 +87,7 @@ let min () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
@@ -120,7 +120,7 @@ let sum () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
@@ -153,7 +153,7 @@ let avg () =
     setupStudentTable db
 
     let tx =
-        db.Transaction.NewTransaction false Serializable
+        db.Transaction.NewTransaction true Serializable
 
     let newSortScan =
         MergeSort.newSortScanFactory db.File db.BufferPool tx
